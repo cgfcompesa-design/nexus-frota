@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && getUserData().role == role;
+    }
+
+    function isAdmin() {
+      return hasRole('Admin');
+    }
+
+    function isGestor() {
+      return hasRole('Gestor') || isAdmin();
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isOwner(userId) && request.resource.data.role == 'Operador'; // Default role
+      allow update: if isAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    }
+
+    // --- Maintenance Tasks ---
+    match /maintenance_tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create, update: if isGestor() || hasRole('Operador');
+      allow delete: if isAdmin() || isGestor();
+    }
+
+    // --- Telemetry Logs ---
+    match /telemetry_logs/{logId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isGestor();
+    }
+
+    // --- Kanban System ---
+    match /kanban_tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    match /kanban_responsibles/{responsibleId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isSignedIn();
+    }
+
+    // --- Indicators ---
+    match /indicators/{indicatorId} {
+      allow read: if isSignedIn();
+      allow write: if isGestor();
+    }
+
+    match /indicator_values/{valueId} {
+      allow read: if isSignedIn();
+      allow write: if isGestor();
+    }
+  }
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Nexus Frota BI",
+  "description": "Sistema unificado de gestão e monitoria de frota com telemetria BI e Kanban de manutenção, integrando performance e ordens de serviço.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

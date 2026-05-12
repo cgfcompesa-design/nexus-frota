@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Perfis de usuários do sistema Nexus Frota",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "ID exclusivo do Firebase Auth" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["Admin", "Gestor", "Operador"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "MaintenanceTask": {
+      "title": "Maintenance Task",
+      "description": "Ordem de serviço para o quadro Kanban",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "vehicleId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["Triagem", "Em Manutenção", "Aguardando Peças", "Finalizado"] },
+        "priority": { "type": "string", "enum": ["Baixa", "Média", "Alta", "Urgente"] },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["vehicleId", "title", "status"]
+    },
+    "TelemetryLog": {
+      "title": "Telemetry Log",
+      "description": "Dados de performance e consumo de combustível",
+      "type": "object",
+      "properties": {
+        "vehicleId": { "type": "string" },
+        "fuelConsumption": { "type": "number", "description": "km/l" },
+        "cost": { "type": "number", "description": "R$" },
+        "speedAlerts": { "type": "integer" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      }
+    },
+    "KanbanTask": {
+      "title": "Kanban Task",
+      "description": "Atividade do quadro Kanban de demandas",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "status": { "type": "string", "enum": ["todo", "progress", "review", "done"] },
+        "sector": { "type": "string" },
+        "priority_color": { "type": "string" },
+        "activity_type": { "type": "string" },
+        "responsibles": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Indicator": {
+      "title": "Indicator",
+      "description": "Indicador de gestão à vista",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "section": { "type": "string" },
+        "subsection": { "type": "string" },
+        "unit": { "type": "string" },
+        "target": { "type": "number" },
+        "current_value": { "type": "number" }
+      }
+    },
+    "IndicatorValue": {
+      "title": "Indicator Value",
+      "description": "Valor mensal de um indicador",
+      "type": "object",
+      "properties": {
+        "indicator_id": { "type": "string" },
+        "month": { "type": "string" },
+        "target": { "type": "number" },
+        "current_value": { "type": "number" }
+      }
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Dados de perfil do usuário"
+    },
+    "/maintenance_tasks/{taskId}": {
+      "schema": "MaintenanceTask",
+      "description": "Ordens de serviço para o Kanban"
+    },
+    "/telemetry_logs/{logId}": {
+      "schema": "TelemetryLog",
+      "description": "Logs de telemetria para BI"
+    },
+    "/kanban_tasks/{taskId}": {
+      "schema": "KanbanTask",
+      "description": "Atividades CGF"
+    },
+    "/indicators/{indicatorId}": {
+      "schema": "Indicator",
+      "description": "Definições de indicadores"
+    },
+    "/indicator_values/{valueId}": {
+      "schema": "IndicatorValue",
+      "description": "Valores mensais de indicadores"
+    }
+  }
+}

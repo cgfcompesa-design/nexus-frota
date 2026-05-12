@@ -1,0 +1,373 @@
+import { useState, useEffect } from 'react';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { auth, db } from './lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { Settings, ShieldAlert, Share2 } from 'lucide-react';
+import { Button } from './components/ui/button';
+import LoginPage from './components/auth/LoginPage';
+import Sidebar from './components/layout/Sidebar';
+import Overview from './components/dashboard/Overview';
+import TelemetryDashboard from './components/telemetry/TelemetryDashboard';
+import FuelCompare from './components/telemetry/FuelCompare';
+import RankingView from './components/telemetry/RankingView';
+import RegularizacaoDashboard from './components/regularizacao/RegularizacaoDashboard';
+import TaxasInspecoesDashboard from './components/taxas/TaxasInspecoesDashboard';
+import RegularizacaoDocumentosPage from './components/regularizacao/RegularizacaoDocumentosPage';
+import MaintenanceDashboardPage from './components/maintenance/MaintenanceDashboardPage';
+import { MaintenanceHistoryDashboard } from './components/maintenance/MaintenanceHistoryDashboard';
+import { LocadosDashboard } from './components/maintenance/LocadosDashboard';
+import FuelDashboardsPage from './components/fuel/FuelDashboardsPage';
+import { FuelDashboard } from './components/fuel/FuelDashboard';
+import { SupplyPerformanceDashboard } from './components/fuel/SupplyPerformanceDashboard';
+import { CNHControlDashboard } from './components/fuel/CNHControlDashboard';
+import CCODashboard from './components/cco/CCODashboard';
+import Home from './components/home/Home';
+import KanbanBoard from './components/kanban/KanbanBoard';
+import GestaoVista from './components/gestao/GestaoVista';
+import DrivePage from './components/drive/DrivePage';
+import ActivityManagement from './components/config/ActivityManagement';
+import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
+import AlertConfig from './components/config/AlertConfig';
+import UserManagement from './components/config/UserManagement';
+import { Toaster } from 'sonner';
+
+// Logic hook to keep component lean
+function useAppLogic() {
+  const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [currentView, setCurrentView] = useState('home');
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      if (authUser) {
+        setUser(authUser);
+        try {
+          const docRef = doc(db, 'users', authUser.uid);
+          const userDoc = await getDoc(docRef);
+          if (userDoc.exists()) {
+            setUserProfile(userDoc.data());
+          }
+        } catch (error) {
+          console.error("Erro ao buscar perfil do usuário:", error);
+        }
+      } else {
+        setUser(null);
+        setUserProfile(null);
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  return { user, loading, userProfile, currentView, setCurrentView };
+}
+
+// Separate components to keep App.tsx clean and avoid re-definition during render
+function AbastDesviosView({ desviosOnly }: { desviosOnly: boolean }) {
+  const { data: fuel = [] } = useFuelData();
+  const { data: assets = [] } = useAssets();
+  const { data: autonomia = [] } = useAutonomiaData();
+  const { data: autonomiaPadrao = [] } = useAutonomiaPadraoData();
+  const { data: maintenanceCost = [] } = useMaintenanceCostData();
+  const { data: maintenance = [] } = useMaintenanceData();
+  
+  return (
+    <FuelDashboard 
+      fuel={fuel} 
+      assets={assets} 
+      autonomia={autonomia} 
+      autonomiaPadrao={autonomiaPadrao} 
+      maintenanceCost={maintenanceCost} 
+      maintenance={maintenance} 
+      desviosOnly={desviosOnly} 
+    />
+  );
+}
+
+function AbastPerformanceView() {
+  const { data: fuel = [] } = useFuelData();
+  const { data: assets = [] } = useAssets();
+  return <SupplyPerformanceDashboard fuel={fuel} assets={assets} />;
+}
+
+function MaintenanceDesempenhoView() {
+  const { data: maintenanceCost = [] } = useMaintenanceCostData();
+  return <MaintenanceHistoryDashboard maintenanceCost={maintenanceCost} />;
+}
+
+export default function App() {
+  const {
+    user,
+    loading,
+    userProfile,
+    currentView,
+    setCurrentView
+  } = useAppLogic();
+
+  const MASTER_EMAIL = "cgf.compesa@gmail.com";
+  const effectiveRole = user?.email === MASTER_EMAIL ? 'Master' : (userProfile?.role || 'Visualizador');
+
+  const renderView = () => {
+    // Role based protection - only if user is logged in
+    if (user && effectiveRole === 'Visualizador') {
+      const allowedViews = ['home', 'resumo', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'kanban', 'gestao-vista', 'drive'];
+      if (!allowedViews.includes(currentView)) {
+        return <Home setView={setCurrentView} />;
+      }
+    }
+
+    if (currentView === 'kanban' || currentView === 'gestao-vista' || currentView === 'gerenciamento-atividades') {
+      if (currentView === 'kanban') return <KanbanBoard onBack={() => setCurrentView('home')} />;
+      if (currentView === 'gestao-vista') return <GestaoVista onBack={() => setCurrentView('home')} />;
+      if (currentView === 'gerenciamento-atividades') {
+        return <ActivityManagement onBack={() => setCurrentView('home')} />;
+      }
+    }
+
+    switch (currentView) {
+      case 'home': return <Home setView={setCurrentView} />;
+      case 'drive': return <DrivePage />;
+      case 'resumo': return <Overview />;
+      case 'telemetria': return <TelemetryDashboard />;
+      case 'abast-dash': return <FuelDashboardsPage />;
+      case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
+      case 'gestao-vista':
+      case 'gerenciamento-atividades':
+        if (effectiveRole !== 'Master' && effectiveRole !== 'Gestão') {
+// ...
+          return (
+            <div className="flex flex-col items-center justify-center h-[400px] space-y-4">
+              <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl flex items-center justify-center">
+                <ShieldAlert size={24} />
+              </div>
+              <h2 className="text-xl font-black uppercase text-slate-800 dark:text-white">Acesso Restrito</h2>
+              <p className="text-slate-500 font-bold uppercase text-[10px]">Somente usuários com perfil Gestão ou Master podem acessar este módulo.</p>
+              <Button onClick={() => setCurrentView('home')} variant="outline" className="font-black uppercase text-[10px]">Voltar ao Início</Button>
+            </div>
+          );
+        }
+        return (
+          <div className="flex flex-col items-center justify-center h-[500px] space-y-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 m-8">
+            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-3xl flex items-center justify-center animate-pulse">
+               <Settings size={40} />
+            </div>
+            <div className="text-center">
+               <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white mb-2">Módulo em Integração</h2>
+               <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Este recurso estará disponível na próxima atualização do sistema.</p>
+            </div>
+            <Button onClick={() => setCurrentView('home')} className="bg-indigo-600 hover:bg-indigo-700 font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 rounded-xl px-8">Explorar Outros Módulos</Button>
+          </div>
+        );
+      case 'abast-desvios': return <AbastDesviosView desviosOnly={true} />;
+      case 'abast-perf': return <AbastPerformanceView />;
+      case 'rankings': return <RankingView />;
+      case 'reg-infracoes': return <RegularizacaoDashboard />;
+      case 'reg-taxas': return <TaxasInspecoesDashboard />;
+      case 'reg-docs': return <RegularizacaoDocumentosPage />;
+      case 'mnt-ctrl-op': return <MaintenanceDashboardPage userRole={effectiveRole} />;
+      case 'mnt-desemp': return <MaintenanceDesempenhoView />;
+      case 'locados': return <LocadosDashboard />;
+      case 'cco': return <CCODashboard setView={setCurrentView} />;
+      case 'config': return <AlertConfig />;
+      case 'abast-alertas': return <AlertConfig />;
+      case 'users': return <UserManagement />;
+      default: 
+        if (currentView.startsWith('abast-') || currentView.startsWith('mnt-') || currentView.startsWith('reg-') || currentView === 'locados') {
+          return (
+            <div className="flex flex-col items-center justify-center h-[400px] space-y-4">
+              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl flex items-center justify-center">
+                <Settings className="animate-spin-slow" />
+              </div>
+              <div className="text-center">
+                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Módulo em Integração</h2>
+                <p className="text-slate-400 font-medium text-sm">Esta funcionalidade está sendo sincronizada com o banco de dados Compesa.</p>
+              </div>
+            </div>
+          );
+        }
+        return <Overview />;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="text-slate-400 font-bold text-xs uppercase tracking-widest animate-pulse">Iniciando Nexus Frota...</div>
+      </div>
+    );
+  }
+
+  // Handle Fullscreen DrivePage (No Auth Required)
+  if (currentView === 'drive') {
+    return (
+      <div className="min-h-screen">
+        <DrivePage />
+        <Toaster position="top-right" />
+      </div>
+    );
+  }
+
+  // Visitor Access (Public BI)
+  if (!user) {
+    const publicViews = ['resumo', 'abast-dash'];
+    if (publicViews.includes(currentView)) {
+      return (
+        <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+          <Sidebar 
+            currentView={currentView} 
+            setView={setCurrentView} 
+            user={{ displayName: 'Visitante', email: 'visitante@nexus.frota', role: 'Visualizador' }} 
+          />
+          <main className="flex-1 overflow-hidden flex flex-col">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
+               <div className="flex items-center space-x-4">
+               <img 
+                src="/src/assets/images/regenerated_image_1778593500523.png" 
+                alt="Nexus BI Logo" 
+                className="h-8 w-auto object-contain cursor-pointer" 
+                onClick={() => setCurrentView('resumo')}
+                onError={(e) => {
+                  e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
+                }}
+              />
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-blue-500"></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
+              </div>
+            </div>
+              <Button onClick={() => setCurrentView('login')} variant="ghost" className="text-[10px] font-black uppercase tracking-widest">Login Administrativo</Button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+              <div className="max-w-7xl mx-auto">
+                {renderView()}
+              </div>
+            </div>
+          </main>
+          <Toaster position="top-right" />
+        </div>
+      );
+    }
+    
+    if (currentView === 'login') return <LoginPage setView={setCurrentView} />;
+    
+    // Default for unauthorized users who are not in public views
+    return <LoginPage setView={setCurrentView} />;
+  }
+
+  // Handle standalone pages (Home, Kanban, Gestao Vista)
+  if (currentView === 'home' || currentView === 'kanban' || currentView === 'gestao-vista' || currentView === 'gerenciamento-atividades') {
+    if (currentView === 'home') {
+      return (
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950 overflow-y-auto">
+          <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center sticky top-0 z-50">
+            <div className="flex items-center space-x-4">
+              <img 
+                src="/src/assets/images/regenerated_image_1778593500523.png" 
+                alt="Nexus BI Logo" 
+                className="h-10 w-auto object-contain" 
+                onError={(e) => {
+                  e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
+                }}
+              />
+              <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <button 
+                onClick={() => setCurrentView('drive')}
+                className="p-2 transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg"
+                title="Drive de Informações"
+              >
+                <Share2 size={18} />
+              </button>
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-800"></div>
+              <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {new Date().toLocaleDateString('pt-BR')}
+              </div>
+              <div className="h-4 w-px bg-slate-200 dark:bg-slate-800"></div>
+              <button 
+                onClick={() => auth.signOut()}
+                className="text-rose-500 hover:text-rose-600 font-black text-[10px] uppercase tracking-widest"
+              >
+                Sair
+              </button>
+            </div>
+          </div>
+          <Home setView={setCurrentView} />
+          <Toaster position="top-right" />
+        </div>
+      );
+    }
+    return (
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        {renderView()}
+        <Toaster position="top-right" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
+      <Sidebar 
+        currentView={currentView} 
+        setView={setCurrentView} 
+        user={{ ...user, ...userProfile }} 
+      />
+      
+      <main className="flex-1 overflow-hidden flex flex-col">
+        {/* Top bar for visibility confirmation */}
+        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
+          <div className="flex items-center space-x-4">
+            <img 
+              src="/src/assets/images/regenerated_image_1778593500523.png" 
+              alt="Nexus BI Logo" 
+              className="h-8 w-auto object-contain cursor-pointer hover:opacity-80 transition-opacity" 
+              onClick={() => setCurrentView('home')}
+              onError={(e) => {
+                e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
+              }}
+            />
+            <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
+            </div>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button 
+              onClick={() => setCurrentView('drive')}
+              className="p-2 transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg"
+              title="Drive de Informações"
+            >
+              <Share2 size={18} />
+            </button>
+            <div className="h-4 w-px bg-slate-200 dark:bg-slate-800"></div>
+            <button 
+              onClick={() => setCurrentView('home')}
+              className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-600 dark:text-slate-400 rounded-lg text-[10px] font-black uppercase transition-all flex items-center gap-2"
+            >
+              <Settings size={12} /> Menu Principal
+            </button>
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              {new Date().toLocaleDateString('pt-BR')}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+          <div className="max-w-7xl mx-auto">
+            {renderView() || <div className="text-center p-12 text-slate-400">Página não encontrada</div>}
+          </div>
+        </div>
+      </main>
+      <Toaster position="top-right" />
+    </div>
+  );
+}
