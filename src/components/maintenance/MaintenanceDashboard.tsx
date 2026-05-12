@@ -393,37 +393,80 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         </TabsList>
 
         <TabsContent value="disponibilidade" className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-4">
             <MetricCard 
-              title="Disponibilidade Operacional" 
+              title="Disponibilidade Frota" 
               value={`${metrics.disponibilidade}%`} 
-              description={`${metrics.emOperacao} de ${metrics.total} em operação (Meta: 80%)`}
-              icon={<Wrench className="h-4 w-4" />}
+              description={`${metrics.emOperacao} de ${metrics.total} ativos ativos`}
+              icon={<ShieldAlert className="text-indigo-600" size={24} />}
               colorScheme={parseFloat(metrics.disponibilidade) >= 80 ? "success" : "danger"}
               centered
             />
-            <MetricCard title="Total de Veículos" value={metrics.total} icon={<Wrench className="h-4 w-4" />} centered />
-            <MetricCard title="Operacionais" value={metrics.operacionais} icon={<CheckCircle className="h-4 w-4" />} centered />
             <MetricCard 
-              title="Backlog Total" 
+              title="Frota Auditada" 
+              value={metrics.total} 
+              description="Monitoramento constante"
+              icon={<Truck className="text-slate-400" size={24} />} 
+              centered 
+            />
+            <MetricCard 
+              title="Operacionais" 
+              value={metrics.operacionais} 
+              description="Ativos em trânsito"
+              icon={<CheckCircle className="text-emerald-500" size={24} />} 
+              centered 
+            />
+            <MetricCard 
+              title="Ordens Backlog" 
               value={metrics.backlogTotal} 
-              icon={<ClipboardList className="h-4 w-4" />} 
-              description="Ordens em Aberto"
+              icon={<ClipboardList className="text-amber-500" size={20} />} 
+              description="Aguardando liberação"
               colorScheme="warning"
               centered 
             />
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <ChartCard title="Status de Manutenção" description="Distribuição por status">
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie data={statusManutencaoData} cx="50%" cy="50%" labelLine={false} label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`} outerRadius={80} dataKey="value">
-                    {statusManutencaoData.map((_entry, index) => (<Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />))}
-                  </Pie>
-                  <Tooltip formatter={(value: number) => [`${value} veículos`, 'Quantidade']} />
-                </PieChart>
-              </ResponsiveContainer>
+          <div className="grid gap-6 md:grid-cols-2">
+            <ChartCard 
+              title="Distribuição de Manutenção" 
+              description="Volume de ativos por categoria de status"
+            >
+              <div className="h-[350px] w-full mt-6">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie 
+                      data={statusManutencaoData} 
+                      cx="50%" 
+                      cy="50%" 
+                      innerRadius="60%"
+                      outerRadius="85%"
+                      paddingAngle={5}
+                      dataKey="value"
+                      animationDuration={1500}
+                    >
+                      {statusManutencaoData.map((_entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                       contentStyle={{ 
+                        backgroundColor: '#0f172a', 
+                        border: 'none', 
+                        borderRadius: '12px',
+                        padding: '12px'
+                      }}
+                      itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}
+                    />
+                     <Legend 
+                      iconSize={10} 
+                      layout="vertical" 
+                      verticalAlign="middle" 
+                      align="right"
+                      wrapperStyle={{ fontSize: '10px', fontWeight: 900, textTransform: 'uppercase', color: '#94a3b8' }} 
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </ChartCard>
 
             <Card>

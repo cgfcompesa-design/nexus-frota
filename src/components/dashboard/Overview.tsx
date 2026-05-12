@@ -148,163 +148,185 @@ export default function Overview() {
     exportToExcel(dataToExport, "Frota_Nexus_Auditada", "Consolidado");
   };
 
-  if (loadingFetch) {
+  if (loadingFetch && assets.length === 0) {
     return (
-      <div className="h-[600px] flex flex-col items-center justify-center space-y-4">
-        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-xs">Sincronizando Base de Dados Compesa...</p>
+      <div className="h-[600px] flex flex-col items-center justify-center space-y-6">
+        <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <div className="text-center">
+          <p className="text-slate-800 dark:text-white font-black uppercase tracking-tighter text-xl">Nexus Frota BI</p>
+          <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-[10px] mt-2 italic">Sincronizando Base de Dados Auditada...</p>
+        </div>
       </div>
     );
   }
 
-  if (isError) {
-    return (
-      <div className="h-[600px] flex flex-col items-center justify-center space-y-6">
-        <div className="w-20 h-20 bg-rose-50 dark:bg-rose-900/20 rounded-3xl flex items-center justify-center text-rose-500">
-          <ShieldAlert size={40} />
-        </div>
-        <div className="text-center space-y-2">
-          <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Erro na Sincronização</h3>
-          <p className="text-slate-500 font-medium max-w-sm mx-auto">
-            Não foi possível estabelecer conexão com a base de dados. Por favor, tente novamente em instantes.
-          </p>
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg"
-        >
-          Tentar Novamente
-        </button>
-      </div>
-    );
-  }
-
-  if (assets.length === 0) {
-    return (
-      <div className="h-[600px] flex flex-col items-center justify-center space-y-6">
-        <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center text-slate-400">
-          <Truck size={40} />
-        </div>
-        <div className="text-center space-y-2">
-          <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Nenhum Ativo Localizado</h3>
-          <p className="text-slate-500 font-medium max-w-sm mx-auto">
-            Não foi possível carregar a base de ativos. Verifique sua conexão ou se a planilha do Google Sheets está acessível.
-          </p>
-        </div>
-        <button 
-          onClick={() => window.location.reload()}
-          className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 py-3 rounded-2xl font-black uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-100 dark:shadow-none"
-        >
-          Recarregar App
-        </button>
-      </div>
-    );
-  }
+  const CHART_COLORS = {
+    primary: '#6366f1',
+    secondary: '#8b5cf6',
+    success: '#10b981',
+    warning: '#f59e0b',
+    danger: '#f43f5e',
+    info: '#0ea5e9',
+    muted: '#94a3b8'
+  };
 
   return (
-    <div className="space-y-8 pb-12">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Nexus Frota BI</h1>
-          <p className="text-slate-500 font-medium tracking-tight">Gestão estratégica de frota auditada</p>
+    <div className="space-y-10 animate-in fade-in duration-1000 pb-20">
+      <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-8">
+        <div className="space-y-1">
+          <h1 className="text-5xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-[0.8] italic">
+            Dashboard{"\n"}Executivo
+          </h1>
+          <p className="text-slate-500 font-bold tracking-[0.3em] uppercase text-[9px] flex items-center gap-2 pt-2">
+            <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+            Intelligence & Audit System Nexus
+          </p>
         </div>
-        <button 
-          onClick={handleExport}
-          className="flex items-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-indigo-100 dark:shadow-none transition-all font-bold text-sm uppercase tracking-wider"
-        >
-          <Download size={18} />
-          <span>Extrair CSV</span>
-        </button>
+        
+        <OverviewFilterBar 
+          assets={assets}
+          searchPlaca={searchPlaca}
+          selectedTipo={selectedTipo}
+          selectedDiretoria={selectedDiretoria}
+          selectedGerencia={selectedGerencia}
+          selectedCriticidade={selectedCriticidade}
+          onSearchPlacaChange={setSearchPlaca}
+          onTipoChange={setSelectedTipo}
+          onDiretoriaChange={setSelectedDiretoria}
+          onGerenciaChange={setSelectedGerencia}
+          onCriticidadeChange={setSelectedCriticidade}
+          onClearFilters={handleClearFilters}
+        />
       </div>
 
-      <OverviewFilterBar
-        assets={assets}
-        searchPlaca={searchPlaca}
-        selectedTipo={selectedTipo}
-        selectedDiretoria={selectedDiretoria}
-        selectedGerencia={selectedGerencia}
-        selectedCriticidade={selectedCriticidade}
-        onSearchPlacaChange={setSearchPlaca}
-        onTipoChange={setSelectedTipo}
-        onDiretoriaChange={setSelectedDiretoria}
-        onGerenciaChange={setSelectedGerencia}
-        onCriticidadeChange={setSelectedCriticidade}
-        onClearFilters={handleClearFilters}
-      />
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <MetricCard
-          title="Frota Operacional"
-          value={totalAssets}
-          icon={<Truck className="h-6 w-6" />}
-          description="Ativos auditados e vigentes"
-          centered
-        />
-        <MetricCard
-          title="Gestão Própria"
-          value={ativosProprios}
-          icon={<ShieldAlert className="h-6 w-6" />}
-          description="COMPESA / IPA"
-          colorScheme="success"
-          centered
-        />
-        <MetricCard
-          title="Gestão Locada"
-          value={ativosLocados}
-          icon={<Users className="h-6 w-6" />}
-          description="Contratos Terceirizados"
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <MetricCard 
+          title="Frota Total" 
+          value={totalAssets} 
+          description="Ativos auditados"
+          icon={<Truck className="text-indigo-600" size={24} />}
           colorScheme="primary"
           centered
         />
+        <MetricCard 
+          title="Gestão Própria" 
+          value={ativosProprios} 
+          description="Viatura Compesa/IPA"
+          icon={<ShieldAlert className="text-emerald-500" size={24} />}
+          colorScheme="success"
+          centered
+        />
+        <MetricCard 
+          title="Frota Locada" 
+          value={ativosLocados} 
+          description="Terceirização ativa"
+          icon={<Users className="text-sky-500" size={24} />}
+          colorScheme="primary"
+          centered
+        />
+        <MetricCard 
+          title="Backlog Operacional" 
+          value={backlogTotal} 
+          description="OS pendentes"
+          icon={<Activity className="text-amber-500" size={22} />}
+          colorScheme="warning"
+          centered
+        />
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-            <ChartCard title="Matriz de Criticidade" description="Impacto na continuidade do serviço">
-              <div style={{ height: '300px', width: '100%', position: 'relative' }} className="flex items-center justify-center overflow-visible">
-                {criticalityData.some(d => d.value > 0) ? (
-                  <ResponsiveContainer width="100%" height="100%" debounce={1}>
-                    <BarChart data={criticalityData} layout="vertical" margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} width={120} />
-                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40} isAnimationActive={false}>
-                          {criticalityData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Bar>
-                        <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                  <div className="text-center">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Aguardando dados...</p>
-                  </div>
-                )}
-              </div>
-            </ChartCard>
-            <ChartCard title="Composição da Frota" description="Top 5 categorias predominantes">
-              <div style={{ height: '300px', width: '100%', position: 'relative' }} className="flex items-center justify-center overflow-visible">
-                {waterfallData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" debounce={1}>
-                    <BarChart data={waterfallData} layout="vertical" margin={{ left: 20 }}>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" />
-                        <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11 }} />
-                        <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} width={100} />
-                        <Bar dataKey="value" radius={[0, 4, 4, 0]} barSize={40} isAnimationActive={false}>
-                          {waterfallData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                          ))}
-                        </Bar>
-                        <Tooltip cursor={{ fill: 'transparent' }} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                ) : (
-                  <div className="text-center">
-                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Aguardando dados...</p>
-                  </div>
-                )}
-              </div>
-            </ChartCard>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <ChartCard 
+          title="Matriz de Criticidade" 
+          description="Impacto na continuidade do serviço operacional"
+        >
+          <div className="h-[350px] w-full mt-8">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={criticalityData} margin={{ top: 20, right: 30, left: 40, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+                <XAxis 
+                   axisLine={false} 
+                   tickLine={false} 
+                   tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 900 }}
+                />
+                <YAxis 
+                   dataKey="name" 
+                   type="category" 
+                   axisLine={false} 
+                   tickLine={false} 
+                   tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 900 }}
+                   width={120}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
+                  contentStyle={{ 
+                    backgroundColor: '#0f172a', 
+                    border: 'none', 
+                    borderRadius: '16px',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+                    padding: '16px'
+                  }}
+                  itemStyle={{ color: '#fff', fontSize: '14px', fontWeight: 900 }}
+                  labelStyle={{ color: '#94a3b8', fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
+                />
+                <Bar 
+                  dataKey="value" 
+                  radius={[0, 20, 20, 0]} 
+                  barSize={60}
+                >
+                  {criticalityData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
+
+        <ChartCard 
+          title="Composição da Frota" 
+          description="Top 5 categorias predominantes no sistema"
+        >
+          <div className="h-[350px] w-full mt-8">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={waterfallData} layout="vertical" margin={{ top: 20, right: 30, left: 40, bottom: 20 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" opacity={0.5} />
+                <XAxis 
+                   type="number" 
+                   axisLine={false} 
+                   tickLine={false} 
+                   tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 900 }}
+                />
+                <YAxis 
+                   dataKey="name" 
+                   type="category" 
+                   axisLine={false} 
+                   tickLine={false} 
+                   tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 900 }}
+                   width={100}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
+                  contentStyle={{ 
+                    backgroundColor: '#0f172a', 
+                    border: 'none', 
+                    borderRadius: '16px',
+                    padding: '16px'
+                  }}
+                  itemStyle={{ color: '#fff', fontSize: '14px', fontWeight: 900 }}
+                />
+                <Bar 
+                  dataKey="value" 
+                  radius={[0, 20, 20, 0]} 
+                  barSize={40}
+                >
+                  {waterfallData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </ChartCard>
       </div>
 
       {/* Asset List Integration */}

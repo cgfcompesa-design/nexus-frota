@@ -106,14 +106,23 @@ export default function App() {
     setCurrentView
   } = useAppLogic();
 
+  useEffect(() => {
+    if (!user && !loading) {
+      const publicViews = ['home', 'resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
+      if (!publicViews.includes(currentView) && currentView !== 'login') {
+        setCurrentView('home');
+      }
+    }
+  }, [user, currentView, loading]);
+
   const MASTER_EMAIL = "cgf.compesa@gmail.com";
   const effectiveRole = user?.email === MASTER_EMAIL ? 'Master' : (userProfile?.role || 'Visualizador');
 
   const renderView = () => {
     // Role based protection - only if user is logged in
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'resumo', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'kanban', 'gestao-vista', 'drive'];
-      if (!allowedViews.includes(currentView)) {
+      const allowedViews = ['home', 'visitor', 'resumo', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'kanban', 'gestao-vista', 'drive'];
+      if (!allowedViews.includes(currentView) && currentView !== 'home') {
         return <Home setView={setCurrentView} />;
       }
     }
@@ -212,7 +221,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
+    const publicViews = ['home', 'resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
@@ -221,14 +230,14 @@ export default function App() {
             setView={setCurrentView} 
             user={{ displayName: 'Visitante', email: 'visitante@nexus.frota', role: 'Visualizador' }} 
           />
-          <main className="flex-1 overflow-hidden flex flex-col">
+          <main className="flex-1 overflow-hidden flex flex-col h-screen">
             <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
                <div className="flex items-center space-x-4">
                <img 
                 src="/src/assets/images/regenerated_image_1778593500523.png" 
                 alt="Nexus BI Logo" 
                 className="h-8 w-auto object-contain cursor-pointer" 
-                onClick={() => setCurrentView('resumo')}
+                onClick={() => setCurrentView('home')}
                 onError={(e) => {
                   e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
                 }}
@@ -239,10 +248,13 @@ export default function App() {
                 <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
               </div>
             </div>
-              <Button onClick={() => setCurrentView('login')} variant="ghost" className="text-[10px] font-black uppercase tracking-widest">Login Administrativo</Button>
+              <div className="flex items-center space-x-3">
+                <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">Modo Visitante</span>
+                <Button onClick={() => setCurrentView('login')} variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600">Acesso Restrito</Button>
+              </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-              <div className="max-w-7xl mx-auto">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar bg-slate-50 dark:bg-slate-950/50">
+              <div className="max-w-7xl mx-auto h-full min-h-[600px] flex flex-col">
                 {renderView()}
               </div>
             </div>
@@ -254,8 +266,12 @@ export default function App() {
     
     if (currentView === 'login') return <LoginPage setView={setCurrentView} />;
     
-    // Default for unauthorized users who are not in public views
-    return <LoginPage setView={setCurrentView} />;
+    // Fallback loading or simple login
+    return (
+      <div className="h-screen w-full flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
   }
 
   // Handle standalone pages (Home, Kanban, Gestao Vista)

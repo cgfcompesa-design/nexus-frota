@@ -303,6 +303,15 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
     }).reduce((acc, curr) => acc + (curr.custo || 0), 0);
   }, [maintenanceData]);
 
+  if (loadingRT && realtimeData.length === 0) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4">
+        <div className="w-16 h-16 border-4 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
+        <p className="text-indigo-400 font-black uppercase tracking-[0.2em] animate-pulse">Sincronizando Overview...</p>
+      </div>
+    );
+  }
+
   return (
     <div id="cco-dashboard-container" className="min-h-screen bg-slate-950 text-slate-200 overflow-hidden flex flex-col p-4 gap-4 select-none">
       {/* Header / Command Bar */}
