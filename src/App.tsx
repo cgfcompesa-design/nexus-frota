@@ -36,7 +36,7 @@ function useAppLogic() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentView] = useState('resumo');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
@@ -110,7 +110,7 @@ export default function App() {
     if (!user && !loading) {
       const publicViews = ['home', 'resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
       if (!publicViews.includes(currentView) && currentView !== 'login') {
-        setCurrentView('home');
+        setCurrentView('resumo');
       }
     }
   }, [user, currentView, loading]);

@@ -121,12 +121,6 @@ export default function Overview() {
     .slice(0, 5)
     .map(([name, value], i) => ({ name, value, fill: COLORS[i % COLORS.length] }));
 
-  // Mocked historical data for visuals since full TS data isn't in this specific sheet
-  const kmPerDay = [1, 2, 3, 4, 5, 6, 7].map(i => ({
-    date: `${i}/04`,
-    km: Math.floor(Math.random() * 500) + 200
-  }));
-
   const handleClearFilters = () => {
     setSearchPlaca("");
     setSelectedTipo("all");
@@ -167,7 +161,7 @@ export default function Overview() {
     warning: '#f59e0b',
     danger: '#f43f5e',
     info: '#0ea5e9',
-    muted: '#94a3b8'
+    muted: '#475569'
   };
 
   return (
@@ -233,13 +227,14 @@ export default function Overview() {
         >
           <div className="h-[350px] w-full mt-8">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={criticalityData} margin={{ top: 20, right: 30, left: 40, bottom: 20 }}>
+              <BarChart data={criticalityData} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
                 <XAxis 
                    dataKey="name"
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: '#475569', fontSize: 10, fontWeight: 900 }}
+                   tick={{ fill: '#1e293b', fontSize: 11, fontWeight: 900 }}
+                   interval={0}
                 />
                 <YAxis 
                    axisLine={false} 
@@ -255,13 +250,14 @@ export default function Overview() {
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
                     padding: '16px'
                   }}
-                  itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}
+                  itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 900 }}
                   labelStyle={{ color: '#94a3b8', fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
                 />
                 <Bar 
                   dataKey="value" 
                   radius={[10, 10, 0, 0]} 
-                  barSize={60}
+                  barSize={70}
+                  label={{ position: 'top', fill: '#475569', fontSize: 12, fontWeight: 900 }}
                 >
                   {criticalityData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} />
