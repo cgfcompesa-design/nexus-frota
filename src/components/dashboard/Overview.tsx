@@ -227,27 +227,28 @@ export default function Overview() {
         >
           <div className="h-[350px] w-full mt-8">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={criticalityData} margin={{ top: 10, right: 10, left: 0, bottom: 40 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+              <BarChart data={criticalityData} margin={{ top: 30, right: 10, left: 20, bottom: 40 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#cbd5e1" opacity={0.5} />
                 <XAxis 
                    dataKey="name"
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: '#1e293b', fontSize: 11, fontWeight: 900 }}
+                   tick={{ fill: '#0f172a', fontSize: 11, fontWeight: 900 }}
                    interval={0}
+                   height={60}
                 />
                 <YAxis 
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+                   tick={{ fill: '#0f172a', fontSize: 11, fontWeight: 900 }}
                 />
                 <Tooltip 
-                  cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
                   contentStyle={{ 
                     backgroundColor: '#0f172a', 
                     border: 'none', 
                     borderRadius: '16px',
-                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+                    boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.3)',
                     padding: '16px'
                   }}
                   itemStyle={{ color: '#fff', fontSize: '13px', fontWeight: 900 }}
@@ -255,12 +256,12 @@ export default function Overview() {
                 />
                 <Bar 
                   dataKey="value" 
-                  radius={[10, 10, 0, 0]} 
-                  barSize={70}
-                  label={{ position: 'top', fill: '#475569', fontSize: 12, fontWeight: 900 }}
+                  radius={[12, 12, 0, 0]} 
+                  barSize={80}
+                  label={{ position: 'top', fill: '#010101', fontSize: 16, fontWeight: 900, dy: -15 }}
                 >
                   {criticalityData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                    <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} strokeWidth={2} fillOpacity={0.9} />
                   ))}
                 </Bar>
               </BarChart>

@@ -235,14 +235,20 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       if (item.numOrdem) uniqueOrders.add(item.numOrdem);
     });
     
-    const disponibilidade = total > 0 ? (emOperacao / total) * 100 : 0;
+    const accessibility = total > 0 ? (emOperacao / total) * 100 : 0;
+    const emManutencaoNum = (filteredMaintenance || []).filter((m) => {
+      const v = m.__raw || [];
+      const statusM = v[2]?.toString().trim() || "";
+      return statusM !== "" && statusM !== "N/A";
+    }).length;
+
     return { 
-      total, 
-      emOperacao, 
-      operacionais, 
-      emManutencao, 
-      disponibilidade: disponibilidade.toFixed(1),
-      backlogTotal: uniqueOrders.size
+      total: total || 0, 
+      emOperacao: emOperacao || 0, 
+      operacionais: operacionais || 0, 
+      emManutencao: emManutencaoNum || 0, 
+      disponibilidade: (accessibility || 0).toFixed(1),
+      backlogTotal: (uniqueOrders.size) || 0
     };
   }, [filteredMaintenance, controleOperacional]);
 
@@ -444,16 +450,17 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
                       dataKey="value"
                       animationDuration={1500}
                     >
-                      {statusManutencaoData.map((_entry, index) => (
+                      {statusManutencaoData.length > 0 ? statusManutencaoData.map((_entry, index) => (
                         <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} strokeWidth={0} />
-                      ))}
+                      )) : <Cell fill="#e2e8f0" />}
                     </Pie>
                     <Tooltip 
                        contentStyle={{ 
                         backgroundColor: '#0f172a', 
                         border: 'none', 
                         borderRadius: '12px',
-                        padding: '12px'
+                        padding: '12px',
+                        zIndex: 1000
                       }}
                       itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}
                     />

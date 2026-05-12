@@ -54,6 +54,8 @@ function useAppLogic() {
       } else {
         setUser(null);
         setUserProfile(null);
+        // Force visitor to Resumo ALWAYS
+        setCurrentView('resumo');
       }
       setLoading(false);
     });
