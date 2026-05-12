@@ -199,7 +199,7 @@ export default function Overview() {
         />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
         <MetricCard 
           title="Frota Total" 
           value={totalAssets} 
@@ -224,14 +224,6 @@ export default function Overview() {
           colorScheme="primary"
           centered
         />
-        <MetricCard 
-          title="Backlog Operacional" 
-          value={backlogTotal} 
-          description="OS pendentes"
-          icon={<Activity className="text-amber-500" size={22} />}
-          colorScheme="warning"
-          centered
-        />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -244,17 +236,15 @@ export default function Overview() {
               <BarChart data={criticalityData} margin={{ top: 20, right: 30, left: 40, bottom: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
                 <XAxis 
+                   dataKey="name"
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 900 }}
+                   tick={{ fill: '#475569', fontSize: 10, fontWeight: 900 }}
                 />
                 <YAxis 
-                   dataKey="name" 
-                   type="category" 
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 900 }}
-                   width={120}
+                   tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
                 />
                 <Tooltip 
                   cursor={{ fill: 'rgba(99, 102, 241, 0.05)' }}
@@ -265,12 +255,12 @@ export default function Overview() {
                     boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
                     padding: '16px'
                   }}
-                  itemStyle={{ color: '#fff', fontSize: '14px', fontWeight: 900 }}
+                  itemStyle={{ color: '#fff', fontSize: '12px', fontWeight: 900 }}
                   labelStyle={{ color: '#94a3b8', fontSize: '10px', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.1em' }}
                 />
                 <Bar 
                   dataKey="value" 
-                  radius={[0, 20, 20, 0]} 
+                  radius={[10, 10, 0, 0]} 
                   barSize={60}
                 >
                   {criticalityData.map((entry, index) => (
