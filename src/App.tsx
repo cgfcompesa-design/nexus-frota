@@ -212,7 +212,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['resumo', 'abast-dash'];
+    const publicViews = ['resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
