@@ -21,9 +21,25 @@ export default function LoginPage({ setView }: LoginPageProps) {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    const MASTER_EMAIL = "cgf.compesa@gmail.com";
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        // Ensure profile exists on login
+        try {
+          const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
+          if (!userDoc.exists()) {
+            await setDoc(doc(db, 'users', cred.user.uid), {
+              uid: cred.user.uid,
+              email: cred.user.email,
+              displayName: cred.user.email?.split('@')[0],
+              role: cred.user.email === MASTER_EMAIL ? 'Master' : 'Visualizador',
+              createdAt: new Date().toISOString()
+            });
+          }
+        } catch (error) {
+          handleFirestoreError(error, 'write', `users/${cred.user.uid}`);
+        }
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         // Create user profile
@@ -32,7 +48,7 @@ export default function LoginPage({ setView }: LoginPageProps) {
             uid: cred.user.uid,
             email: cred.user.email,
             displayName: cred.user.email?.split('@')[0],
-            role: 'Visualizador',
+            role: cred.user.email === MASTER_EMAIL ? 'Master' : 'Visualizador',
             createdAt: new Date().toISOString()
           });
         } catch (error) {
@@ -45,6 +61,7 @@ export default function LoginPage({ setView }: LoginPageProps) {
   };
 
   const handleGoogle = async () => {
+    const MASTER_EMAIL = "cgf.compesa@gmail.com";
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       let userDoc;
@@ -54,13 +71,13 @@ export default function LoginPage({ setView }: LoginPageProps) {
         handleFirestoreError(error, 'get', `users/${cred.user.uid}`);
       }
 
-      if (userDoc && !userDoc.exists()) {
+      if (!userDoc || !userDoc.exists()) {
         try {
           await setDoc(doc(db, 'users', cred.user.uid), {
             uid: cred.user.uid,
             email: cred.user.email,
             displayName: cred.user.displayName,
-            role: 'Visualizador',
+            role: cred.user.email === MASTER_EMAIL ? 'Master' : 'Visualizador',
             createdAt: new Date().toISOString()
           });
         } catch (error) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { db, handleFirestoreError } from "../../lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
-import { Users, Shield, User as UserIcon, Eye, Trash2, Mail, Save } from "lucide-react";
+import { Users, Shield, User as UserIcon, Eye, Trash2, Mail, Save, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
@@ -74,7 +74,7 @@ export default function UserManagement() {
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-widest text-center">Ações</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                 {users.map((user) => (
                   <tr key={user.uid} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4">
@@ -82,9 +82,12 @@ export default function UserManagement() {
                         <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-500">
                           <UserIcon size={16} />
                         </div>
-                        <span className="text-sm font-bold text-slate-800 dark:text-white uppercase truncate max-w-[200px]">
-                          {user.displayName || 'N/A'}
-                        </span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-slate-800 dark:text-white uppercase truncate max-w-[200px]">
+                            {user.displayName || 'Usuário'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-medium">Cadastrado em {new Date(user.createdAt).toLocaleDateString()}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -96,7 +99,7 @@ export default function UserManagement() {
                     <td className="px-6 py-4">
                       <div className="flex items-center space-x-2">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                          user.role === 'Master' ? 'bg-indigo-100 text-indigo-600' :
+                          user.role === 'Master' ? 'bg-indigo-600 text-white shadow-sm' :
                           user.role === 'Gestão' ? 'bg-emerald-100 text-emerald-600' :
                           'bg-slate-100 text-slate-500'
                         }`}>
@@ -109,18 +112,27 @@ export default function UserManagement() {
                         <Button 
                           size="sm" 
                           variant={user.role === 'Gestão' ? 'secondary' : 'outline'}
-                          className="h-8 text-[9px] font-black uppercase px-3"
+                          className={`h-8 text-[9px] font-black uppercase px-3 ${user.role === 'Gestão' ? 'bg-emerald-500 text-white hover:bg-emerald-600' : ''}`}
                           onClick={() => handleUpdateRole(user.uid, 'Gestão')}
                         >
-                          <Shield size={12} className="mr-1" /> Tornar Gestão
+                          <Shield size={12} className="mr-1" /> Gestor
                         </Button>
                         <Button 
                           size="sm" 
                           variant={user.role === 'Visualizador' ? 'secondary' : 'outline'}
-                          className="h-8 text-[9px] font-black uppercase px-3"
+                          className={`h-8 text-[9px] font-black uppercase px-3 ${user.role === 'Visualizador' ? 'bg-slate-200 text-slate-700' : ''}`}
                           onClick={() => handleUpdateRole(user.uid, 'Visualizador')}
                         >
-                          <Eye size={12} className="mr-1" /> Tornar Visualizador
+                          <Eye size={12} className="mr-1" /> Visitante
+                        </Button>
+                        {/* Only allow Master users to promote others to Master if needed, but usually it's just for the primary email */}
+                         <Button 
+                          size="sm" 
+                          variant={user.role === 'Master' ? 'secondary' : 'outline'}
+                          className={`h-8 text-[9px] font-black uppercase px-3 ${user.role === 'Master' ? 'bg-indigo-600 text-white hover:bg-indigo-700' : ''}`}
+                          onClick={() => handleUpdateRole(user.uid, 'Master')}
+                        >
+                          <Lock size={12} className="mr-1" /> Master
                         </Button>
                       </div>
                     </td>
