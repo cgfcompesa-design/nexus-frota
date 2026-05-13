@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon } from "lucide-react";
+import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel } from "lucide-react";
 
 import logoCgf from "../../assets/images/regenerated_image_1778593500523.png";
 

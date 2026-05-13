@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db, handleFirestoreError } from './lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { Settings, ShieldAlert, Share2 } from 'lucide-react';
+import { Settings, ShieldAlert, Share2, Fuel } from 'lucide-react';
 import { Button } from './components/ui/button';
 import LoginPage from './components/auth/LoginPage';
 import Sidebar from './components/layout/Sidebar';
