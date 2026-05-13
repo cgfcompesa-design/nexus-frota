@@ -32,23 +32,28 @@ service cloud.firestore {
     }
 
     function hasRole(role) {
-      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
     }
 
     function isAdmin() {
-      return hasRole('Master') || request.auth.token.email == 'cgf.compesa@gmail.com';
+      return isSignedIn() && (
+        (request.auth.token.email == 'cgf.compesa@gmail.com' && request.auth.token.email_verified == true) || 
+        hasRole('Master')
+      );
     }
 
     function isGestor() {
-      return hasRole('Gestão') || isAdmin();
+      return isAdmin() || hasRole('Gestão');
     }
 
     // --- Users ---
     match /users/{userId} {
-      // Permitir que qualquer usuário autenticado veja seu próprio perfil ou que administradores vejam qualquer perfil
-      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
-      // Permitir listagem de usuários apenas para administradores
-      allow list: if isAdmin();
+      // Permitir que o proprietário sempre veja seu próprio perfil
+      allow get: if isOwner(userId);
+      // Permitir que administradores vejam qualquer perfil e listem usuários
+      allow get, list: if isAdmin();
       
       allow create: if isOwner(userId) && 
         incoming().keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
