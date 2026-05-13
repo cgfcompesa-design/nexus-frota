@@ -393,7 +393,7 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
                           </TooltipTrigger>
                           <TooltipContent className="bg-slate-900 text-white border-none p-6 rounded-[2rem] shadow-2xl max-w-sm">
                             <div className="space-y-4 text-[10px]">
-                              <p className="font-black uppercase tracking-widest border-b border-white/10 pb-2 mb-3 text-indigo-400 text-xs">Metodologia de Cálculo Nexus BI</p>
+                              <p className="font-black uppercase tracking-widest border-b border-white/10 pb-2 mb-3 text-indigo-400 text-xs">Metodologia de Cálculo CGF</p>
                               
                               <div className="space-y-2">
                                 <p className="font-bold uppercase tracking-tight text-white/90">Sistemas Flex/Diesel/Gasolina:</p>

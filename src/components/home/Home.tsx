@@ -52,19 +52,14 @@ const Home = ({ setView }: HomeProps) => {
     <div className="min-h-[80vh] flex items-center justify-center p-6">
       <div className="max-w-6xl w-full mx-auto">
         <header className="text-center mb-12 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
-          <img 
-            src={logoCgf} 
-            alt="Nexus BI Logo" 
-            className="w-48 h-auto mx-auto mb-6 transition-transform hover:scale-105" 
-            onError={(e) => {
-              e.currentTarget.src = "https://placehold.co/200x200/6366f1/ffffff?text=NEXUS+BI";
-            }}
-          />
+          <div className="w-24 h-24 bg-indigo-600 rounded-3xl flex items-center justify-center text-white shadow-2xl shadow-indigo-500/30 mx-auto mb-6 transition-transform hover:scale-105">
+            <Fuel size={48} />
+          </div>
           <h1 className="text-4xl font-black text-slate-800 dark:text-white mb-3 uppercase tracking-tighter italic">
-            NEXUS BI | Frota Digital
+            CGF | Nexus Frota
           </h1>
           <p className="text-indigo-600 dark:text-indigo-400 text-lg font-black uppercase tracking-widest italic">
-            Gestão Estratégica de Ativos
+            Gestão Estratégica de Frotas
           </p>
         </header>
 

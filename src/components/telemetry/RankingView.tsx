@@ -238,24 +238,27 @@ export default function RankingView() {
       let situationColor = "text-emerald-500";
       let bgClass = "bg-emerald-50";
 
-      // Lógica GAD-NI-003-02 (Estrita por contagem de ocorrências):
-      // 1. 5ª Ocorrência em diante = Definitiva
-      if (r.totalAlerts >= 5) {
-        situation = "Suspensão Definitiva";
-        situationColor = "text-rose-700";
-        bgClass = "bg-rose-100";
-      } 
-      // 2. 4ª Ocorrência = Temporária
-      else if (r.totalAlerts === 4) {
-        situation = "Suspensão Temporária";
-        situationColor = "text-rose-500";
-        bgClass = "bg-rose-50";
-      } 
-      // 3. De 1 a 3 Ocorrências = Advertência (Independente da gravidade)
-      else if (r.totalAlerts > 0) {
+      // Lógica GAD-NI-003-02 (Atualizada conforme solicitação do usuário):
+      // Todas as ocorrências (mesmo gravíssimas ou em grande quantidade) devem constar como ADVERTÊNCIA
+      if (r.totalAlerts > 0) {
         situation = "Advertência";
         situationColor = "text-amber-500";
         bgClass = "bg-amber-50";
+        
+        // Mantendo distinção visual sutil para gestores master se necessário, 
+        // mas o texto deve ser ADVERTÊNCIA conforme pedido.
+        if (r.totalAlerts >= 5) {
+          situationColor = "text-rose-600";
+          bgClass = "bg-rose-50";
+        } else if (r.totalAlerts === 4) {
+          situationColor = "text-rose-500";
+          bgClass = "bg-rose-50/50";
+        }
+      } 
+      else {
+        situation = "Regular";
+        situationColor = "text-emerald-500";
+        bgClass = "bg-emerald-50";
       }
 
       return { ...r, situation, situationColor, bgClass };
@@ -292,25 +295,9 @@ export default function RankingView() {
     let baseText = "";
 
     // Se o template for 'auto', decidimos baseado na situation da norma
+    // ATUALIZAÇÃO: Conforme pedido do usuário, agora todos os casos mostram ADVERTÊNCIA
     if (template === 'auto') {
-      if (situation === "Suspensão Definitiva") {
-        const title = "NOTIFICAÇÃO DE INFRAÇÃO CRÍTICA E ORIENTAÇÃO DE SUSPENSÃO DEFINITIVA";
-        const justification = gravissima 
-          ? `a ocorrência de infração de natureza GRAVÍSSIMA (${gravissima.desc}), vinculada ao SEI ${gravissima.sei || "mencionado em sistema"}`
-          : `o acúmulo crítico de pontuação (${score} pontos) e reincidência de comportamentos de risco extremo`;
-        
-        baseText = `${title}\n\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que o colaborador ${driverName}, sob sua coordenação, registrou uma ocorrência de extrema gravidade em sua condução, fundamentada em ${justification}.\n\nConsiderando o estrito cumprimento da Norma Interna GAD-NI-003-02 e visando preservar a segurança operacional e a integridade do patrimônio da Companhia, orientamos a aplicação da SUSPENSÃO DEFINITIVA do direito de condução de veículos da frota para este colaborador.\n\nHistórico consolidado do condutor: ${historicoText}.\n\nSolicitamos que o colaborador seja formalmente comunicado e orientado a devolver chaves e documentos de veículos sob sua responsabilidade imediatamente.\n\nreforça-se a necessidade de tal medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
-      } else if (situation === "Suspensão Temporária") {
-        const title = "NOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE SUSPENSÃO TEMPORÁRIA";
-        const justification = grave 
-          ? `a ocorrência de infração de natureza GRAVE (${grave.desc})${grave.sei !== '-' ? ` vinculada ao SEI ${grave.sei}` : ''}` 
-          : `o acúmulo de ${teleEvents} notificações de telemetria, excedendo o limite de tolerância previsto`;
-        
-        baseText = `${title}\n\nPrezado(a) Gestor(a) da Unidade,\n\nComunicamos que o colaborador ${driverName} registrou intercorrência(s) relevante(s) na condução de vehicle, sendo motivada por ${justification}.\n\nConforme a Norma Interna GAD-NI-003-02, orientamos a aplicação de SUSPENSÃO TEMPORÁRIA do direito de dirigir veículos a serviço da COMPESA, devendo o condutor ser encaminhado para processo de reorientação sobre segurança viária.\n\nHistórico do condutor: ${historicoText}.\n\nFavor formalizar a medida e realizar os registros funcionais pertinentes.\n\nreforça-se a necessidade de tal medida para fins de correção de conduta e posterior descontos das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
-      } else {
-        // Fallback para Advertência se for Regular ou Advertência na norma
-        return generateFormalText(driver, 'compesa');
-      }
+      return generateFormalText(driver, 'compesa');
     } else if (template === 'compesa') {
       baseText = `1. ADVERTÊNCIA FORMAL p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a realização de ADVERTÊNCIA FORMAL ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     } else if (template === 'terceirizado') {
@@ -569,10 +556,10 @@ export default function RankingView() {
           setSelectedTemplate('auto');
         }
       }}>
-        <DialogContent className="max-w-[98vw] sm:max-w-[95vw] lg:max-w-[1400px] xl:max-w-[1600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 overflow-hidden">
+        <DialogContent className="max-w-[98vw] sm:max-w-[96vw] lg:max-w-[1700px] xl:max-w-[1800px] h-[90vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 overflow-hidden">
           {selectedDriverDetails && (
             <>
-              <DialogHeader className="p-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+              <DialogHeader className="p-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 shrink-0">
                 <div className="flex justify-between items-start">
                   <div>
                     <Badge variant="outline" className={`${selectedDriverDetails.bgClass} ${selectedDriverDetails.situationColor} border-current mb-2`}>
@@ -592,7 +579,7 @@ export default function RankingView() {
                 </div>
               </DialogHeader>
 
-              <ScrollArea className="max-h-[500px] p-8">
+              <ScrollArea className="flex-1 p-8">
                 <div className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/20">

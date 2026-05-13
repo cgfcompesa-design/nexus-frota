@@ -74,7 +74,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
   const userRole = user?.email === MASTER_EMAIL ? 'Master' : (user?.role || 'Visualizador');
 
   const menuItems: MenuItem[] = [
-    { id: 'resumo', label: 'Ativos', icon: BarChart3 },
+    { id: 'resumo', label: 'Nexus Frota', icon: BarChart3 },
     { id: 'cco', label: 'Overview', icon: MapPin },
     { id: 'telemetria', label: 'Telemetria', icon: LayoutDashboard },
     { 
@@ -203,17 +203,12 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         className={`fixed lg:static inset-y-0 left-0 z-40 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl lg:shadow-none transition-all duration-300 ${isOpen ? 'w-[280px] opacity-100' : 'w-0 opacity-0'}`}
       >
         <div className="p-6 flex items-center space-x-3 mb-4 shrink-0 cursor-pointer" onClick={() => setView('home')}>
-          <img 
-            src={logoCgf} 
-            alt="Nexus BI Logo" 
-            className="h-10 w-auto" 
-            onError={(e) => {
-              e.currentTarget.src = "https://placehold.co/100x100/6366f1/ffffff?text=BI";
-            }}
-          />
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-500/20">
+            <Fuel size={24} />
+          </div>
           <div className="flex flex-col">
-            <span className="text-lg font-black text-slate-800 dark:text-white whitespace-nowrap tracking-tighter leading-none">NEXUS BI</span>
-            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest leading-none mt-1">Digital Fleet</span>
+            <span className="text-lg font-black text-slate-800 dark:text-white whitespace-nowrap tracking-tighter leading-none italic">CGF</span>
+            <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest leading-none mt-1">Nexus Frota</span>
           </div>
         </div>
 

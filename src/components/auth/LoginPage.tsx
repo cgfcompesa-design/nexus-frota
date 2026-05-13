@@ -78,20 +78,15 @@ export default function LoginPage({ setView }: LoginPageProps) {
         className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-xl overflow-hidden border border-slate-200 dark:border-slate-800"
       >
         <div className="p-8">
-          <div className="flex flex-col items-center justify-center mb-8">
-            <img 
-              src="/src/assets/images/regenerated_image_1778593500523.png" 
-              alt="Nexus BI Logo" 
-              className="h-28 w-auto mb-6" 
-              onError={(e) => {
-                e.currentTarget.src = "https://placehold.co/150x150/6366f1/ffffff?text=NEXUS+BI";
-              }}
-            />
-            <div className="flex flex-col items-center">
-              <h1 className="text-3xl font-black text-slate-800 dark:text-white tracking-tighter text-center italic uppercase">Ativos</h1>
-              <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.3em] mt-1 italic">Gestão Estratégica</p>
+            <div className="flex flex-col items-center justify-center mb-8">
+              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-[2rem] mb-4 group transition-all hover:scale-105">
+                <Fuel className="h-12 w-12 text-indigo-600 dark:text-indigo-400 group-hover:rotate-12 transition-transform" />
+              </div>
+              <div className="flex flex-col items-center">
+                <h1 className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter text-center italic uppercase leading-none">Nexus Frota</h1>
+                <p className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.4em] mt-2 italic">CGF | Gestão Estratégica</p>
+              </div>
             </div>
-          </div>
 
           <div className="flex flex-col space-y-3 mb-8">
             <button 

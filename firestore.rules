@@ -39,7 +39,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        (request.auth.token.email == 'cgf.compesa@gmail.com' && request.auth.token.email_verified == true) || 
+        request.auth.token.email == 'cgf.compesa@gmail.com' ||
         hasRole('Master')
       );
     }
@@ -50,15 +50,12 @@ service cloud.firestore {
 
     // --- Users ---
     match /users/{userId} {
-      // Permitir que o proprietário sempre veja seu próprio perfil
+      // Permitir que o proprietário sempre veja seu próprio perfil (get e create)
       allow get: if isOwner(userId);
-      // Permitir que administradores vejam qualquer perfil e listem usuários
-      allow get, list: if isAdmin();
+      allow create: if isOwner(userId); // Permitir criação inicial
       
-      allow create: if isOwner(userId) && 
-        incoming().keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
-        incoming().role == 'Visualizador' && // Default role for new users
-        incoming().uid == request.auth.uid;
+      // Administradores vejam qualquer perfil e listem usuários
+      allow get, list: if isAdmin();
         
       allow update: if isAdmin() || (isOwner(userId) && 
         !incoming().diff(existing()).affectedKeys().hasAny(['role', 'email', 'uid']));

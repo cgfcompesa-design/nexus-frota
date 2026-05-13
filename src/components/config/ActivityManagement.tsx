@@ -613,7 +613,7 @@ export default function GerenciamentoAtividades({ onBack }: { onBack: () => void
           <div className="hidden md:block h-8 w-px bg-slate-200 dark:bg-slate-800"></div>
           <div className="hidden md:block">
             <h1 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none italic">Gerenciamento de Atividades</h1>
-            <p className="text-indigo-500 text-[10px] font-black uppercase tracking-widest mt-1">SLA, Distribuição e Fluxos Nexus BI</p>
+            <p className="text-indigo-500 text-[10px] font-black uppercase tracking-widest mt-1">SLA, Distribuição e Fluxos CGF</p>
           </div>
         </div>
         <div className="flex items-center gap-3">

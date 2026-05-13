@@ -241,19 +241,17 @@ export default function App() {
           <main className="flex-1 overflow-hidden flex flex-col h-screen">
             <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
                <div className="flex items-center space-x-4">
-               <img 
-                src={logoCgf} 
-                alt="Nexus BI Logo" 
-                className="h-8 w-auto object-contain cursor-pointer" 
-                onClick={() => setCurrentView('home')}
-                onError={(e) => {
-                  e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
-                }}
-              />
+                <div 
+                  className="flex items-center space-x-2 bg-indigo-50 dark:bg-indigo-900/10 px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors"
+                  onClick={() => setCurrentView('home')}
+                >
+                  <Fuel size={18} className="text-indigo-600" />
+                  <span className="text-[10px] font-black uppercase tracking-tighter text-slate-800 dark:text-white italic">CGF</span>
+                </div>
               <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">CGF FROTA | Conectado</span>
               </div>
             </div>
               <div className="flex items-center space-x-3">
@@ -289,18 +287,17 @@ export default function App() {
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 overflow-y-auto">
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center sticky top-0 z-50">
             <div className="flex items-center space-x-4">
-              <img 
-                src={logoCgf} 
-                alt="Nexus BI Logo" 
-                className="h-10 w-auto object-contain" 
-                onError={(e) => {
-                  e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
-                }}
-              />
+              <div 
+                className="flex items-center space-x-2 bg-indigo-50 dark:bg-indigo-900/10 px-4 py-2 rounded-2xl cursor-pointer hover:bg-indigo-100 transition-colors"
+                onClick={() => setCurrentView('home')}
+              >
+                <Fuel size={22} className="text-indigo-600" />
+                <span className="text-sm font-black uppercase tracking-tighter text-slate-800 dark:text-white italic">CGF</span>
+              </div>
               <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
               <div className="flex items-center space-x-2">
                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">CGF FROTA | Conectado</span>
               </div>
             </div>
             <div className="flex items-center space-x-4">
@@ -349,19 +346,17 @@ export default function App() {
         {/* Top bar for visibility confirmation */}
         <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
           <div className="flex items-center space-x-4">
-            <img 
-              src={logoCgf} 
-              alt="Nexus BI Logo" 
-              className="h-8 w-auto object-contain cursor-pointer hover:opacity-80 transition-opacity" 
+            <div 
+              className="flex items-center space-x-2 bg-indigo-50 dark:bg-indigo-900/10 px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors"
               onClick={() => setCurrentView('home')}
-              onError={(e) => {
-                e.currentTarget.src = "https://placehold.co/40x40/6366f1/ffffff?text=BI";
-              }}
-            />
+            >
+              <Fuel size={18} className="text-indigo-600" />
+              <span className="text-[10px] font-black uppercase tracking-tighter text-slate-800 dark:text-white italic">CGF</span>
+            </div>
             <div className="h-6 w-px bg-slate-200 dark:bg-slate-800"></div>
             <div className="flex items-center space-x-2">
               <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">NEXUS BI FROTA | Conectado</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">CGF FROTA | Conectado</span>
             </div>
           </div>
           <div className="flex items-center space-x-4">
