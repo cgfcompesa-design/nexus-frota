@@ -588,7 +588,7 @@ export function DriversRelation() {
         </Card>
 
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] p-0 overflow-hidden border-none shadow-2xl">
+        <DialogContent className="max-w-[95vw] md:max-w-7xl max-h-[85vh] p-0 overflow-hidden border-none shadow-2xl">
           <DialogHeader className="p-6 bg-slate-900 text-white">
             <DialogTitle className="text-xl font-black uppercase tracking-tighter flex items-center gap-3">
                {detailStatus === "vencida" && <AlertTriangle size={24} className="text-rose-500" />}

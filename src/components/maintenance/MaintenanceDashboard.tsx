@@ -5,7 +5,7 @@ import { MetricCard } from "../dashboard/MetricCard";
 import { ChartCard } from "../dashboard/ChartCard";
 import { MaintenanceFilterBar } from "./MaintenanceFilterBar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wrench, AlertCircle, CheckCircle, Download, Copy, FileText, Clock, Building2, ClipboardList } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle, Download, Copy, FileText, Clock, Building2, ClipboardList, ShieldAlert, Truck, MessageCircle, Share2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { VehiclesInWorkshopModal } from "./VehiclesInWorkshopModal";
 import { Button } from "@/components/ui/button";
@@ -56,59 +56,52 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
 
   // Extrair valores únicos para filtros
   const directorias = useMemo(() => {
-    const values = maintenance.map(m => {
-      const vals = m.__raw || [];
+    return (maintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[7]?.toString() || ""; // Coluna H
     }).filter(Boolean);
-    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const gerencias = useMemo(() => {
-    const values = maintenance.map(m => {
-      const vals = m.__raw || [];
+    return (maintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[8]?.toString() || ""; // Coluna I
     }).filter(Boolean);
-    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const tipos = useMemo(() => {
-    const values = maintenance.map(m => {
-      const vals = m.__raw || [];
+    return (maintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[9]?.toString() || ""; // Coluna J
     }).filter(Boolean);
-    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const statusOperacionais = useMemo(() => {
-    const values = maintenance.map(m => {
-      const vals = m.__raw || [];
+    return (maintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[1]?.toString() || ""; // Coluna B - Status Operacional
     }).filter(Boolean);
-    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const statusManutencoes = useMemo(() => {
-    const values = maintenance.map(m => {
-      const vals = m.__raw || [];
+    return (maintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[2]?.toString() || ""; // Coluna C - Status Manutenção
     }).filter(v => v && v !== "N/A");
-    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const statusRevisoes = useMemo(() => {
-    const values = preventiveMaintenance.map(m => {
-      const vals = m.__raw || [];
+    return (preventiveMaintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[20]?.toString() || ""; // Coluna U - Status Revisão
     }).filter(Boolean);
-    return Array.from(new Set(values)).sort();
   }, [preventiveMaintenance]);
 
   const statusControles = useMemo(() => {
-    const values = maintenance.map(m => {
-      const vals = m.__raw || [];
+    return (maintenance || []).map(m => {
+      const vals = m?.__raw || [];
       return vals[11]?.toString() || ""; // Coluna L - Status Controle de Prazo
     }).filter(Boolean);
-    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const classificacoes = useMemo(() => {
@@ -118,7 +111,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
 
   const gerenciasByDiretoria = useMemo(() => {
     const map = new Map<string, string[]>();
-    maintenance.forEach(m => {
+    (maintenance || []).forEach(m => {
       const vals = m.__raw || [];
       const diretoria = vals[7]?.toString() || "";
       const gerencia = vals[8]?.toString() || "";
@@ -157,8 +150,8 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
   }, [maintenanceCost]);
 
   const filteredMaintenance = useMemo(() => {
-    return maintenance.filter(item => {
-      const vals = item.__raw || [];
+    return (maintenance || []).filter(item => {
+      const vals = item?.__raw || [];
       const placa = vals[0]?.toString().toUpperCase().trim() || "";
       const statusOperacional = vals[1]?.toString() || "";
       const statusManutencao = vals[2]?.toString() || "";
@@ -183,8 +176,8 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
 
   const vehicleInfoMap = useMemo(() => {
     const map = new Map<string, { diretoria: string; gerencia: string; tipo: string }>();
-    maintenance.forEach(item => {
-      const vals = item.__raw || [];
+    (maintenance || []).forEach(item => {
+      const vals = item?.__raw || [];
       const placa = vals[0]?.toString().toUpperCase() || "";
       const diretoria = vals[7]?.toString() || "";
       const gerencia = vals[8]?.toString() || "";
@@ -197,8 +190,8 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
   }, [maintenance]);
 
   const filteredPreventiveMaintenance = useMemo(() => {
-    return preventiveMaintenance.filter(item => {
-      const vals = item.__raw || [];
+    return (preventiveMaintenance || []).filter(item => {
+      const vals = item?.__raw || [];
       const placa = vals[0]?.toString().toUpperCase() || "";
       const statusRevisao = vals[20]?.toString() || ""; 
       const vehicleInfo = vehicleInfoMap.get(placa);
@@ -223,7 +216,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       const statusOp = vals[1]?.toString().toUpperCase().trim() || "";
       return statusOp === "EM OPERAÇÃO";
     }).length;
-    const emManutencao = filteredMaintenance.filter((m) => {
+    const emManutencao = (filteredMaintenance || []).filter((m) => {
       const vals = m.__raw || [];
       const statusMan = vals[2]?.toString().trim() || "";
       return statusMan !== "" && statusMan !== "N/A";
@@ -231,8 +224,8 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     
     // Backlog count from controleOperacional
     const uniqueOrders = new Set();
-    controleOperacional.forEach(item => {
-      if (item.numOrdem) uniqueOrders.add(item.numOrdem);
+    (controleOperacional || []).forEach(item => {
+      if (item?.numOrdem) uniqueOrders.add(item.numOrdem);
     });
     
     const accessibility = total > 0 ? (emOperacao / total) * 100 : 0;
@@ -335,6 +328,119 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     }
   };
 
+  const handleShareWhatsApp = () => {
+    const now = new Date();
+    const formattedDate = now.toLocaleString('pt-BR');
+    const gerenciaInfo = selectedGerencia !== "all" ? selectedGerencia : (selectedDiretoria !== "all" ? selectedDiretoria : "Geral");
+    
+    let message = `☑ *Relatório CGF - Status Operacional*\n`;
+    message += `📅 Atualizado em: *${formattedDate}*\n`;
+    message += `🏢 Unidade: *${gerenciaInfo}*\n\n`;
+
+    const operacionaisList: string[] = [];
+    const naoOperacionaisList: string[] = [];
+    const parcialList: string[] = [];
+
+    filteredMaintenance.forEach(item => {
+      const v = item.__raw || [];
+      const placa = String(v[0] || "");
+      if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return;
+
+      const tipo = String(v[9] || "");
+      const statusOp = String(v[1] || "");
+      const statusMan = String(v[2] || "");
+      const local = String(v[3] || "");
+      const prazo = String(v[4] || "");
+      const descricao = String(v[5] || "");
+
+      message += `*Placa:* ${placa}\n`;
+      message += `*Tipo:* ${tipo}\n`;
+      message += `*Status Operacional:* ${statusOp}\n`;
+      message += `*Status Manutenção:* ${statusMan}\n`;
+      message += `*Local:* ${local}\n`;
+      message += `*Prazo:* ${prazo}\n`;
+      message += `*Descrição:* ${descricao}\n\n`;
+
+      if (statusOp.toUpperCase().includes("EM OPERAÇÃO")) {
+        operacionaisList.push(placa);
+      } else if (statusOp.toUpperCase().includes("PARCIAL")) {
+        parcialList.push(placa);
+      } else {
+        naoOperacionaisList.push(placa);
+      }
+    });
+
+    const total = operacionaisList.length + naoOperacionaisList.length + parcialList.length;
+    const perc = total > 0 ? ((operacionaisList.length / total) * 100).toFixed(1) : "0";
+
+    message += `📊 *Resumo Geral*\n`;
+    message += `Total: ${total} | 🟢 Operacionais: ${operacionaisList.length} (${perc}%) | 🔴 Não Operacionais: ${naoOperacionaisList.length}\n\n`;
+    
+    if (operacionaisList.length > 0) message += `🟢 *Operacionais:* ${operacionaisList.join(", ")}\n`;
+    if (naoOperacionaisList.length > 0) message += `🔴 *Não Operacionais:* ${naoOperacionaisList.join(", ")}\n`;
+    if (parcialList.length > 0) message += `🔵 *Parcial – Jato:* ${parcialList.join(", ")}\n`;
+
+    const encodedMessage = encodeURIComponent(message);
+    window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+  };
+
+  const handleGenerateReportPDF = () => {
+    const doc = new jsPDF();
+    const now = new Date();
+    const formattedDate = now.toLocaleString('pt-BR');
+    const gerenciaInfo = selectedGerencia !== "all" ? selectedGerencia : (selectedDiretoria !== "all" ? selectedDiretoria : "Geral");
+
+    doc.setFontSize(16);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Relatório CGF - Status Operacional", 14, 20);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Atualizado em: ${formattedDate}`, 14, 28);
+    doc.text(`Unidade: ${gerenciaInfo}`, 14, 33);
+
+    const tableData = filteredMaintenance.map(item => {
+      const v = item.__raw || [];
+      return [
+        String(v[0] || ""),
+        String(v[9] || ""),
+        String(v[1] || ""),
+        String(v[2] || ""),
+        String(v[3] || ""),
+        String(v[4] || ""),
+        String(v[5] || "")
+      ];
+    }).filter(row => /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(row[0]));
+
+    autoTable(doc, {
+      startY: 40,
+      head: [["Placa", "Tipo", "Status Op.", "Status Man.", "Local", "Prazo", "Descrição"]],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7 },
+      columnStyles: {
+        6: { cellWidth: 50 } // Descrição column width
+      }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Resumo Geral", 14, finalY);
+    
+    const operacionais = filteredMaintenance.filter(m => (m.__raw?.[1] || "").toUpperCase().includes("EM OPERAÇÃO")).length;
+    const naoOperacionais = filteredMaintenance.length - operacionais;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(0);
+    doc.text(`Total: ${tableData.length} | Operacionais: ${operacionais} | Não Operacionais: ${naoOperacionais}`, 14, finalY + 7);
+    
+    doc.save(`Relatorio_CGF_Status_${formattedDate.replace(/[/:\s]/g, '_')}.pdf`);
+    toast.success("PDF gerado com sucesso!");
+  };
+
   return (
     <div className="space-y-6">
       <MaintenanceFilterBar
@@ -371,20 +477,38 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         onClearFilters={handleClearFilters}
       />
 
-      <div className="flex justify-end gap-2">
-        <Button 
-          onClick={() => {
-            const data = filteredMaintenance.map(item => {
-              const v = Object.values(item);
-              return { "Placa": v[0], "Status Operacional": v[1], "Status Manutenção": v[2], "Diretoria": v[7], "Gerência": v[8], "Tipo": v[9] };
-            });
-            exportToExcel(data, "Manutencao", "Manutenção");
-            toast.success("Dados exportados!");
-          }} 
-          variant="outline" className="gap-2 font-black uppercase text-[10px] h-9"
-        >
-          <Download className="h-4 w-4" /> Exportar Excel
-        </Button>
+      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
+        <div className="flex gap-2">
+          <Button 
+            onClick={handleShareWhatsApp}
+            variant="outline" 
+            className="gap-2 font-black uppercase text-[10px] h-9 border-emerald-200 hover:bg-emerald-50 text-emerald-700 dark:border-emerald-800/30 dark:hover:bg-emerald-900/10"
+          >
+            <MessageCircle className="h-4 w-4" /> WhatsApp
+          </Button>
+          <Button 
+            onClick={handleGenerateReportPDF}
+            variant="outline" 
+            className="gap-2 font-black uppercase text-[10px] h-9 border-indigo-200 hover:bg-indigo-50 text-indigo-700 dark:border-indigo-800/30 dark:hover:bg-indigo-900/10"
+          >
+            <FileText className="h-4 w-4" /> PDF Status
+          </Button>
+        </div>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => {
+              const data = filteredMaintenance.map(item => {
+                const v = Object.values(item);
+                return { "Placa": v[0], "Status Operacional": v[1], "Status Manutenção": v[2], "Diretoria": v[7], "Gerência": v[8], "Tipo": v[9] };
+              });
+              exportToExcel(data, "Manutencao", "Manutenção");
+              toast.success("Dados exportados!");
+            }} 
+            variant="outline" className="gap-2 font-black uppercase text-[10px] h-9"
+          >
+            <Download className="h-4 w-4" /> Exportar Excel
+          </Button>
+        </div>
       </div>
 
       <VehiclesInWorkshopModal open={showWorkshopModal} onOpenChange={setShowWorkshopModal} />
@@ -425,9 +549,9 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
             <MetricCard 
               title="Ordens Backlog" 
               value={metrics.backlogTotal} 
-              icon={<ClipboardList className="text-amber-500" size={20} />} 
+              icon={<ClipboardList className="text-slate-500" size={20} />} 
               description="Aguardando liberação"
-              colorScheme="warning"
+              colorScheme="primary"
               centered 
             />
           </div>

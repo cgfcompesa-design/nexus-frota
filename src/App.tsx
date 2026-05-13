@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth, db } from './lib/firebase';
+import { auth, db, handleFirestoreError } from './lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { Settings, ShieldAlert, Share2 } from 'lucide-react';
 import { Button } from './components/ui/button';
@@ -31,6 +31,8 @@ import AlertConfig from './components/config/AlertConfig';
 import UserManagement from './components/config/UserManagement';
 import { Toaster } from 'sonner';
 
+import logoCgf from './assets/images/regenerated_image_1778593500523.png';
+
 // Logic hook to keep component lean
 function useAppLogic() {
   const [user, setUser] = useState<User | null>(null);
@@ -44,9 +46,13 @@ function useAppLogic() {
         setUser(authUser);
         try {
           const docRef = doc(db, 'users', authUser.uid);
-          const userDoc = await getDoc(docRef);
-          if (userDoc.exists()) {
-            setUserProfile(userDoc.data());
+          try {
+            const userDoc = await getDoc(docRef);
+            if (userDoc.exists()) {
+              setUserProfile(userDoc.data());
+            }
+          } catch (error) {
+            handleFirestoreError(error, 'get', `users/${authUser.uid}`);
           }
         } catch (error) {
           console.error("Erro ao buscar perfil do usuário:", error);
@@ -54,7 +60,7 @@ function useAppLogic() {
       } else {
         setUser(null);
         setUserProfile(null);
-        // Force visitor to Resumo ALWAYS
+        // Force visitor to Resumo ALWAYS as requested
         setCurrentView('resumo');
       }
       setLoading(false);
@@ -236,7 +242,7 @@ export default function App() {
             <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
                <div className="flex items-center space-x-4">
                <img 
-                src="/src/assets/images/regenerated_image_1778593500523.png" 
+                src={logoCgf} 
                 alt="Nexus BI Logo" 
                 className="h-8 w-auto object-contain cursor-pointer" 
                 onClick={() => setCurrentView('home')}
@@ -284,7 +290,7 @@ export default function App() {
           <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center sticky top-0 z-50">
             <div className="flex items-center space-x-4">
               <img 
-                src="/src/assets/images/regenerated_image_1778593500523.png" 
+                src={logoCgf} 
                 alt="Nexus BI Logo" 
                 className="h-10 w-auto object-contain" 
                 onError={(e) => {
@@ -344,7 +350,7 @@ export default function App() {
         <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
           <div className="flex items-center space-x-4">
             <img 
-              src="/src/assets/images/regenerated_image_1778593500523.png" 
+              src={logoCgf} 
               alt="Nexus BI Logo" 
               className="h-8 w-auto object-contain cursor-pointer hover:opacity-80 transition-opacity" 
               onClick={() => setCurrentView('home')}

@@ -37,10 +37,10 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
     const tams = new Set<string>();
 
     data.forEach(item => {
-      if (item.diretoria) directorias.add(item.diretoria);
-      if (item.gerencia) gerencias.add(item.gerencia);
-      if (item.criticidade) criticidades.add(item.criticidade);
-      if (item.tam) tams.add(item.tam);
+      if (item?.diretoria) directorias.add(item.diretoria);
+      if (item?.gerencia) gerencias.add(item.gerencia);
+      if (item?.criticidade) criticidades.add(item.criticidade);
+      if (item?.tam) tams.add(item.tam);
     });
 
     return {
@@ -53,6 +53,7 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
 
   const filteredData = useMemo(() => {
     return data.filter(item => {
+      if (!item) return false;
       const matchDiretoria = selectedDiretoria === "all" || item.diretoria === selectedDiretoria;
       const matchGerencia = selectedGerencia === "all" || item.gerencia === selectedGerencia;
       const matchCriticidade = selectedCriticidade === "all" || item.criticidade === selectedCriticidade;
@@ -76,26 +77,14 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
     const gerenciaOsMap: Record<string, Set<string>> = {};
 
     filteredData.forEach((item) => {
+      if (!item) return;
       const orderId = (item.numOrdem || "").trim();
       const budgetId = (item.numOrcamento || "").trim();
       
-      // Robust Currency Parsing for Brazilian format
       const rawCusto = String(item.custo || "0");
-      const parseCurrency = (val: string) => {
-        const cleaned = val.replace("R$", "").replace(/\s/g, "");
-        if (cleaned.includes(",")) {
-          // Brazilian format: . is thousands, , is decimal
-          return parseFloat(cleaned.replace(/\./g, "").replace(",", ".")) || 0;
-        }
-        // If it contains a dot but no comma, and the dot is followed by 1 or 2 digits, it might be a decimal
-        // BUT in this context, most likely a plain number
-        return parseFloat(cleaned) || 0;
-      };
-      
       const valorCusto = parseCurrency(rawCusto);
       const gerencia = item.gerencia || "N/A";
 
-      // 1. Count Unique Orders
       if (orderId && !processedOrders.has(orderId)) {
         processedOrders.add(orderId);
         
@@ -111,41 +100,21 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
         if (!gerenciaOsMap[gerencia]) gerenciaOsMap[gerencia] = new Set();
         gerenciaOsMap[gerencia].add(orderId);
       }
-
-      // 2. Sum Costs
-      // If budget ID is present, only add once per unique budget ID
-      // If budget ID is NOT present, add for each unique order ID
-      if (budgetId) {
-        if (!processedBudgetIds.has(budgetId)) {
-          processedBudgetIds.add(budgetId);
-          custoTotal += valorCusto;
-        }
-      } else if (orderId) {
-        // Many orders might not have a budget yet, but have a cost estimation
-        // We count them once per unique order
-        if (!processedOrders.has(orderId)) {
-          // This case is already covered by the logic above if we run it in order
-          // But to be explicit for cost:
-          custoTotal += valorCusto;
-        }
-      }
     });
 
-    // Re-calculating cost correctly with a single pass to be sure
     custoTotal = 0;
     const finalBudgetMap = new Map<string, number>();
     const ordersWithNoBudgetCosto = new Map<string, number>();
 
     filteredData.forEach(item => {
+      if (!item) return;
       const bId = (item.numOrcamento || "").trim();
       const oId = (item.numOrdem || "").trim();
       const cost = parseCurrency(String(item.custo || "0"));
 
       if (bId) {
-        // Track unique budget values
         if (!finalBudgetMap.has(bId)) finalBudgetMap.set(bId, cost);
       } else if (oId) {
-        // Track unique order values for those with no budget
         if (!ordersWithNoBudgetCosto.has(oId)) ordersWithNoBudgetCosto.set(oId, cost);
       }
     });

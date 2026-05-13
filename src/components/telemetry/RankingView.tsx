@@ -27,7 +27,7 @@ export default function RankingView() {
   const [selectedMesInicio, setSelectedMesInicio] = useState<string>("all");
   const [selectedMesFim, setSelectedMesFim] = useState<string>("all");
   const [selectedDriverDetails, setSelectedDriverDetails] = useState<any | null>(null);
-  const [isTerceirizado, setIsTerceirizado] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<'auto' | 'compesa' | 'terceirizado'>('auto');
 
   useEffect(() => {
     async function load() {
@@ -133,7 +133,7 @@ export default function RankingView() {
       details: { type: 'telemetria' | 'ctb', desc: string, date: string, severity: string, points: number, sei: string }[] 
     }> = {};
 
-    // 1. Processar Telemetria (GAD-NI-003-01: Advertência até o 3º registro)
+    // 1. Processar Telemetria (GAD-NI-003-02: Advertência até o 3º registro)
     filteredNotificacoes.forEach(n => {
       const driverRaw = String(n.CONDUTOR || "N/A").trim();
       const driverNormalized = driverRaw.toUpperCase();
@@ -176,7 +176,7 @@ export default function RankingView() {
       });
     });
 
-    // 2. Processar Infrações CTB (GAD-NI-003-01: Classificação por Gravidade)
+    // 2. Processar Infrações CTB (GAD-NI-003-02: Classificação por Gravidade)
     filteredInfracoes.forEach(i => {
       const raw = i.__raw || [];
       const driverRaw = String(raw[20] || "N/A").trim(); // Coluna U
@@ -234,25 +234,28 @@ export default function RankingView() {
 
     // Finalizar cálculos de Situação
     return Object.values(penaltyMap).map(r => {
-      const hasGravissima = r.details.some(d => d.severity === 'GRAVÍSSIMA');
-      const hasGrave = r.details.some(d => d.severity === 'GRAVE');
-      
-      let situation = "Advertência";
-      let situationColor = "text-amber-500";
-      let bgClass = "bg-amber-50";
+      let situation = "Regular";
+      let situationColor = "text-emerald-500";
+      let bgClass = "bg-emerald-50";
 
-      if (hasGravissima) {
+      // Lógica GAD-NI-003-02 (Estrita por contagem de ocorrências):
+      // 1. 5ª Ocorrência em diante = Definitiva
+      if (r.totalAlerts >= 5) {
         situation = "Suspensão Definitiva";
         situationColor = "text-rose-700";
         bgClass = "bg-rose-100";
-      } else if (hasGrave || r.teleCount > 3) {
+      } 
+      // 2. 4ª Ocorrência = Temporária
+      else if (r.totalAlerts === 4) {
         situation = "Suspensão Temporária";
         situationColor = "text-rose-500";
         bgClass = "bg-rose-50";
-      } else if (r.totalAlerts === 0) {
-        situation = "Regular";
-        situationColor = "text-emerald-500";
-        bgClass = "bg-emerald-50";
+      } 
+      // 3. De 1 a 3 Ocorrências = Advertência (Independente da gravidade)
+      else if (r.totalAlerts > 0) {
+        situation = "Advertência";
+        situationColor = "text-amber-500";
+        bgClass = "bg-amber-50";
       }
 
       return { ...r, situation, situationColor, bgClass };
@@ -263,12 +266,12 @@ export default function RankingView() {
      return (
       <div className="h-[400px] flex flex-col items-center justify-center space-y-4">
         <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Unificando Rankings GAD-NI-003-01...</p>
+        <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Unificando Rankings GAD-NI-003-02...</p>
       </div>
     );
   }
 
-  const generateFormalText = (driver: any, type: 'compesa' | 'terceirizado' = 'compesa') => {
+  const generateFormalText = (driver: any, template: 'auto' | 'compesa' | 'terceirizado' = 'auto') => {
     const { situation, details, score } = driver;
     const driverName = driver.driver;
     const date = new Date().toLocaleDateString('pt-BR');
@@ -288,27 +291,30 @@ export default function RankingView() {
 
     let baseText = "";
 
-    if (situation === "Suspensão Definitiva") {
-      const title = "NOTIFICAÇÃO DE INFRAÇÃO CRÍTICA E ORIENTAÇÃO DE SUSPENSÃO DEFINITIVA";
-      const justification = gravissima 
-        ? `a ocorrência de infração de natureza GRAVÍSSIMA (${gravissima.desc}), vinculada ao SEI ${gravissima.sei || "mencionado em sistema"}`
-        : `o acúmulo crítico de pontuação (${score} pontos) e reincidência de comportamentos de risco extremo`;
-      
-      baseText = `${title}\n\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que o colaborador ${driverName}, sob sua coordenação, registrou uma ocorrência de extrema gravidade em sua condução, fundamentada em ${justification}.\n\nConsiderando o estrito cumprimento da Norma Interna GAD-NI-003-01 e visando preservar a segurança operacional e a integridade do patrimônio da Companhia, orientamos a aplicação da SUSPENSÃO DEFINITIVA do direito de condução de veículos da frota para este colaborador.\n\nHistórico consolidado do condutor: ${historicoText}.\n\nSolicitamos que o colaborador seja formalmente comunicado e orientado a devolver chaves e documentos de veículos sob sua responsabilidade imediatamente.\n\nreforça-se a necessidade de tal medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
-    } else if (situation === "Suspensão Temporária") {
-      const title = "NOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE SUSPENSÃO TEMPORÁRIA";
-      const justification = grave 
-        ? `a ocorrência de infração de natureza GRAVE (${grave.desc})${grave.sei !== '-' ? ` vinculada ao SEI ${grave.sei}` : ''}` 
-        : `o acúmulo de ${teleEvents} notificações de telemetria, excedendo o limite de tolerância previsto`;
-      
-      baseText = `${title}\n\nPrezado(a) Gestor(a) da Unidade,\n\nComunicamos que o colaborador ${driverName} registrou intercorrência(s) relevante(s) na condução de vehicle, sendo motivada por ${justification}.\n\nConforme a Norma Interna GAD-NI-003-01, orientamos a aplicação de SUSPENSÃO TEMPORÁRIA do direito de dirigir veículos a serviço da COMPESA, devendo o condutor ser encaminhado para processo de reorientação sobre segurança viária.\n\nHistórico do condutor: ${historicoText}.\n\nFavor formalizar a medida e realizar os registros funcionais pertinentes.\n\nreforça-se a necessidade de tal medida para fins de correção de conduta e posterior descontos das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
-    } else {
-      // ADVERTÊNCIA FORMAL - NOVOS TEMPLATES (EXATAMENTE COMO SOLICITADO)
-      if (type === 'compesa') {
-        baseText = `1. ADVERTÊNCIA FORMAL p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-01, orientamos a realização de ADVERTÊNCIA FORMAL ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+    // Se o template for 'auto', decidimos baseado na situation da norma
+    if (template === 'auto') {
+      if (situation === "Suspensão Definitiva") {
+        const title = "NOTIFICAÇÃO DE INFRAÇÃO CRÍTICA E ORIENTAÇÃO DE SUSPENSÃO DEFINITIVA";
+        const justification = gravissima 
+          ? `a ocorrência de infração de natureza GRAVÍSSIMA (${gravissima.desc}), vinculada ao SEI ${gravissima.sei || "mencionado em sistema"}`
+          : `o acúmulo crítico de pontuação (${score} pontos) e reincidência de comportamentos de risco extremo`;
+        
+        baseText = `${title}\n\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que o colaborador ${driverName}, sob sua coordenação, registrou uma ocorrência de extrema gravidade em sua condução, fundamentada em ${justification}.\n\nConsiderando o estrito cumprimento da Norma Interna GAD-NI-003-02 e visando preservar a segurança operacional e a integridade do patrimônio da Companhia, orientamos a aplicação da SUSPENSÃO DEFINITIVA do direito de condução de veículos da frota para este colaborador.\n\nHistórico consolidado do condutor: ${historicoText}.\n\nSolicitamos que o colaborador seja formalmente comunicado e orientado a devolver chaves e documentos de veículos sob sua responsabilidade imediatamente.\n\nreforça-se a necessidade de tal medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+      } else if (situation === "Suspensão Temporária") {
+        const title = "NOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE SUSPENSÃO TEMPORÁRIA";
+        const justification = grave 
+          ? `a ocorrência de infração de natureza GRAVE (${grave.desc})${grave.sei !== '-' ? ` vinculada ao SEI ${grave.sei}` : ''}` 
+          : `o acúmulo de ${teleEvents} notificações de telemetria, excedendo o limite de tolerância previsto`;
+        
+        baseText = `${title}\n\nPrezado(a) Gestor(a) da Unidade,\n\nComunicamos que o colaborador ${driverName} registrou intercorrência(s) relevante(s) na condução de vehicle, sendo motivada por ${justification}.\n\nConforme a Norma Interna GAD-NI-003-02, orientamos a aplicação de SUSPENSÃO TEMPORÁRIA do direito de dirigir veículos a serviço da COMPESA, devendo o condutor ser encaminhado para processo de reorientação sobre segurança viária.\n\nHistórico do condutor: ${historicoText}.\n\nFavor formalizar a medida e realizar os registros funcionais pertinentes.\n\nreforça-se a necessidade de tal medida para fins de correção de conduta e posterior descontos das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
       } else {
-        baseText = `2. ADVERTÊNCIA FORMAL P TERCEIRIZADOS\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador TERCEIRIZADO ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-01, orientamos a realização de ADVERTÊNCIA FORMAL à empresa tercerizada para que a mesma notifique o colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e posterior descontos das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+        // Fallback para Advertência se for Regular ou Advertência na norma
+        return generateFormalText(driver, 'compesa');
       }
+    } else if (template === 'compesa') {
+      baseText = `1. ADVERTÊNCIA FORMAL p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a realização de ADVERTÊNCIA FORMAL ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+    } else if (template === 'terceirizado') {
+      baseText = `2. ADVERTÊNCIA FORMAL P TERCEIRIZADOS\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador TERCEIRIZADO ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a realização de ADVERTÊNCIA FORMAL à empresa tercerizada para que a mesma notifique o colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e posterior descontos das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     }
 
     return baseText;
@@ -319,7 +325,7 @@ export default function RankingView() {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-none italic">Ranking de Performance Geral</h1>
-          <p className="text-slate-500 font-medium tracking-tight">Consolidação Telemetria & Infrações (GAD-NI-003-01)</p>
+          <p className="text-slate-500 font-medium tracking-tight">Consolidação Telemetria & Infrações (GAD-NI-003-02)</p>
         </div>
         <div className="flex items-center space-x-3 w-full md:w-auto">
           <div className="flex items-center space-x-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2 py-1 shadow-sm">
@@ -367,33 +373,33 @@ export default function RankingView() {
         </div>
       </div>
 
-      {/* Informativo da Norma GAD-NI-003-01 */}
+      {/* Informativo da Norma GAD-NI-003-02 */}
       <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
         <div className="absolute top-0 right-0 p-4 opacity-10">
           <Scale size={80} />
         </div>
         <div className="flex items-center space-x-3 mb-6">
            <Scale className="text-indigo-600" size={20} />
-           <h2 className="text-sm font-black uppercase tracking-widest italic text-slate-800 dark:text-white underline decoration-indigo-500/30">Diretrizes Norma Interna GAD-NI-003-01</h2>
+           <h2 className="text-sm font-black uppercase tracking-widest italic text-slate-800 dark:text-white underline decoration-indigo-500/30">Diretrizes Norma Interna GAD-NI-003-02</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
             <p className="text-[10px] font-black text-blue-600 uppercase mb-2 flex items-center">
               <Info size={12} className="mr-1" /> 1. Advertência
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicável a infrações de leve a média gravidade e telemetria. **Limite: 03 ocorrências**.</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicável da 1ª até a 3ª ocorrência acumulada (Telemetria ou CTB Leve/Média/Grave).</p>
           </div>
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
             <p className="text-[10px] font-black text-orange-600 uppercase mb-2 flex items-center">
               <AlertTriangle size={12} className="mr-1" /> 2. Suspensão Temporária
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada em infrações **GRAVES** ou ao extrapolar tolerâncias de advertência.</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada na 4ª ocorrência acumulada. Requer reorientação de segurança viária.</p>
           </div>
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
             <p className="text-[10px] font-black text-rose-600 uppercase mb-2 flex items-center">
               <ShieldAlert size={12} className="mr-1" /> 3. Suspensão Definitiva
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Infrações **GRAVÍSSIMAS**, riscos críticos ou descumprimento de ética e segurança.</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada na 5ª ocorrência acumulada ou riscos críticos persistentes conforme Norma.</p>
           </div>
         </div>
       </div>
@@ -476,7 +482,7 @@ export default function RankingView() {
                                 <span className="text-indigo-400 font-bold">Telemetria (Base):</span> <span className="font-mono">5 pts</span>
                                 <span className="text-indigo-600 font-bold">Telemetria (&gt;3):</span> <span className="font-mono">15 pts</span>
                               </div>
-                              <p className="text-[8px] text-slate-400 italic mt-1 leading-tight">O somatório define a situação do condutor conforme limites da norma GAD-NI-003-01.</p>
+                              <p className="text-[8px] text-slate-400 italic mt-1 leading-tight">O somatório define a situation do condutor conforme limites da norma GAD-NI-003-02.</p>
                             </div>
                           </TooltipContent>
                         </Tooltip>
@@ -557,8 +563,13 @@ export default function RankingView() {
         </div>
       </div>
 
-      <Dialog open={!!selectedDriverDetails} onOpenChange={(open) => !open && setSelectedDriverDetails(null)}>
-        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 overflow-hidden">
+      <Dialog open={!!selectedDriverDetails} onOpenChange={(open) => {
+        if (!open) {
+          setSelectedDriverDetails(null);
+          setSelectedTemplate('auto');
+        }
+      }}>
+        <DialogContent className="max-w-[98vw] sm:max-w-[95vw] lg:max-w-[1400px] xl:max-w-[1600px] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 overflow-hidden">
           {selectedDriverDetails && (
             <>
               <DialogHeader className="p-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
@@ -571,7 +582,7 @@ export default function RankingView() {
                       {selectedDriverDetails.driver}
                     </DialogTitle>
                     <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">
-                      Painel Detalhado de Notificações SEI / GAD-NI-003-01
+                      Painel Detalhado de Notificações SEI / GAD-NI-003-02
                     </DialogDescription>
                   </div>
                   <div className="text-right">
@@ -689,35 +700,41 @@ export default function RankingView() {
                   <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800">
                     <div className="flex justify-between items-center mb-2">
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 flex items-center">
-                        <FileText size={12} className="mr-2" /> Minuta de Notificação Formal (GAD-NI-003-01)
+                        <FileText size={12} className="mr-2" /> Minuta de Notificação Formal (GAD-NI-003-02)
                       </h4>
-                      {selectedDriverDetails.situation === "Advertência" && (
-                        <div className="flex space-x-2">
+                      <div className="flex space-x-2">
+                        {selectedDriverDetails.situation !== "Regular" && (
                           <button 
-                            onClick={() => setIsTerceirizado(false)}
-                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${!isTerceirizado ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-transparent text-slate-400 border-slate-200 hover:border-indigo-300'}`}
+                            onClick={() => setSelectedTemplate('auto')}
+                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedTemplate === 'auto' ? 'bg-rose-600 text-white border-rose-600' : 'bg-transparent text-slate-400 border-slate-200 hover:border-rose-300'}`}
                           >
-                            Empregado Compesa
+                            Situação Norma
                           </button>
-                          <button 
-                            onClick={() => setIsTerceirizado(true)}
-                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${isTerceirizado ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-transparent text-slate-400 border-slate-200 hover:border-indigo-300'}`}
-                          >
-                            Terceirizado
-                          </button>
-                        </div>
-                      )}
+                        )}
+                        <button 
+                          onClick={() => setSelectedTemplate('compesa')}
+                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedTemplate === 'compesa' ? 'bg-amber-500 text-white border-amber-500' : 'bg-transparent text-slate-400 border-slate-200 hover:border-amber-300'}`}
+                        >
+                          Advertência (Compesa)
+                        </button>
+                        <button 
+                          onClick={() => setSelectedTemplate('terceirizado')}
+                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedTemplate === 'terceirizado' ? 'bg-amber-500 text-white border-amber-500' : 'bg-transparent text-slate-400 border-slate-200 hover:border-amber-300'}`}
+                        >
+                          Advertência (Terceirizado)
+                        </button>
+                      </div>
                     </div>
                     <div className="bg-slate-900 rounded-2xl p-6 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <Scale size={48} className="text-white" />
                       </div>
                       <pre className="text-[11px] font-medium text-slate-300 whitespace-pre-wrap font-sans leading-relaxed relative z-10">
-                        {generateFormalText(selectedDriverDetails, isTerceirizado ? 'terceirizado' : 'compesa')}
+                        {generateFormalText(selectedDriverDetails, selectedTemplate)}
                       </pre>
                       <button 
                         onClick={() => {
-                          const text = generateFormalText(selectedDriverDetails, isTerceirizado ? 'terceirizado' : 'compesa');
+                          const text = generateFormalText(selectedDriverDetails, selectedTemplate);
                           navigator.clipboard.writeText(text);
                           alert("Texto copiado para a área de transferência!");
                         }}

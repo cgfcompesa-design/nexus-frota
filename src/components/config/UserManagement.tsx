@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { db } from "../../lib/firebase";
+import { db, handleFirestoreError } from "../../lib/firebase";
 import { collection, query, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
 import { Users, Shield, User as UserIcon, Eye, Trash2, Mail, Save } from "lucide-react";
@@ -19,6 +19,9 @@ export default function UserManagement() {
         usersData.push({ uid: doc.id, ...doc.data() } as UserProfile);
       });
       setUsers(usersData);
+      setLoading(false);
+    }, (error) => {
+      handleFirestoreError(error, 'list', 'users');
       setLoading(false);
     });
 

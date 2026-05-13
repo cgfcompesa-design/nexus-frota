@@ -464,21 +464,13 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
                   color="amber"
                   centered
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3">
                   <CCOStatCard 
                     label="Disponibilidade" 
                     value={`${disponibilidadeProprios.toFixed(1)}%`}
                     secondary="Meta 90%"
                     icon={<Activity className="h-4 w-4 text-blue-400" />}
                     color="blue"
-                    centered
-                  />
-                  <CCOStatCard 
-                    label="Backlog Total" 
-                    value={backlogTotal}
-                    secondary="Ordens em Aberto"
-                    icon={<Plus className="h-4 w-4 text-amber-400" />}
-                    color="amber"
                     centered
                   />
                 </div>

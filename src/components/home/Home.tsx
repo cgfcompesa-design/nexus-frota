@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon } from "lucide-react";
 
-const cgfLogo = "/src/assets/images/regenerated_image_1778593500523.png";
+import logoCgf from "../../assets/images/regenerated_image_1778593500523.png";
 
 interface HomeProps {
   setView: (view: string) => void;
@@ -53,7 +53,7 @@ const Home = ({ setView }: HomeProps) => {
       <div className="max-w-6xl w-full mx-auto">
         <header className="text-center mb-12 bg-white dark:bg-slate-900 p-8 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
           <img 
-            src={cgfLogo} 
+            src={logoCgf} 
             alt="Nexus BI Logo" 
             className="w-48 h-auto mx-auto mb-6 transition-transform hover:scale-105" 
             onError={(e) => {

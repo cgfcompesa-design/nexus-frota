@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { auth, googleProvider, db } from '../../lib/firebase';
+import { auth, googleProvider, db, handleFirestoreError } from '../../lib/firebase';
 import { 
   signInWithPopup, 
   signInWithEmailAndPassword, 
@@ -27,13 +27,17 @@ export default function LoginPage({ setView }: LoginPageProps) {
       } else {
         const cred = await createUserWithEmailAndPassword(auth, email, password);
         // Create user profile
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          uid: cred.user.uid,
-          email: cred.user.email,
-          displayName: cred.user.email?.split('@')[0],
-          role: 'Operador',
-          createdAt: new Date().toISOString()
-        });
+        try {
+          await setDoc(doc(db, 'users', cred.user.uid), {
+            uid: cred.user.uid,
+            email: cred.user.email,
+            displayName: cred.user.email?.split('@')[0],
+            role: 'Visualizador',
+            createdAt: new Date().toISOString()
+          });
+        } catch (error) {
+          handleFirestoreError(error, 'write', `users/${cred.user.uid}`);
+        }
       }
     } catch (err: any) {
       setError(err.message);
@@ -43,15 +47,25 @@ export default function LoginPage({ setView }: LoginPageProps) {
   const handleGoogle = async () => {
     try {
       const cred = await signInWithPopup(auth, googleProvider);
-      const userDoc = await getDoc(doc(db, 'users', cred.user.uid));
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'users', cred.user.uid), {
-          uid: cred.user.uid,
-          email: cred.user.email,
-          displayName: cred.user.displayName,
-          role: 'Operador',
-          createdAt: new Date().toISOString()
-        });
+      let userDoc;
+      try {
+        userDoc = await getDoc(doc(db, 'users', cred.user.uid));
+      } catch (error) {
+        handleFirestoreError(error, 'get', `users/${cred.user.uid}`);
+      }
+
+      if (userDoc && !userDoc.exists()) {
+        try {
+          await setDoc(doc(db, 'users', cred.user.uid), {
+            uid: cred.user.uid,
+            email: cred.user.email,
+            displayName: cred.user.displayName,
+            role: 'Visualizador',
+            createdAt: new Date().toISOString()
+          });
+        } catch (error) {
+          handleFirestoreError(error, 'write', `users/${cred.user.uid}`);
+        }
       }
     } catch (err: any) {
       setError(err.message);

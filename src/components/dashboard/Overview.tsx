@@ -21,21 +21,6 @@ export default function Overview() {
   const loadingFetch = assetsQuery.isLoading || maintenanceQuery.isLoading;
   const isError = assetsQuery.isError || maintenanceQuery.isError;
   
-  // Calcular Backlog Total
-  const backlogTotal = useMemo(() => {
-    // Deduplicate by numOrdem as done in BacklogDashboard
-    const uniqueOrders = new Set();
-    maintenanceData.forEach(item => {
-      if (item.numOrdem) uniqueOrders.add(item.numOrdem);
-    });
-    return uniqueOrders.size;
-  }, [maintenanceData]);
-
-  const telemetry = [] as TelemetryData[];
-  const fuel = [] as FuelData[];
-  const maintenance = [] as MaintenanceData[];
-  const maintenanceCost = [] as MaintenanceCostData[];
-
   const [searchPlaca, setSearchPlaca] = useState<string>("");
   const [selectedTipo, setSelectedTipo] = useState<string>("all");
   const [selectedDiretoria, setSelectedDiretoria] = useState<string>("all");
@@ -233,14 +218,14 @@ export default function Overview() {
                    dataKey="name"
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: '#0f172a', fontSize: 11, fontWeight: 900 }}
+                   tick={{ fill: 'currentColor', fontSize: 11, fontWeight: 900 }}
                    interval={0}
                    height={60}
                 />
                 <YAxis 
                    axisLine={false} 
                    tickLine={false} 
-                   tick={{ fill: '#0f172a', fontSize: 11, fontWeight: 900 }}
+                   tick={{ fill: 'currentColor', fontSize: 11, fontWeight: 900 }}
                 />
                 <Tooltip 
                   cursor={{ fill: 'rgba(99, 102, 241, 0.1)' }}
@@ -258,7 +243,7 @@ export default function Overview() {
                   dataKey="value" 
                   radius={[12, 12, 0, 0]} 
                   barSize={80}
-                  label={{ position: 'top', fill: '#010101', fontSize: 16, fontWeight: 900, dy: -15 }}
+                  label={{ position: 'top', fill: 'currentColor', fontSize: 14, fontWeight: 900, dy: -10 }}
                 >
                   {criticalityData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.fill} stroke={entry.fill} strokeWidth={2} fillOpacity={0.9} />
@@ -435,7 +420,7 @@ export default function Overview() {
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+              className="relative w-full max-w-7xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
             >
               <div className="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
                 <div className="flex items-center space-x-3">

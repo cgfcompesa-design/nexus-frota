@@ -33,6 +33,8 @@ import {
 import { auth } from '../../lib/firebase';
 import { useState, useEffect } from 'react';
 
+import logoCgf from '../../assets/images/regenerated_image_1778593500523.png';
+
 interface SidebarProps {
   currentView: string;
   setView: (view: string) => void;
@@ -202,7 +204,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       >
         <div className="p-6 flex items-center space-x-3 mb-4 shrink-0 cursor-pointer" onClick={() => setView('home')}>
           <img 
-            src="/src/assets/images/regenerated_image_1778593500523.png" 
+            src={logoCgf} 
             alt="Nexus BI Logo" 
             className="h-10 w-auto" 
             onError={(e) => {

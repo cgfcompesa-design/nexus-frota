@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
-import * as ReactLeaflet from 'react-leaflet';
-const { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } = ReactLeaflet;
+import { MapContainer, TileLayer, Marker, Popup, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 

@@ -8,7 +8,7 @@
         "uid": { "type": "string", "description": "ID exclusivo do Firebase Auth" },
         "email": { "type": "string", "format": "email" },
         "displayName": { "type": "string" },
-        "role": { "type": "string", "enum": ["Admin", "Gestor", "Operador"] },
+        "role": { "type": "string", "enum": ["Master", "Gestão", "Visualizador"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },

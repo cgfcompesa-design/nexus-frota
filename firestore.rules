@@ -6,6 +6,7 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    // --- Helpers ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -14,33 +15,54 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function getUserData() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
     }
 
     function hasRole(role) {
-      return isSignedIn() && getUserData().role == role;
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
     }
 
     function isAdmin() {
-      return hasRole('Admin');
+      return hasRole('Master') || request.auth.token.email == 'cgf.compesa@gmail.com';
     }
 
     function isGestor() {
-      return hasRole('Gestor') || isAdmin();
+      return hasRole('Gestão') || isAdmin();
     }
 
     // --- Users ---
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create: if isOwner(userId) && request.resource.data.role == 'Operador'; // Default role
-      allow update: if isAdmin() || (isOwner(userId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+      // Permitir que qualquer usuário autenticado veja seu próprio perfil ou que administradores vejam qualquer perfil
+      allow get: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+      // Permitir listagem de usuários apenas para administradores
+      allow list: if isAdmin();
+      
+      allow create: if isOwner(userId) && 
+        incoming().keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+        incoming().role == 'Visualizador' && // Default role for new users
+        incoming().uid == request.auth.uid;
+        
+      allow update: if isAdmin() || (isOwner(userId) && 
+        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'email', 'uid']));
     }
 
     // --- Maintenance Tasks ---
     match /maintenance_tasks/{taskId} {
       allow read: if isSignedIn();
-      allow create, update: if isGestor() || hasRole('Operador');
+      allow create, update: if isGestor() || hasRole('Operador') || hasRole('Gestão'); // Keeping Operador if it existed but using Gestão
       allow delete: if isAdmin() || isGestor();
     }
 
@@ -70,6 +92,11 @@ service cloud.firestore {
     match /indicator_values/{valueId} {
       allow read: if isSignedIn();
       allow write: if isGestor();
+    }
+
+    // Connection test
+    match /test/connection {
+      allow read: if true;
     }
   }
 }
