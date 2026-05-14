@@ -267,11 +267,14 @@ export async function fetchFuelData(): Promise<any[]> {
     });
 
     // Absolute Fallbacks (specific column indices for Ticket Log / ValeCard)
-    if (!obj._txId) obj._txId = row[0]; // Ticket Log Transaction often in Column A
+    // The user says Column E (index 4) is Data/Hora. 
+    // And Column F (index 5) seems to be the Plate based on "N/A RZV1A58" feedback.
+    // And "Time" was appearing in "Cód. Transação" which was mapped to row[0].
+    
+    if (!obj._txId) obj._txId = row[0] || row[8] || "N/A";
     if (!obj._date) obj._date = row[4]; // Column E
-    if (!obj._time) obj._time = row[5]; // Column F
-    if (!obj._placa) obj._placa = String(row[10] || row[11] || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
-    if (!obj._fuelType) obj._fuelType = row[19];
+    if (!obj._placa) obj._placa = String(row[10] || row[11] || row[5] || obj._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
+    if (!obj._fuelType) obj._fuelType = row[19] || row[2];
     if (!obj._litros) obj._litros = parseNum(row[21]);
     
     // Column P (index 15) is identified as the price by the user
@@ -285,8 +288,14 @@ export async function fetchFuelData(): Promise<any[]> {
     if (!obj._monthYear) obj._monthYear = row[41];
     if (!obj._autReal) obj._autReal = parseNum(row[42]); // Column AQ index 42
     
-    // Add transaction time if available (fallback Column G = index 6)
-    if (!obj._time) obj._time = row[6] || "";
+    // Transaction ID should probably be in E (row[4]) or fallback to something else?
+    // If E is Data/Hora, maybe the Transaction ID is in F? Or I should keep searching.
+    // Let's try to map txId to a different column if it's currently showing Time.
+    // Usually Ticket Log has it in index 3 or 4.
+    if (!obj._txId) obj._txId = row[8] || row[4] || "N/A";
+
+    // Add transaction time if available (fallback Column G = index 6 or the user said Column A (0) had time)
+    if (!obj._time) obj._time = row[0] || row[6] || "";
 
     // Final normalization for MES/ANO if missing or non-standard
     if (obj._monthYear) {

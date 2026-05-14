@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { db, handleFirestoreError } from "../../lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { db, handleFirestoreError, auth } from "../../lib/firebase";
+import { collection, query, onSnapshot, doc, updateDoc, setDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
 import { Users, Shield, User as UserIcon, Eye, Trash2, Mail, Save, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,26 @@ export default function UserManagement() {
     } catch (error) {
       console.error("Erro ao atualizar role:", error);
       toast.error("Erro ao atualizar role");
+    }
+  };
+
+  const handleCreateMaster = async () => {
+    try {
+      const authUser = auth.currentUser;
+      if (!authUser || authUser.email !== 'cgf.compesa@gmail.com') return;
+      
+      const docRef = doc(db, "users", authUser.uid);
+      await setDoc(docRef, {
+        uid: authUser.uid,
+        email: authUser.email,
+        displayName: authUser.displayName || 'Master User',
+        role: 'Master',
+        createdAt: new Date().toISOString()
+      });
+      toast.success("Perfil Master criado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao criar perfil master:", error);
+      toast.error("Erro ao criar perfil master");
     }
   };
 
@@ -92,6 +112,16 @@ export default function UserManagement() {
                <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
                <p className="text-slate-400 font-black uppercase text-xs tracking-widest">Nenhum usuário encontrado</p>
                <p className="text-slate-300 text-[10px] uppercase font-bold mt-1">Aguardando novos cadastros...</p>
+               {auth.currentUser?.email === 'cgf.compesa@gmail.com' && (
+                 <Button 
+                   variant="outline" 
+                   size="sm" 
+                   onClick={handleCreateMaster}
+                   className="mt-4 rounded-xl font-bold text-[10px] uppercase tracking-widest border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                 >
+                   Criar meu Perfil Master
+                 </Button>
+               )}
             </div>
           ) : !error && (
             <div className="overflow-x-auto">

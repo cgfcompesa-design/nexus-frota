@@ -107,11 +107,66 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
     return map;
   }, [assets]);
 
+  const parseDateRobust = (rawDate: any): Date => {
+    if (rawDate instanceof Date) return rawDate;
+    if (!rawDate) return new Date(0);
+    
+    if (typeof rawDate === 'number') {
+      if (rawDate > 40000 && rawDate < 60000) {
+        return new Date((rawDate - 25569) * 86400 * 1000);
+      }
+      return new Date(rawDate);
+    }
+    
+    if (typeof rawDate === 'string') {
+      const s = rawDate.trim();
+      
+      // Try YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+        const d = new Date(s);
+        if (isValid(d)) return d;
+      }
+
+      const parts = s.split(/[\s/:-]/);
+      // Search for a DD/MM/YYYY or YYYY/MM/DD pattern in the parts
+      for (let i = 0; i <= parts.length - 3; i++) {
+        const p1 = parts[i];
+        const p2 = parts[i+1];
+        const p3 = parts[i+2];
+
+        // DD/MM/YYYY
+        if (p1.length <= 2 && p2.length <= 2 && (p3.length === 4 || p3.length === 2)) {
+          const day = parseInt(p1);
+          const month = parseInt(p2) - 1;
+          const year = p3.length === 2 ? 2000 + parseInt(p3) : parseInt(p3);
+          const hour = parts[i+3] ? parseInt(parts[i+3]) : 0;
+          const min = parts[i+4] ? parseInt(parts[i+4]) : 0;
+          const date = new Date(year, month, day, hour, min);
+          if (isValid(date) && date.getFullYear() > 2000 && date.getFullYear() < 2100) return date;
+        }
+        
+        // YYYY/MM/DD
+        if (p1.length === 4 && p2.length <= 2 && p3.length <= 2) {
+          const year = parseInt(p1);
+          const month = parseInt(p2) - 1;
+          const day = parseInt(p3);
+          const hour = parts[i+3] ? parseInt(parts[i+3]) : 0;
+          const min = parts[i+4] ? parseInt(parts[i+4]) : 0;
+          const date = new Date(year, month, day, hour, min);
+          if (isValid(date)) return date;
+        }
+      }
+    }
+    
+    const d = new Date(rawDate);
+    return isValid(d) ? d : null;
+  };
+
   // Processamento base de dados
   const filteredFuel = useMemo(() => {
     return fuel.filter(f => {
-      const txDate = f._date instanceof Date ? f._date : new Date(f._date || 0);
-      if (!isValid(txDate)) return true;
+      const txDate = parseDateRobust(f._date);
+      if (!txDate || !isValid(txDate)) return true;
       
       if (dateFrom && txDate < startOfDay(dateFrom)) return false;
       if (dateTo && txDate > endOfDay(dateTo)) return false;
@@ -133,14 +188,15 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
       
       const odometer = f._odometer || 0;
       const kmRodados = f._kmRodados || 0;
-      const txDate = f._date instanceof Date ? f._date : new Date(f._date || 0);
+      
+      const txDate = parseDateRobust(f._date);
 
       fuelByPlate[placa].push({ ...f, odometer, kmRodados, txDate });
     });
 
     // Analisar por placa
     Object.keys(fuelByPlate).forEach(placa => {
-      const fuelings = fuelByPlate[placa].sort((a, b) => a.txDate.getTime() - b.txDate.getTime());
+      const fuelings = fuelByPlate[placa].sort((a, b) => (a.txDate?.getTime() || 0) - (b.txDate?.getTime() || 0));
 
       fuelings.forEach((f, idx) => {
         let isInc = false;
@@ -172,7 +228,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             transacao: f._txId || (f as any).COL_0 || "N/A",
             motorista: f._driver || "N/A",
             data: (f.txDate && isValid(f.txDate)) ? format(f.txDate, "dd/MM/yyyy") : "N/A",
-            time: f._time || "",
+            time: (f.txDate && isValid(f.txDate)) ? format(f.txDate, "HH:mm") : "",
             odometer: f.odometer,
             kmRodados: f.kmRodados,
             unidade: asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A",
@@ -190,8 +246,9 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
     });
 
     return inconsistencies.sort((a, b) => {
-      const dA = new Date(String(a.data));
-      const dB = new Date(String(b.data));
+      const dA = (a.data && a.data !== "N/A") ? parse(a.data, "dd/MM/yyyy", new Date()) : new Date(0);
+      const dB = (b.data && b.data !== "N/A") ? parse(b.data, "dd/MM/yyyy", new Date()) : new Date(0);
+      if (!isValid(dA) || !isValid(dB)) return 0;
       return dB.getTime() - dA.getTime();
     });
   }, [filteredFuel, allAssetsMap]);
@@ -701,6 +758,20 @@ Nexus BI Frota`;
                  <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Veículos por Faixa Horária</CardTitle>
                </div>
                <div className="flex items-center gap-2">
+                 <Button 
+                   variant={selectedPatternFilter === "OUT" ? "default" : "outline"}
+                   onClick={() => {
+                     setSelectedPatternFilter(prev => prev === "OUT" ? "ALL" : "OUT");
+                     setCurrentPageTime(1);
+                   }}
+                   className={`h-7 text-[9px] font-black uppercase gap-1 transition-all ${
+                     selectedPatternFilter === "OUT" 
+                       ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-md scale-105" 
+                       : "border-slate-200 dark:border-slate-800 text-slate-500"
+                   }`}
+                 >
+                   <AlertTriangle className="h-3 w-3" /> Fora do Padrão
+                 </Button>
                  <Button 
                    onClick={() => setIsJustifyDialogOpen(true)} 
                    disabled={filteredTimeVehicles.length === 0}

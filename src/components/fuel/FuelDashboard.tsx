@@ -135,76 +135,56 @@ const getFormattedDate = (dateString: any): string | null => {
   if (!dateString) return null;
   try {
     const toLocalISOString = (d: Date) => {
+      if (!isValid(d)) return null;
       const pad = (n: number) => n.toString().padStart(2, '0');
-      try {
-        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-      } catch (e) {
-        return null;
-      }
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
     };
 
-    // Se for um número (possível Excel Serial Date)
+    if (dateString instanceof Date) return toLocalISOString(dateString);
+
     if (typeof dateString === 'number' && dateString > 40000 && dateString < 70000) {
-      const d = excelDateToJSDate(dateString);
-      return toLocalISOString(d);
+      return toLocalISOString(excelDateToJSDate(dateString));
     }
 
-    if (dateString instanceof Date) {
-      return toLocalISOString(dateString);
-    }
-
-    let dateStr = String(dateString).trim();
-
-    // Caso seja uma string que contém um número (possível Excel Serial Date vindo como string)
-    if (/^\d{5}(\.\d+)?$/.test(dateStr)) {
-      const num = parseFloat(dateStr);
-      if (num > 40000 && num < 70000) {
-        const d = excelDateToJSDate(num);
-        return toLocalISOString(d);
-      }
-    }
+    let s = String(dateString).trim();
     
-    // Se já está no formato AAAA-MM-DD ou similar
-    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
-      // Se não tem hora, adiciona T00:00:00
-      if (!dateStr.includes('T') && !dateStr.includes(' ')) {
-        return `${dateStr}T00:00:00`;
-      }
-      return dateStr.replace(' ', 'T').substring(0, 19);
+    // Excel serial as string
+    if (/^\d{5}(\.\d+)?$/.test(s)) {
+      const num = parseFloat(s);
+      if (num > 40000 && num < 70000) return toLocalISOString(excelDateToJSDate(num));
     }
-    
-    // Tenta parsear formatos comuns
-    // 1. DD/MM/AAAA ou DD-MM-AAAA ou DD.MM.AAAA com ou sem hora
-    const dmyMatch = dateStr.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})(\s+\d{1,2}:\d{1,2}(:\d{1,2})?)?/);
+
+    // YYYY-MM-DD
+    const isoMatch = s.match(/(\d{4})-(\d{2})-(\d{2})(T|\s+)?(\d{2}:\d{2}(:\d{2})?)?/);
+    if (isoMatch) {
+      if (!isoMatch[4]) return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T00:00:00`;
+      return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T${isoMatch[5] || "00:00:00"}`;
+    }
+
+    // DD/MM/YYYY
+    const dmyMatch = s.match(/(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})(\s+(\d{1,2}):(\d{1,2})(:( \d{1,2}))?)?/);
     if (dmyMatch) {
       let day = dmyMatch[1].padStart(2, '0');
       let month = dmyMatch[2].padStart(2, '0');
       let year = dmyMatch[3];
       if (year.length === 2) year = '20' + year;
-      
-      let timePart = dmyMatch[4] ? dmyMatch[4].trim() : "00:00:00";
-      const tParts = timePart.split(':');
-      if (tParts.length === 2) timePart = timePart + ":00";
-      else if (tParts.length === 1) timePart = "00:00:00";
-
-      return `${year}-${month}-${day}T${timePart}`;
+      let hour = dmyMatch[5] ? dmyMatch[5].padStart(2, '0') : "00";
+      let min = dmyMatch[6] ? dmyMatch[6].padStart(2, '0') : "00";
+      let sec = dmyMatch[8] ? dmyMatch[8].trim().padStart(2, '0') : "00";
+      return `${year}-${month}-${day}T${hour}:${min}:${sec}`;
     }
 
-    // 2. AAAA/MM/DD ou AAAA-MM-DD com ou sem hora
-    const ymdMatch = dateStr.match(/^(\d{4})[./-](\d{1,2})[./-](\d{1,2})(\s+\d{1,2}:\d{1,2}(:\d{1,2})?)?/);
+    const ymdMatch = s.match(/(\d{4})[./-](\d{1,2})[./-](\d{1,2})(\s+(\d{1,2}):(\d{1,2})(:( \d{1,2}))?)?/);
     if (ymdMatch) {
       let year = ymdMatch[1];
       let month = ymdMatch[2].padStart(2, '0');
       let day = ymdMatch[3].padStart(2, '0');
-      
-      let timePart = ymdMatch[4] ? ymdMatch[4].trim() : "00:00:00";
-      const tParts = timePart.split(':');
-      if (tParts.length === 2) timePart = timePart + ":00";
-      else if (tParts.length === 1) timePart = "00:00:00";
-
-      return `${year}-${month}-${day}T${timePart}`;
+      let hour = ymdMatch[5] ? ymdMatch[5].padStart(2, '0') : "00";
+      let min = ymdMatch[6] ? ymdMatch[6].padStart(2, '0') : "00";
+      let sec = ymdMatch[8] ? ymdMatch[8].trim().padStart(2, '0') : "00";
+      return `${year}-${month}-${day}T${hour}:${min}:${sec}`;
     }
-    
+
     // Fallback: tenta parsear com Date nativo
     const dateObj = new Date(dateString);
     if (!isNaN(dateObj.getTime())) {
@@ -212,7 +192,7 @@ const getFormattedDate = (dateString: any): string | null => {
     }
 
     return null;
-  } catch {
+  } catch (e) {
     return null;
   }
 };
@@ -829,8 +809,11 @@ Nexus BI Frota`;
       const targetRecords = recentRecords.length > 0 ? recentRecords : allRecords;
       
       if (targetRecords.length > 0) {
-        // Menor preço no período alvo
-        const bestMatch = targetRecords.reduce((best, curr) => (curr._vlLitro < best._vlLitro ? curr : best), targetRecords[0]);
+        // Encontrar o menor preço no período alvo com filtro de sanidade
+        const bestMatch = targetRecords.reduce((best, curr) => {
+          if (curr._vlLitro < 0.5 || curr._vlLitro > 20) return best;
+          return (curr._vlLitro < best._vlLitro || best._vlLitro < 0.5) ? curr : best;
+        }, targetRecords[0]);
 
          const regiao = getPERegion(bestMatch._cidade === "N/A" ? bestMatch._posto : bestMatch._cidade);
          
