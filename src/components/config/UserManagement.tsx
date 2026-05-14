@@ -60,8 +60,18 @@ export default function UserManagement() {
           <h1 className="text-3xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Gestão de Usuários</h1>
           <p className="text-slate-500 font-medium tracking-tight">Administração de níveis de acesso do Nexus Frota</p>
         </div>
-        <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg">
-          <Users size={24} />
+        <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => window.location.reload()}
+            className="rounded-xl font-bold text-[10px] uppercase tracking-widest border-2"
+          >
+            Sincronizar
+          </Button>
+          <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg">
+            <Users size={24} />
+          </div>
         </div>
       </div>
 

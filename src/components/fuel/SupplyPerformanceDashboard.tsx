@@ -159,7 +159,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             placa,
             transacao: f._txId || (f as any).COL_4 || (f as any).COL_0 || "N/A",
             motorista: f._driver || "N/A",
-            data: f._date ? format(f.txDate, "dd/MM/yyyy") : "N/A",
+            data: (f.txDate && isValid(f.txDate)) ? format(f.txDate, "dd/MM/yyyy") : "N/A",
             time: f._time || "",
             odometer: f.odometer,
             kmRodados: f.kmRodados,
@@ -300,7 +300,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
               placa: f.PLACA || f.Placa || "N/A",
               range: rangeKey,
               data: rawDate,
-              dataStr: format(txDate, "dd/MM/yyyy"),
+              dataStr: (txDate && isValid(txDate)) ? format(txDate, "dd/MM/yyyy") : "N/A",
               horaStr: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
               motorista: raw[11] || "N/A",
               outOfPattern
@@ -479,7 +479,10 @@ Nexus BI Frota`;
       "Placa": t.placaOrigino,
       "Propriedade": t.propriedade,
       "Status Ativo": t.statusAtivo,
-      "Data/Hora": typeof t.data === 'string' ? t.data : format(new Date((t.data - 25569) * 86400 * 1000), 'dd/MM/yyyy HH:mm'),
+      "Data/Hora": typeof t.data === 'string' ? t.data : (function() {
+        const d = new Date((t.data - 25569) * 86400 * 1000);
+        return isValid(d) ? format(d, 'dd/MM/yyyy HH:mm') : String(t.data);
+      })(),
       "Litros": t.litros,
       "Valor": t.valor,
       "Posto": t.estabelecimento,
@@ -807,7 +810,12 @@ Nexus BI Frota`;
                   <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-rose-50/10 transition-colors">
                     <TableCell className="py-2 text-[10px] font-black text-rose-600">{t.placa}</TableCell>
                     <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.motorista}</TableCell>
-                    <TableCell className="py-2 text-[9px] text-slate-500">{typeof t.data === 'string' ? t.data : format(new Date((t.data - 25569) * 86400 * 1000), 'dd/MM/yyyy HH:mm')}</TableCell>
+                    <TableCell className="py-2 text-[9px] text-slate-500">
+                      {typeof t.data === 'string' ? t.data : (function() {
+                        const d = new Date((t.data - 25569) * 86400 * 1000);
+                        return isValid(d) ? format(d, 'dd/MM/yyyy HH:mm') : String(t.data);
+                      })()}
+                    </TableCell>
                     <TableCell className="py-2 text-[9px] text-right font-black text-slate-700 dark:text-slate-300">R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</TableCell>
                   </TableRow>
                 ))}

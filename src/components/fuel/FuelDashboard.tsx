@@ -89,6 +89,7 @@ interface FuelDashboardProps {
   maintenanceCost: MaintenanceCostData[];
   maintenance: MaintenanceData[];
   desviosOnly?: boolean;
+  initialTab?: string;
 }
 
 // Função auxiliar para parsear números brasileiros (trata separadores de milhar e decimal)
@@ -318,7 +319,7 @@ const standardizeFuelType = (fuelType: string | undefined): string => {
 };
 
 
-export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false }: FuelDashboardProps) => {
+export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false, initialTab }: FuelDashboardProps) => {
   // Hook para dados de locados (veículos em manutenção)
   const { data: locadosData = [] } = useLocadosData();
   
@@ -813,7 +814,7 @@ Nexus BI Frota`;
 
       const cidade = f._cidade || "N/A";
       const tipo = f._fuelType || "N/A";
-      if (tipo === "ARLA 32" || tipo === "N/A" || !tipo) return;
+      if (tipo === "N/A" || !tipo) return;
       if (f._vlLitro <= 0) return;
 
       const key = `${cidade}|${tipo}`;
@@ -1301,7 +1302,7 @@ Nexus BI Frota`;
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [fuelAnalysis.desvios, assetsByPlaca]);
 
-  const [activeTab, setActiveTab] = useState("analise");
+  const [activeTab, setActiveTab] = useState(initialTab || (desviosOnly ? "analise" : "analise"));
 
   // Sync internal state if needed, but Tabs handles its own.
 

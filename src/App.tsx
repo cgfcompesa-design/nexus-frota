@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db, handleFirestoreError } from './lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { Settings, ShieldAlert, Share2, Fuel } from 'lucide-react';
 import { Button } from './components/ui/button';
 import LoginPage from './components/auth/LoginPage';
@@ -51,6 +51,28 @@ function useAppLogic() {
             const userDoc = await getDoc(docRef);
             if (userDoc.exists()) {
               setUserProfile(userDoc.data());
+            } else if (authUser.email === 'cgf.compesa@gmail.com') {
+              // Fallback creation for Master user if document is missing
+              const newProfile = {
+                uid: authUser.uid,
+                email: authUser.email,
+                displayName: authUser.displayName || authUser.email?.split('@')[0],
+                role: 'Master',
+                createdAt: new Date().toISOString()
+              };
+              await setDoc(docRef, newProfile);
+              setUserProfile(newProfile);
+            } else {
+              // Create default profile for others if missing
+              const newProfile = {
+                uid: authUser.uid,
+                email: authUser.email,
+                displayName: authUser.displayName || authUser.email?.split('@')[0],
+                role: 'Visualizador',
+                createdAt: new Date().toISOString()
+              };
+              await setDoc(docRef, newProfile);
+              setUserProfile(newProfile);
             }
           } catch (error) {
             handleFirestoreError(error, 'get', `users/${authUser.uid}`);
@@ -98,7 +120,22 @@ function AbastDesviosView({ desviosOnly }: { desviosOnly: boolean }) {
 function AbastPerformanceView() {
   const { data: fuel = [] } = useFuelData();
   const { data: assets = [] } = useAssets();
-  return <SupplyPerformanceDashboard fuel={fuel} assets={assets} />;
+  const { data: autonomia = [] } = useAutonomiaData();
+  const { data: autonomiaPadrao = [] } = useAutonomiaPadraoData();
+  const { data: maintenanceCost = [] } = useMaintenanceCostData();
+  const { data: maintenance = [] } = useMaintenanceData();
+  
+  return (
+    <FuelDashboard 
+      fuel={fuel} 
+      assets={assets} 
+      autonomia={autonomia} 
+      autonomiaPadrao={autonomiaPadrao} 
+      maintenanceCost={maintenanceCost} 
+      maintenance={maintenance} 
+      initialTab="abast-perf" 
+    />
+  );
 }
 
 function MaintenanceDesempenhoView() {
