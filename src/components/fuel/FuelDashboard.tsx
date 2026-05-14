@@ -856,27 +856,14 @@ Nexus BI Frota`;
   const generateShareSummary = () => {
     const fuelTypes = selectedFuelTypes.length > 0 ? selectedFuelTypes.join(", ") : "Todos";
     const regionFilterText = selectedRegioes.length > 0 ? selectedRegioes.join(", ") : "Todas";
-    const cityFilterText = selectedCidades.length > 0 ? selectedCidades.join(", ") : "Todas";
     const monthFilterText = selectedMonthsYears.length > 0 ? selectedMonthsYears.join(", ") : "Todo o período";
 
     let summary = `*RESUMO DE AUDITORIA DE COMBUSTÍVEL - COMPESA*\n`;
     summary += `📅 *Referência:* ${format(new Date(), "dd/MM/yyyy HH:mm")}\n`;
     summary += `📍 *Filtros:* ${fuelTypes} | Regional: ${regionFilterText} | Período: ${monthFilterText}\n\n`;
     
-    summary += `*MÉTRICAS GERAIS:*\n`;
-    summary += `⛽ Total Litros: ${totalLitros.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L\n`;
-    summary += `💰 Valor Total: R$ ${totalValor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}\n`;
-    summary += `📊 Preço Médio/Litro: R$ ${avgPrecoLitro.toFixed(3)}\n\n`;
-
-    summary += `*ALERTAS DE DESVIOS:*\n`;
-    if (fuelAnalysis.statistics.autonomy > 0) summary += `⚠️ Autonomia: ${fuelAnalysis.statistics.autonomy}\n`;
-    if (fuelAnalysis.statistics.kmHora > 0) summary += `⚠️ KM/Hora: ${fuelAnalysis.statistics.kmHora}\n`;
-    if (fuelAnalysis.statistics.litros > 0) summary += `⚠️ Litros Excedentes: ${fuelAnalysis.statistics.litros}\n`;
-    if (fuelAnalysis.statistics.item > 0) summary += `⚠️ Item Não Autorizado: ${fuelAnalysis.statistics.item}\n`;
-    if (fuelAnalysis.statistics.valorLitro > 0) summary += `⚠️ Valor/Litro: ${fuelAnalysis.statistics.valorLitro}\n`;
-    
     if (priceAnalysis.length > 0) {
-      summary += `\n*MELHORES PREÇOS IDENTIFICADOS POR LOCALIDADE:*\n`;
+      summary += `*MELHORES PREÇOS IDENTIFICADOS POR LOCALIDADE:*\n`;
       
       // Group by locality
       const byLocality: Record<string, any[]> = {};
@@ -887,14 +874,21 @@ Nexus BI Frota`;
       });
 
       Object.entries(byLocality).forEach(([locality, items]) => {
-        summary += `\n📍 *${locality}*\n`;
+        summary += `\n📍 *${locality.toUpperCase()}*\n`;
         items.forEach(item => {
-          summary += `• ${item.tipo}: R$ ${item.preco.toFixed(3)} [${item.posto}]\n`;
+          let locationInfo = "";
+          if (item.endereco && item.endereco !== "N/A") {
+            locationInfo += ` - ${item.endereco}`;
+          }
+          if (item.bairro && item.bairro !== "N/A") {
+            locationInfo += `, ${item.bairro}`;
+          }
+          summary += `• ${item.tipo}: R$ ${item.preco.toFixed(3)} [${item.posto}${locationInfo}]\n`;
         });
       });
     }
 
-    summary += `\n*Ação Recomendada:* Revisar os desvios críticos e priorizar abastecimentos nos postos com melhores ofertas identificadas.\n`;
+    summary += `\n*Ação Recomendada:* Propomos que o abastecimento da frota local seja priorizado neste posto indicado para otimização de custos.\n`;
     summary += `\n_Gerado em tempo real via Nexus Frotas - Auditoria e Inteligência de Custos_`;
     
     navigator.clipboard.writeText(summary);
