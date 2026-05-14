@@ -5,23 +5,25 @@ import firebaseConfig from '../../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 const dbId = (firebaseConfig as any).firestoreDatabaseId;
-export const db = dbId ? getFirestore(app, dbId) : getFirestore(app); // CRITICAL: The app will break without this line
+
+// Initialize Firestore with specific database ID if provided, otherwise use default
+export const db = (dbId && dbId !== "(default)") ? getFirestore(app, dbId) : getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
 async function testConnection() {
-  // Give it a small delay to ensure network stacks are ready
-  await new Promise(resolve => setTimeout(resolve, 1000));
   try {
-    const testDoc = doc(db, 'test', 'connection');
+    // Attempting to read a dummy document to verify connectivity
+    const testDoc = doc(db, 'system', 'connection_test');
     await getDocFromServer(testDoc);
-    console.log("Firebase Connection: Success");
+    console.log("Firebase Connection: Online and Ready");
   } catch (error: any) {
-    console.warn("Firebase Connection test initial attempt failed, checking status...", error);
-    if(error?.message && error.message.includes('the client is offline')) {
-      console.error("Firebase Report: The client is offline. This usually means the Firestore backend is unreachable or not provisioned.");
+    if (error?.message && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
+      console.error("Firebase Report: Connection failure. The database might still be provisioning or network is restricted.");
     } else if (error?.code === 'permission-denied') {
-      console.log("Firebase Connection: Auth reached, but permission denied (expected if document doesn't exist but rules are working)");
+      console.log("Firebase Connection: Success (authenticated, but permission denied for test doc)");
+    } else {
+      console.log("Firebase Connection status:", error?.message || error);
     }
   }
 }

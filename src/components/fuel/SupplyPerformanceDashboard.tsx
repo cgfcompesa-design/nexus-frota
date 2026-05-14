@@ -68,6 +68,8 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
   const [currentPageUnknown, setCurrentPageUnknown] = useState(1);
   const [currentPageTime, setCurrentPageTime] = useState(1);
   const [currentPageInconsistency, setCurrentPageInconsistency] = useState(1);
+  const [dateFrom, setDateFrom] = useState<Date>();
+  const [dateTo, setDateTo] = useState<Date>();
   const itemsPerPage = 20;
 
   // Estados para o E-mail
@@ -105,8 +107,18 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
     return map;
   }, [assets]);
 
-  // Processamento base de dados (usa o fuel prop já filtrado pelo pai)
-  const filteredFuel = fuel;
+  // Processamento base de dados
+  const filteredFuel = useMemo(() => {
+    return fuel.filter(f => {
+      const txDate = f._date instanceof Date ? f._date : new Date(f._date || 0);
+      if (!isValid(txDate)) return true;
+      
+      if (dateFrom && txDate < startOfDay(dateFrom)) return false;
+      if (dateTo && txDate > endOfDay(dateTo)) return false;
+      
+      return true;
+    });
+  }, [fuel, dateFrom, dateTo]);
 
   // 3. Análise de Inconsistência de KM/Horímetro
   const inconsistencyAnalysis = useMemo(() => {
@@ -157,7 +169,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
           const asset = allAssetsMap.get(placa);
           inconsistencies.push({
             placa,
-            transacao: f._txId || (f as any).COL_4 || (f as any).COL_0 || "N/A",
+            transacao: f._txId || (f as any).COL_0 || "N/A",
             motorista: f._driver || "N/A",
             data: (f.txDate && isValid(f.txDate)) ? format(f.txDate, "dd/MM/yyyy") : "N/A",
             time: f._time || "",
@@ -168,7 +180,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             prevOdometer: idx > 0 ? fuelings[idx - 1].odometer : null,
             historico: fuelings.slice(0, idx + 1).map(h => ({
               transacao: h._txId || (h as any).COL_0,
-              data: h._date,
+              data: h.txDate,
               odometer: h.odometer,
               kmRodados: h.kmRodados
             }))
@@ -515,6 +527,25 @@ Nexus BI Frota`;
         </div>
         
         <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/50 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+            <div className="flex items-center gap-1.5 px-3">
+              <Calendar className="h-3.5 w-3.5 text-slate-400" />
+              <span className="text-[10px] font-black text-slate-400 uppercase">Período:</span>
+            </div>
+            <Input 
+              type="date" 
+              className="h-8 w-32 text-[10px] bg-transparent border-none focus-visible:ring-0 uppercase font-bold" 
+              value={dateFrom ? format(dateFrom, "yyyy-MM-dd") : ""}
+              onChange={(e) => setDateFrom(e.target.value ? new Date(e.target.value + "T00:00:00") : undefined)}
+            />
+            <span className="text-slate-300">/</span>
+            <Input 
+              type="date" 
+              className="h-8 w-32 text-[10px] bg-transparent border-none focus-visible:ring-0 uppercase font-bold"
+              value={dateTo ? format(dateTo, "yyyy-MM-dd") : ""}
+              onChange={(e) => setDateTo(e.target.value ? new Date(e.target.value + "T23:59:59") : undefined)}
+            />
+          </div>
           <Button onClick={handleExportIrregular} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-[10px] font-black shadow-lg shadow-indigo-200 dark:shadow-none h-11 px-6 rounded-xl">
             <Download className="h-4 w-4" /> EXPORTAR RELATÓRIO
           </Button>

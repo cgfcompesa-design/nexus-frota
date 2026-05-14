@@ -604,7 +604,7 @@ Nexus BI Frota`;
         _fuelType: standardizeFuelType(String(f._fuelType || "N/A")),
         _litros: f._litros || 0,
         _vlLitro: f._vlLitro || 0,
-        _valR: f._total || 0,
+        _valR: f._total || (f._vlLitro * f._litros) || 0,
         _itemDesc: String(f["SERVICO"] || f["SERVI\u00C7O"] || f["ITEM"] || raw[12] || "Abastecimento").trim(),
         _endereco: String(f["ENDERECO"] || f["ENDERE\u00C7O"] || raw[23] || raw[18] || "N/A").trim().toUpperCase(),
         _bairro: String(f["BAIRRO"] || raw[24] || raw[19] || "N/A").trim().toUpperCase(),
@@ -682,8 +682,8 @@ Nexus BI Frota`;
   }, [preProcessedFuel, assetsByPlaca, debouncedSearchPlaca, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedGerencias, selectedTipos, dateFrom, dateTo, selectedMonthsYears, selectedTipoControleAutonomia, selectedRegioes, selectedCidades]);
 
   // Metrics
-  const totalLitros = filteredFuel.reduce((sum, f) => sum + (Number(f.LITROS) || 0), 0);
-  const totalValor = filteredFuel.reduce((sum, f) => sum + (Number(f["VALOR EMISSAO"]) || 0), 0);
+  const totalLitros = useMemo(() => filteredFuel.reduce((sum, f) => sum + (Number(f._litros) || 0), 0), [filteredFuel]);
+  const totalValor = useMemo(() => filteredFuel.reduce((sum, f) => sum + (Number(f._valR) || 0), 0), [filteredFuel]);
   const totalAbastecimentos = filteredFuel.length;
   const avgPrecoLitro = totalLitros > 0 ? totalValor / totalLitros : 0;
 
@@ -789,9 +789,9 @@ Nexus BI Frota`;
   const priceAnalysis = useMemo(() => {
     if (!preProcessedFuel.length) return [];
     
-    // Período para Melhores Preços - 30 dias
-    const todayTs = new Date().getTime();
-    const thirtyDaysAgo = todayTs - (30 * 24 * 60 * 60 * 1000);
+    // Encontrar a data mais recente no dataset para definir a janela de análise
+    const maxTsInData = preProcessedFuel.reduce((max, f) => Math.max(max, f._timestamp || 0), 0);
+    const windowStartTs = maxTsInData > 0 ? maxTsInData - (60 * 24 * 60 * 60 * 1000) : 0; // 60 dias de janela a partir do último dado
 
     const pricesByGroup: Record<string, any[]> = {};
 
@@ -810,8 +810,6 @@ Nexus BI Frota`;
         }
       }
 
-      if (data === 0) return;
-
       const cidade = f._cidade || "N/A";
       const tipo = f._fuelType || "N/A";
       if (tipo === "N/A" || !tipo) return;
@@ -826,11 +824,13 @@ Nexus BI Frota`;
 
     Object.keys(pricesByGroup).forEach(key => {
       const allRecords = pricesByGroup[key];
-      const recentRecords = allRecords.filter(f => f._dataWork >= thirtyDaysAgo);
+      // Se tivermos dados recentes (ex: últimos 60 dias do dataset), use eles. Se não, use o melhor histórico.
+      const recentRecords = windowStartTs > 0 ? allRecords.filter(f => f._dataWork >= windowStartTs) : allRecords;
+      const targetRecords = recentRecords.length > 0 ? recentRecords : allRecords;
       
-      if (recentRecords.length > 0) {
-        // Menor preço nos últimos 30 dias
-        const bestMatch = recentRecords.reduce((best, curr) => (curr._vlLitro < best._vlLitro ? curr : best), recentRecords[0]);
+      if (targetRecords.length > 0) {
+        // Menor preço no período alvo
+        const bestMatch = targetRecords.reduce((best, curr) => (curr._vlLitro < best._vlLitro ? curr : best), targetRecords[0]);
 
          const regiao = getPERegion(bestMatch._cidade === "N/A" ? bestMatch._posto : bestMatch._cidade);
          

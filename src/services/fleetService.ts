@@ -200,15 +200,15 @@ export async function fetchFuelData(): Promise<any[]> {
           obj._litros = parseNum(val);
         }
 
-        if (key === "VALOR UNITARIO" || key === "VL/UNITARIO" || key === "PR UNITARIO" || key === "VALOR UNIT") {
+        if (key === "VALOR UNITARIO" || key === "VL/UNITARIO" || key === "PR UNITARIO" || key === "VALOR UNIT" || key === "VLR UNITARIO") {
           obj._vlLitro = parseNum(val);
         } else if ((key.includes("VALOR UNIT") || key.includes("PRECO UNIT")) && !obj._vlLitro) {
           obj._vlLitro = parseNum(val);
         }
 
-        if (key === "VALOR TOTAL" || key === "VALOR EMISSAO" || key === "VL TOTAL" || key === "VALOR TOTAL LIQUIDO") {
+        if (key === "VALOR TOTAL" || key === "VALOR EMISSAO" || key === "VL TOTAL" || key === "VALOR TOTAL LIQUIDO" || key === "VALOR") {
           obj._total = parseNum(val);
-        } else if ((key.includes("TOTAL") || key.includes("VALOR")) && !obj._total) {
+        } else if ((key.includes("TOTAL") || key.includes("VALOR") || key === "VALOR EMISSAO") && !obj._total) {
           obj._total = parseNum(val);
         }
 
@@ -267,20 +267,26 @@ export async function fetchFuelData(): Promise<any[]> {
     });
 
     // Absolute Fallbacks (specific column indices for Ticket Log / ValeCard)
-    if (!obj._txId) obj._txId = row[4]; // Column E as requested
-    if (!obj._date) obj._date = row[5];
+    if (!obj._txId) obj._txId = row[0]; // Ticket Log Transaction often in Column A
+    if (!obj._date) obj._date = row[4]; // Column E
+    if (!obj._time) obj._time = row[5]; // Column F
     if (!obj._placa) obj._placa = String(row[10] || row[11] || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
     if (!obj._fuelType) obj._fuelType = row[19];
     if (!obj._litros) obj._litros = parseNum(row[21]);
-    if (!obj._vlLitro) obj._vlLitro = parseNum(row[22]);
+    
+    // Column P (index 15) is identified as the price by the user
+    const colP = parseNum(row[15]);
+    if (colP > 0) obj._vlLitro = colP;
+    else if (!obj._vlLitro) obj._vlLitro = parseNum(row[22]);
+    
     if (!obj._total) obj._total = parseNum(row[24]);
     if (!obj._odometer) obj._odometer = parseNum(row[27]);
     if (!obj._kmRodados) obj._kmRodados = row[39] ? parseNum(row[39]) : 0;
     if (!obj._monthYear) obj._monthYear = row[41];
     if (!obj._autReal) obj._autReal = parseNum(row[42]); // Column AQ index 42
     
-    // Add transaction time if available (Column G = index 6)
-    obj._time = row[6] || "";
+    // Add transaction time if available (fallback Column G = index 6)
+    if (!obj._time) obj._time = row[6] || "";
 
     // Final normalization for MES/ANO if missing or non-standard
     if (obj._monthYear) {
