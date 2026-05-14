@@ -10,7 +10,10 @@ import {
   DialogHeader, 
   DialogTitle, 
   DialogDescription,
+  DialogFooter,
 } from '../ui/dialog';
+import { Button } from '../ui/button';
+import { toast } from 'sonner';
 import { ScrollArea } from '../ui/scroll-area';
 import { Badge } from '../ui/badge';
 import {
@@ -556,31 +559,31 @@ export default function RankingView() {
           setSelectedTemplate('auto');
         }
       }}>
-        <DialogContent className="max-w-[98vw] sm:max-w-[96vw] lg:max-w-[1700px] xl:max-w-[1800px] h-[90vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 overflow-hidden">
+        <DialogContent className="max-w-[98vw] sm:max-w-[96vw] lg:max-w-[1700px] xl:max-w-[1800px] h-[90vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 flex flex-col overflow-hidden">
           {selectedDriverDetails && (
             <>
-              <DialogHeader className="p-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 shrink-0">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <Badge variant="outline" className={`${selectedDriverDetails.bgClass} ${selectedDriverDetails.situationColor} border-current mb-2`}>
-                      {selectedDriverDetails.situation}
-                    </Badge>
-                    <DialogTitle className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
-                      {selectedDriverDetails.driver}
-                    </DialogTitle>
-                    <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">
-                      Painel Detalhado de Notificações SEI / GAD-NI-003-02
-                    </DialogDescription>
+              <ScrollArea className="flex-1 w-full">
+                <DialogHeader className="p-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <Badge variant="outline" className={`${selectedDriverDetails.bgClass} ${selectedDriverDetails.situationColor} border-current mb-2`}>
+                        {selectedDriverDetails.situation}
+                      </Badge>
+                      <DialogTitle className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
+                        {selectedDriverDetails.driver}
+                      </DialogTitle>
+                      <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">
+                        Painel Detalhado de Notificações SEI / GAD-NI-003-02
+                      </DialogDescription>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-4xl font-black ${selectedDriverDetails.situationColor}`}>{selectedDriverDetails.score}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Score Unificado</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-4xl font-black ${selectedDriverDetails.situationColor}`}>{selectedDriverDetails.score}</p>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Score Unificado</p>
-                  </div>
-                </div>
-              </DialogHeader>
+                </DialogHeader>
 
-              <ScrollArea className="flex-1 p-8">
-                <div className="space-y-6">
+                <div className="p-8 space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/20">
                       <p className="text-[9px] font-black uppercase text-indigo-600 mb-1">Telemetria</p>
@@ -592,161 +595,118 @@ export default function RankingView() {
                     </div>
                   </div>
 
-                  <div className="space-y-3">
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center">
-                      <FileText size={12} className="mr-1" /> Cronologia de Eventos
-                    </h4>
                   <div className="space-y-6">
-                    {/* Eventos de Telemetria */}
-                    {selectedDriverDetails.details.some((d: any) => d.type === 'telemetria') && (
-                      <div className="space-y-3">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 flex items-center">
-                          <AlertCircle size={12} className="mr-1" /> Eventos de Telemetria
-                        </h4>
-                        <div className="space-y-2">
-                          {selectedDriverDetails.details
-                            .filter((d: any) => d.type === 'telemetria')
-                            .map((detail: any, idx: number) => (
-                              <div key={`tele-${idx}`} className="flex gap-4 p-4 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/20 transition-all hover:bg-indigo-50">
-                                <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-indigo-500" />
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex justify-between items-start">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">
-                                      {detail.date}
-                                    </p>
-                                    <Badge variant="secondary" className="text-[8px] h-4 bg-indigo-100 text-indigo-600">+{detail.points} pts</Badge>
-                                  </div>
-                                  <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase leading-snug">
-                                    {detail.desc}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase bg-slate-200 text-slate-600">
-                                      {detail.severity}
-                                    </span>
-                                    {detail.sei !== '-' && (
-                                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase bg-indigo-600 text-white flex items-center">
-                                        SEI: {detail.sei}
-                                      </span>
-                                    )}
+                      {/* Eventos de Telemetria */}
+                      {selectedDriverDetails.details.some((d: any) => d.type === 'telemetria') && (
+                        <div className="space-y-3">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 flex items-center">
+                            <AlertCircle size={12} className="mr-1" /> Eventos de Telemetria
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {selectedDriverDetails.details
+                              .filter((d: any) => d.type === 'telemetria')
+                              .map((detail: any, idx: number) => (
+                                <div key={`tele-${idx}`} className="flex gap-4 p-4 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/20">
+                                  <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-indigo-500" />
+                                  <div className="flex-1 space-y-1">
+                                    <div className="flex justify-between items-start">
+                                      <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{detail.date}</p>
+                                      <Badge variant="secondary" className="text-[8px] h-4 bg-indigo-100 text-indigo-600">+{detail.points} pts</Badge>
+                                    </div>
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase leading-snug">{detail.desc}</p>
                                   </div>
                                 </div>
-                              </div>
-                            ))
-                          }
+                              ))
+                            }
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      )}
 
-                    {/* Infrações CTB */}
-                    {selectedDriverDetails.details.some((d: any) => d.type === 'ctb') && (
-                      <div className="space-y-3">
-                        <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 flex items-center">
-                          <ShieldAlert size={12} className="mr-1" /> Infrações CTB (Multas)
-                        </h4>
-                        <div className="space-y-2">
-                          {selectedDriverDetails.details
-                            .filter((d: any) => d.type === 'ctb')
-                            .map((detail: any, idx: number) => (
-                              <div key={`infra-${idx}`} className="flex gap-4 p-4 bg-rose-50/30 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-900/20 transition-all hover:bg-rose-50">
-                                <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-rose-500" />
-                                <div className="flex-1 space-y-1">
-                                  <div className="flex justify-between items-start">
-                                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">
-                                      {detail.date}
-                                    </p>
-                                    <Badge variant="secondary" className="text-[8px] h-4 bg-rose-100 text-rose-600">+{detail.points} pts</Badge>
-                                  </div>
-                                  <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase leading-snug">
-                                    {detail.desc}
-                                  </p>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase ${
-                                      detail.severity === 'GRAVÍSSIMA' ? 'bg-rose-600 text-white' : 
-                                      detail.severity === 'GRAVE' ? 'bg-rose-200 text-rose-700' : 
-                                      'bg-slate-200 text-slate-600'
-                                    }`}>
-                                      {detail.severity}
-                                    </span>
-                                    {detail.sei !== '-' && (
-                                      <span className="text-[8px] font-black px-1.5 py-0.5 rounded uppercase bg-rose-600 text-white flex items-center">
-                                        SEI: {detail.sei}
-                                      </span>
-                                    )}
+                      {/* Infrações CTB */}
+                      {selectedDriverDetails.details.some((d: any) => d.type === 'ctb') && (
+                        <div className="space-y-3">
+                          <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 flex items-center">
+                            <ShieldAlert size={12} className="mr-1" /> Infrações CTB (Multas)
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {selectedDriverDetails.details
+                              .filter((d: any) => d.type === 'ctb')
+                              .map((detail: any, idx: number) => (
+                                <div key={`infra-${idx}`} className="flex gap-4 p-4 bg-rose-50/30 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-900/20">
+                                  <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-rose-500" />
+                                  <div className="flex-1 space-y-1">
+                                    <div className="flex justify-between items-start">
+                                      <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">{detail.date}</p>
+                                      <Badge variant="secondary" className="text-[8px] h-4 bg-rose-100 text-rose-600">+{detail.points} pts</Badge>
+                                    </div>
+                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase leading-snug">{detail.desc}</p>
                                   </div>
                                 </div>
-                              </div>
-                            ))
-                          }
+                              ))
+                            }
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
                   </div>
 
                   {/* Minuta de Notificação Formal */}
-                  <div className="space-y-3 pt-6 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex justify-between items-center mb-2">
-                      <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-600 flex items-center">
-                        <FileText size={12} className="mr-2" /> Minuta de Notificação Formal (GAD-NI-003-02)
+                  <div className="space-y-3 pt-12 border-t border-slate-100 dark:border-slate-800">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center">
+                        <FileText size={20} className="mr-2 text-indigo-600" /> Minuta de Notificação Formal (SEI)
                       </h4>
-                      <div className="flex space-x-2">
-                        {selectedDriverDetails.situation !== "Regular" && (
-                          <button 
-                            onClick={() => setSelectedTemplate('auto')}
-                            className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedTemplate === 'auto' ? 'bg-rose-600 text-white border-rose-600' : 'bg-transparent text-slate-400 border-slate-200 hover:border-rose-300'}`}
-                          >
-                            Situação Norma
-                          </button>
-                        )}
+                      <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1">
+                        <button 
+                          onClick={() => setSelectedTemplate('auto')}
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'auto' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                          Padrão
+                        </button>
                         <button 
                           onClick={() => setSelectedTemplate('compesa')}
-                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedTemplate === 'compesa' ? 'bg-amber-500 text-white border-amber-500' : 'bg-transparent text-slate-400 border-slate-200 hover:border-amber-300'}`}
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'compesa' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                           Advertência (Compesa)
                         </button>
                         <button 
                           onClick={() => setSelectedTemplate('terceirizado')}
-                          className={`px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest border transition-all ${selectedTemplate === 'terceirizado' ? 'bg-amber-500 text-white border-amber-500' : 'bg-transparent text-slate-400 border-slate-200 hover:border-amber-300'}`}
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'terceirizado' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
                         >
                           Advertência (Terceirizado)
                         </button>
                       </div>
                     </div>
-                    <div className="bg-slate-900 rounded-2xl p-6 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                        <Scale size={48} className="text-white" />
+                    <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Scale size={96} className="text-white" />
                       </div>
-                      <div className="max-h-[350px] overflow-y-auto pr-2 mb-2 relative z-10 border border-white/10 rounded-xl p-4 bg-black/40">
-                        <pre className="text-[11px] font-medium text-slate-200 whitespace-pre-wrap font-sans leading-relaxed select-text">
+                      <div className="relative z-10 border border-white/5 rounded-2xl p-8 bg-black/40">
+                        <pre className="text-sm font-medium text-slate-100 whitespace-pre-wrap font-sans leading-relaxed select-text uppercase">
                           {generateFormalText(selectedDriverDetails, selectedTemplate)}
                         </pre>
                       </div>
-                      <button 
-                        onClick={() => {
-                          const text = generateFormalText(selectedDriverDetails, selectedTemplate);
-                          navigator.clipboard.writeText(text);
-                          alert("Texto copiado para a área de transferência!");
-                        }}
-                        className="mt-6 flex items-center bg-white/10 hover:bg-white/20 transition-colors text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest"
-                      >
-                        <Download size={14} className="mr-2" /> Copiar Texto para o SEI
-                      </button>
                     </div>
                   </div>
                 </div>
               </ScrollArea>
               
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-end px-8">
-                <button 
-                  onClick={() => setSelectedDriverDetails(null)}
-                  className="px-6 py-2 bg-slate-900 text-white rounded-xl font-black text-xs uppercase tracking-widest"
-                >
-                  Fechar Painel
-                </button>
-              </div>
+              <DialogFooter className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 shrink-0">
+                <Button variant="outline" onClick={() => setSelectedDriverDetails(null)} className="h-11 px-8 rounded-xl font-black uppercase text-xs tracking-widest">Fechar</Button>
+                <Button 
+                    onClick={() => {
+                      const text = generateFormalText(selectedDriverDetails, selectedTemplate);
+                      navigator.clipboard.writeText(text);
+                      toast.success("Texto copiado para o SEI!");
+                    }}
+                    className="h-11 px-8 bg-black hover:bg-slate-800 text-white rounded-xl font-black uppercase text-xs tracking-widest gap-2 shadow-xl shadow-slate-200 dark:shadow-none"
+                  >
+                    <Download size={16} /> Copiar para o SEI
+                  </Button>
+              </DialogFooter>
             </>
           )}
         </DialogContent>
+
       </Dialog>
       </TooltipProvider>
     </div>

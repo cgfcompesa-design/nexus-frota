@@ -732,12 +732,11 @@ export async function fetchDriversData(): Promise<any[]> {
 
 export async function fetchSpecialHoursData(): Promise<any[]> {
   const rows = await fetchCsv(SPECIAL_HOURS_URL);
-  if (rows.length <= 2) return []; // Header row looks to be around index 2 based on user prompt
-  // Prompt says: "considerar os dados a partir da linha 03 (cabeçalho), e considerar os dados da placa (coluna B), em que a coluna C estiver escrita com "SIM""
+  if (rows.length === 0) return [];
   
-  const dataRows = rows.slice(3); // Line 3 header, data starts after
-  return dataRows.map(row => ({
+  // Skip potential headers and garbage, look for rows with plate length >= 7 and "SIM" in col C
+  return rows.map(row => ({
     placa: String(row[1] || "").toUpperCase().replace(/[^A-Z0-9]/gi, ""), // Col B = index 1
     operacaoEspecial: String(row[2] || "").toUpperCase().trim() === "SIM" // Col C = index 2
-  })).filter(item => item.placa && item.operacaoEspecial);
+  })).filter(item => item.placa.length >= 7 && item.operacaoEspecial);
 }

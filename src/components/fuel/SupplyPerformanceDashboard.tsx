@@ -356,10 +356,9 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
           if (rangeKey) {
             (timeRanges as any)[rangeKey]++;
             
-            // Check if Out of Pattern: Weekend OR (Mon-Fri and outside 07:00-18:00)
-            // User: 08:00-17:00 + 1h tolerance = 07:00-18:00
+            // Check if Out of Pattern: Weekend OR (Mon-Fri and outside 08:00-17:00)
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const isOutsideHours = hour < 7 || hour >= 18;
+            const isOutsideHours = hour < 8 || hour >= 17;
             
             const plateClean = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
             const isSpecialPlate = specialHours.some(sh => sh.placa === plateClean);
@@ -467,9 +466,19 @@ Nexus BI Frota`;
       return;
     }
 
-    const vehicleListText = vehiclesForGerencia
-      .map(v => `- Placa: ${v.placa} | Data: ${v.dataStr} | Hora: ${v.horaStr} | Motorista: ${v.motorista}`)
-      .join("\n");
+    // Aglutinar por placa
+    const groupedByPlate: Record<string, any[]> = {};
+    vehiclesForGerencia.forEach(v => {
+      if (!groupedByPlate[v.placa]) groupedByPlate[v.placa] = [];
+      groupedByPlate[v.placa].push(v);
+    });
+
+    const vehicleListText = Object.entries(groupedByPlate)
+      .map(([placa, regs]) => {
+        const lines = regs.map(r => `  - Data: ${r.dataStr} | Hora: ${r.horaStr} | Motorista: ${r.motorista}`).join("\n");
+        return `* Placa: ${placa}\n${lines}`;
+      })
+      .join("\n\n");
 
     const subject = `Solicitação de justificativa de uso de veículos fora do padrão - ${justifyGerencia}`;
     const body = `Prezado Gestor da Unidade (${justifyGerencia}),
@@ -1036,7 +1045,7 @@ Nexus BI Frota`;
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-indigo-700 dark:text-indigo-400 uppercase">Parametrização</p>
                   <p className="text-[11px] font-bold text-indigo-600/80 leading-relaxed italic">
-                    Serão listados os {filteredTimeVehicles.length} registros selecionados pelos filtros atuais, solicitando justificativa para uso fora do intervalo 08h-17h (seg-sex).
+                    Serão listados os veículos agrupados por placa da gerência selecionada, solicitando justificativa para uso fora do intervalo 08h-17h (seg-sex).
                   </p>
                 </div>
               </div>
