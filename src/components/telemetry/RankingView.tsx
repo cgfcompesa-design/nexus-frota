@@ -716,8 +716,8 @@ export default function RankingView() {
                       <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
                         <Scale size={48} className="text-white" />
                       </div>
-                      <div className="max-h-[600px] overflow-y-auto custom-scrollbar pr-2 mb-2 relative z-10 border border-white/5 rounded-xl p-4 bg-black/20">
-                        <pre className="text-[11px] font-medium text-slate-300 whitespace-pre-wrap font-sans leading-relaxed select-text">
+                      <div className="max-h-[350px] overflow-y-auto pr-2 mb-2 relative z-10 border border-white/10 rounded-xl p-4 bg-black/40">
+                        <pre className="text-[11px] font-medium text-slate-200 whitespace-pre-wrap font-sans leading-relaxed select-text">
                           {generateFormalText(selectedDriverDetails, selectedTemplate)}
                         </pre>
                       </div>

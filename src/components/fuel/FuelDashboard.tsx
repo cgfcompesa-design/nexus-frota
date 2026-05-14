@@ -876,10 +876,21 @@ Nexus BI Frota`;
     if (fuelAnalysis.statistics.valorLitro > 0) summary += `⚠️ Valor/Litro: ${fuelAnalysis.statistics.valorLitro}\n`;
     
     if (priceAnalysis.length > 0) {
-      summary += `\n*MELHORES PREÇOS IDENTIFICADOS:*\n`;
-      const top3 = priceAnalysis.slice(0, 3);
-      top3.forEach(p => {
-        summary += `📍 ${p.cidade} (${p.regiao}) - ${p.tipo}: R$ ${p.preco.toFixed(3)} [${p.posto}]\n`;
+      summary += `\n*MELHORES PREÇOS IDENTIFICADOS POR LOCALIDADE:*\n`;
+      
+      // Group by locality
+      const byLocality: Record<string, any[]> = {};
+      priceAnalysis.forEach(p => {
+        const key = `${p.cidade} (${p.regiao})`;
+        if (!byLocality[key]) byLocality[key] = [];
+        byLocality[key].push(p);
+      });
+
+      Object.entries(byLocality).forEach(([locality, items]) => {
+        summary += `\n📍 *${locality}*\n`;
+        items.forEach(item => {
+          summary += `• ${item.tipo}: R$ ${item.preco.toFixed(3)} [${item.posto}]\n`;
+        });
       });
     }
 

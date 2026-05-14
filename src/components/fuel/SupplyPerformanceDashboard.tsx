@@ -361,12 +361,12 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isOutsideHours = hour < 7 || hour >= 18;
             
-            // Special hours logic: if plate is in special list, it is IN pattern
-            const isSpecialPlate = specialHours.some(sh => sh.placa === String(f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase());
+            const plateClean = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+            const isSpecialPlate = specialHours.some(sh => sh.placa === plateClean);
             const outOfPattern = (isWeekend || isOutsideHours) && !isSpecialPlate;
 
             vehiclesInRanges[rangeKey].push({
-              placa: f.PLACA || f.Placa || "N/A",
+              placa: plateClean || "N/A",
               range: rangeKey,
               data: rawDate,
               dataStr: (txDate && isValid(txDate)) ? format(txDate, "dd/MM/yyyy") : "N/A",
@@ -454,12 +454,24 @@ Nexus BI Frota`;
       return;
     }
 
-    // Usar os veículos FILTRADOS na tabela para a lista
-    const vehicleListText = filteredTimeVehicles
+    // Filtrar apenas veículos da gerência selecionada e que estejam fora do padrão
+    const vehiclesForGerencia = filteredTimeVehicles.filter(v => {
+      if (!v.outOfPattern) return false;
+      const asset = allAssetsMap.get(v.placa.toUpperCase());
+      const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A";
+      return gerencia === justifyGerencia;
+    });
+
+    if (vehiclesForGerencia.length === 0) {
+      toast.error("Nenhum veículo 'Fora do Padrão' encontrado para esta gerência.");
+      return;
+    }
+
+    const vehicleListText = vehiclesForGerencia
       .map(v => `- Placa: ${v.placa} | Data: ${v.dataStr} | Hora: ${v.horaStr} | Motorista: ${v.motorista}`)
       .join("\n");
 
-    const subject = "Solicitação de justificativa de uso de veículos fora do padrão estabelecido";
+    const subject = `Solicitação de justificativa de uso de veículos fora do padrão - ${justifyGerencia}`;
     const body = `Prezado Gestor da Unidade (${justifyGerencia}),
 
 Com base no monitoramento do uso dos veículos corporativos, identificamos registros de utilização fora dos parâmetros estabelecidos para uso padrão, que compreende o período de segunda a sexta-feira, das 08h às 17h, com tolerância de 01 (uma) hora para mais ou para menos.
