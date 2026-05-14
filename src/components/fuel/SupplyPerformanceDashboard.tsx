@@ -361,7 +361,8 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             const isOutsideHours = hour < 8 || hour >= 17;
             
             const plateClean = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
-            const isSpecialPlate = specialHours.some(sh => sh.placa === plateClean);
+            const asset = allAssetsMap.get(plateClean);
+            const isSpecialPlate = specialHours.some(sh => sh.placa === plateClean) || (asset && (asset as any).OPERACAO_24H);
             const outOfPattern = (isWeekend || isOutsideHours) && !isSpecialPlate;
 
             vehiclesInRanges[rangeKey].push({
@@ -469,13 +470,15 @@ Nexus BI Frota`;
     // Aglutinar por placa
     const groupedByPlate: Record<string, any[]> = {};
     vehiclesForGerencia.forEach(v => {
-      if (!groupedByPlate[v.placa]) groupedByPlate[v.placa] = [];
-      groupedByPlate[v.placa].push(v);
+      const placa = v.placa.toUpperCase().trim();
+      if (!groupedByPlate[placa]) groupedByPlate[placa] = [];
+      groupedByPlate[placa].push(v);
     });
 
     const vehicleListText = Object.entries(groupedByPlate)
       .map(([placa, regs]) => {
-        const lines = regs.map(r => `  - Data: ${r.dataStr} | Hora: ${r.horaStr} | Motorista: ${r.motorista}`).join("\n");
+        const sortedRegs = [...regs].sort((a,b) => (a.data?.getTime() || 0) - (b.data?.getTime() || 0));
+        const lines = sortedRegs.map(r => `  - Data: ${r.dataStr} | Hora: ${r.horaStr} | Condutor: ${r.motorista}`).join("\n");
         return `* Placa: ${placa}\n${lines}`;
       })
       .join("\n\n");

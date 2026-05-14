@@ -559,61 +559,75 @@ export default function RankingView() {
           setSelectedTemplate('auto');
         }
       }}>
-        <DialogContent className="max-w-[98vw] sm:max-w-[96vw] lg:max-w-[1700px] xl:max-w-[1800px] h-[90vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 flex flex-col overflow-hidden">
+        <DialogContent className="max-w-[98vw] sm:max-w-[96vw] lg:max-w-[1400px] xl:max-w-[1600px] h-[90vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 flex flex-col overflow-hidden shadow-2xl">
           {selectedDriverDetails && (
-            <>
-              <ScrollArea className="flex-1 w-full">
-                <DialogHeader className="p-8 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                  <div className="flex justify-between items-start">
+            <div className="flex flex-col h-full w-full">
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-8 pt-10">
+                <div className="max-w-5xl mx-auto space-y-10">
+                  {/* Cabeçalho Interno */}
+                  <div className="flex justify-between items-start pb-8 border-b border-slate-100 dark:border-slate-800">
                     <div>
-                      <Badge variant="outline" className={`${selectedDriverDetails.bgClass} ${selectedDriverDetails.situationColor} border-current mb-2`}>
+                      <Badge variant="outline" className={`${selectedDriverDetails.bgClass} ${selectedDriverDetails.situationColor} border-current mb-3 px-3 py-1 text-[10px] font-black uppercase tracking-widest`}>
                         {selectedDriverDetails.situation}
                       </Badge>
-                      <DialogTitle className="text-3xl font-black uppercase tracking-tighter text-slate-900 dark:text-white">
+                      <DialogTitle className="text-5xl font-black uppercase tracking-tighter text-slate-900 dark:text-white mb-2 italic">
                         {selectedDriverDetails.driver}
                       </DialogTitle>
-                      <DialogDescription className="text-slate-500 font-bold uppercase tracking-widest text-[10px] mt-1">
-                        Painel Detalhado de Notificações SEI / GAD-NI-003-02
+                      <DialogDescription className="text-slate-400 font-bold uppercase tracking-[0.2em] text-[11px] flex items-center">
+                        <Scale size={14} className="mr-2 text-indigo-500" /> Painel Técnico de Notificação GAD-NI-003-02
                       </DialogDescription>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-4xl font-black ${selectedDriverDetails.situationColor}`}>{selectedDriverDetails.score}</p>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Score Unificado</p>
-                    </div>
-                  </div>
-                </DialogHeader>
-
-                <div className="p-8 space-y-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/20">
-                      <p className="text-[9px] font-black uppercase text-indigo-600 mb-1">Telemetria</p>
-                      <p className="text-2xl font-black text-indigo-700 dark:text-indigo-400">{selectedDriverDetails.teleCount}</p>
-                    </div>
-                    <div className="p-4 bg-rose-50 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-900/20">
-                      <p className="text-[9px] font-black uppercase text-rose-600 mb-1">Infrações CTB</p>
-                      <p className="text-2xl font-black text-rose-700 dark:text-rose-400">{selectedDriverDetails.infraCount}</p>
+                    <div className="text-right bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-dotted border-slate-200 dark:border-slate-700">
+                      <p className={`text-6xl font-black ${selectedDriverDetails.situationColor} tracking-tighter`}>{selectedDriverDetails.score}</p>
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Pontuação Unificada</p>
                     </div>
                   </div>
 
-                  <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="p-6 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-3xl border border-indigo-100 dark:border-indigo-900/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm">
+                          <AlertCircle size={20} className="text-indigo-600" />
+                        </div>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-indigo-600">Eventos Telemetria</p>
+                      </div>
+                      <p className="text-5xl font-black text-indigo-700 dark:text-indigo-400 tracking-tighter">{selectedDriverDetails.teleCount}</p>
+                    </div>
+                    <div className="p-6 bg-rose-50/50 dark:bg-rose-900/10 rounded-3xl border border-rose-100 dark:border-rose-900/20">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="p-2 bg-white dark:bg-slate-800 rounded-xl shadow-sm">
+                          <ShieldAlert size={20} className="text-rose-600" />
+                        </div>
+                        <p className="text-[11px] font-black uppercase tracking-widest text-rose-600">Infrações CTB</p>
+                      </div>
+                      <p className="text-5xl font-black text-rose-700 dark:text-rose-400 tracking-tighter">{selectedDriverDetails.infraCount}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-8">
                       {/* Eventos de Telemetria */}
                       {selectedDriverDetails.details.some((d: any) => d.type === 'telemetria') && (
-                        <div className="space-y-3">
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-indigo-500 flex items-center">
-                            <AlertCircle size={12} className="mr-1" /> Eventos de Telemetria
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center">
+                            <TrendingUp size={14} className="mr-2" /> Cronologia de Telemetria
                           </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-3">
                             {selectedDriverDetails.details
                               .filter((d: any) => d.type === 'telemetria')
                               .map((detail: any, idx: number) => (
-                                <div key={`tele-${idx}`} className="flex gap-4 p-4 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-900/20">
-                                  <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-indigo-500" />
-                                  <div className="flex-1 space-y-1">
+                                <div key={`tele-${idx}`} className="flex gap-4 p-5 bg-white dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-indigo-200 dark:hover:border-indigo-900/50 hover:shadow-md group">
+                                  <div className="mt-1.5 h-3 w-3 rounded-full flex-shrink-0 bg-indigo-500 shadow-lg shadow-indigo-200 dark:shadow-none transition-transform group-hover:scale-125" />
+                                  <div className="flex-1 space-y-2">
                                     <div className="flex justify-between items-start">
-                                      <p className="text-[9px] font-black uppercase tracking-widest text-indigo-400">{detail.date}</p>
-                                      <Badge variant="secondary" className="text-[8px] h-4 bg-indigo-100 text-indigo-600">+{detail.points} pts</Badge>
+                                      <div className="flex items-center gap-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded-full">{detail.date}</p>
+                                        {detail.sei !== '-' && (
+                                          <Badge className="bg-indigo-600 text-white text-[9px] font-black h-5 uppercase tracking-tighter">SEI: {detail.sei}</Badge>
+                                        )}
+                                      </div>
+                                      <Badge variant="outline" className="text-[10px] h-6 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-600 border-indigo-100 dark:border-indigo-900/30 font-black">+{detail.points} pts</Badge>
                                     </div>
-                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase leading-snug">{detail.desc}</p>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase leading-snug tracking-tight">{detail.desc}</p>
                                   </div>
                                 </div>
                               ))
@@ -624,22 +638,36 @@ export default function RankingView() {
 
                       {/* Infrações CTB */}
                       {selectedDriverDetails.details.some((d: any) => d.type === 'ctb') && (
-                        <div className="space-y-3">
-                          <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-500 flex items-center">
-                            <ShieldAlert size={12} className="mr-1" /> Infrações CTB (Multas)
+                        <div className="space-y-4">
+                          <h4 className="text-xs font-black uppercase tracking-[0.2em] text-rose-400 flex items-center">
+                            <ShieldAlert size={14} className="mr-2" /> Registros Detrans / CTB
                           </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="grid grid-cols-1 gap-3">
                             {selectedDriverDetails.details
                               .filter((d: any) => d.type === 'ctb')
                               .map((detail: any, idx: number) => (
-                                <div key={`infra-${idx}`} className="flex gap-4 p-4 bg-rose-50/30 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-900/20">
-                                  <div className="mt-1 h-2 w-2 rounded-full flex-shrink-0 bg-rose-500" />
-                                  <div className="flex-1 space-y-1">
+                                <div key={`infra-${idx}`} className="flex gap-4 p-5 bg-white dark:bg-slate-800/40 rounded-3xl border border-slate-100 dark:border-slate-800 transition-all hover:border-rose-200 dark:hover:border-rose-900/50 hover:shadow-md group">
+                                  <div className="mt-1.5 h-3 w-3 rounded-full flex-shrink-0 bg-rose-500 shadow-lg shadow-rose-200 dark:shadow-none transition-transform group-hover:scale-125" />
+                                  <div className="flex-1 space-y-2">
                                     <div className="flex justify-between items-start">
-                                      <p className="text-[9px] font-black uppercase tracking-widest text-rose-400">{detail.date}</p>
-                                      <Badge variant="secondary" className="text-[8px] h-4 bg-rose-100 text-rose-600">+{detail.points} pts</Badge>
+                                      <div className="flex items-center gap-3">
+                                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 bg-slate-50 dark:bg-slate-900 px-2.5 py-1 rounded-full">{detail.date}</p>
+                                        {detail.sei !== '-' && (
+                                          <Badge className="bg-rose-600 text-white text-[9px] font-black h-5 uppercase tracking-tighter">SEI: {detail.sei}</Badge>
+                                        )}
+                                      </div>
+                                      <Badge variant="outline" className="text-[10px] h-6 bg-rose-50 dark:bg-rose-900/10 text-rose-600 border-rose-100 dark:border-rose-900/30 font-black">+{detail.points} pts</Badge>
                                     </div>
-                                    <p className="text-xs font-black text-slate-700 dark:text-slate-200 uppercase leading-snug">{detail.desc}</p>
+                                    <p className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase leading-snug tracking-tight">{detail.desc}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
+                                        detail.severity === 'GRAVÍSSIMA' ? 'bg-rose-600 text-white' : 
+                                        detail.severity === 'GRAVE' ? 'bg-orange-500 text-white' : 
+                                        'bg-slate-200 text-slate-600'
+                                      }`}>
+                                        Gravidade: {detail.severity}
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               ))
@@ -650,63 +678,78 @@ export default function RankingView() {
                   </div>
 
                   {/* Minuta de Notificação Formal */}
-                  <div className="space-y-3 pt-12 border-t border-slate-100 dark:border-slate-800">
-                    <div className="flex justify-between items-center mb-4">
-                      <h4 className="text-xl font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center">
-                        <FileText size={20} className="mr-2 text-indigo-600" /> Minuta de Notificação Formal (SEI)
-                      </h4>
-                      <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl gap-1">
+                  <div className="space-y-6 pt-12 border-t border-slate-100 dark:border-slate-800 mb-12">
+                    <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                      <div>
+                        <h4 className="text-2xl font-black uppercase tracking-tighter text-slate-900 dark:text-white flex items-center italic">
+                          <FileText size={24} className="mr-3 text-indigo-600" /> Minuta de Notificação (SEI)
+                        </h4>
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Selecione o modelo adequado para o colaborador</p>
+                      </div>
+                      <div className="flex p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl gap-1">
                         <button 
                           onClick={() => setSelectedTemplate('auto')}
-                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'auto' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'auto' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                          Padrão
+                          Padrão Nexus
                         </button>
                         <button 
                           onClick={() => setSelectedTemplate('compesa')}
-                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'compesa' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'compesa' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                          Advertência (Compesa)
+                          ADVERT. (COMPESA)
                         </button>
                         <button 
                           onClick={() => setSelectedTemplate('terceirizado')}
-                          className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'terceirizado' ? 'bg-white dark:bg-slate-700 text-amber-500 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                          className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'terceirizado' ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
                         >
-                          Advertência (Terceirizado)
+                          ADVERT. (TERCEIRIZ.)
                         </button>
                       </div>
                     </div>
-                    <div className="bg-slate-900 rounded-3xl p-8 relative overflow-hidden group">
-                      <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-                        <Scale size={96} className="text-white" />
+                    
+                    <div className="bg-slate-950 rounded-[40px] p-10 relative overflow-hidden group shadow-2xl">
+                      <div className="absolute top-0 right-0 p-12 opacity-5 group-hover:opacity-10 transition-opacity">
+                        <Scale size={180} className="text-white" />
                       </div>
-                      <div className="relative z-10 border border-white/5 rounded-2xl p-8 bg-black/40">
-                        <pre className="text-sm font-medium text-slate-100 whitespace-pre-wrap font-sans leading-relaxed select-text uppercase">
+                      <div className="relative z-10 border border-white/10 rounded-3xl p-10 bg-black/40 backdrop-blur-sm shadow-inner">
+                        <div className="flex items-center gap-2 mb-6 border-b border-white/5 pb-4">
+                           <div className="h-3 w-3 rounded-full bg-rose-500" />
+                           <div className="h-3 w-3 rounded-full bg-amber-500" />
+                           <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                           <span className="ml-4 text-[9px] font-black text-white/30 uppercase tracking-[0.3em]">Ambiente de Redação Formal SEI</span>
+                        </div>
+                        <pre className="text-sm font-medium text-slate-100 whitespace-pre-wrap font-sans leading-relaxed select-all uppercase tracking-tight">
                           {generateFormalText(selectedDriverDetails, selectedTemplate)}
                         </pre>
                       </div>
                     </div>
                   </div>
                 </div>
-              </ScrollArea>
+              </div>
               
-              <DialogFooter className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 shrink-0">
-                <Button variant="outline" onClick={() => setSelectedDriverDetails(null)} className="h-11 px-8 rounded-xl font-black uppercase text-xs tracking-widest">Fechar</Button>
-                <Button 
+              <div className="p-8 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-200 dark:border-slate-800 flex justify-between items-center shrink-0">
+                <Button variant="ghost" onClick={() => setSelectedDriverDetails(null)} className="h-14 px-10 rounded-2xl font-black uppercase text-xs tracking-widest text-slate-400 hover:text-slate-900 transition-all hover:bg-slate-100">
+                  Fechar Ficha
+                </Button>
+                <div className="flex gap-4">
+                  <Button 
                     onClick={() => {
                       const text = generateFormalText(selectedDriverDetails, selectedTemplate);
                       navigator.clipboard.writeText(text);
-                      toast.success("Texto copiado para o SEI!");
+                      toast.success("Copiado com sucesso!", {
+                        description: "Texto preparado para colagem no SEI.",
+                      });
                     }}
-                    className="h-11 px-8 bg-black hover:bg-slate-800 text-white rounded-xl font-black uppercase text-xs tracking-widest gap-2 shadow-xl shadow-slate-200 dark:shadow-none"
+                    className="h-14 px-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase text-xs tracking-widest gap-3 shadow-xl shadow-indigo-200 dark:shadow-none transition-all hover:scale-105 active:scale-95"
                   >
-                    <Download size={16} /> Copiar para o SEI
+                    <Download size={20} /> Copiar para o SEI
                   </Button>
-              </DialogFooter>
-            </>
+                </div>
+              </div>
+            </div>
           )}
         </DialogContent>
-
       </Dialog>
       </TooltipProvider>
     </div>

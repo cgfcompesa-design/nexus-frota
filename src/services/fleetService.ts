@@ -425,6 +425,9 @@ export async function fetchFleetData(): Promise<Asset[]> {
     const autonomiaVal = item["AUTONOMIA PADRÃO (KM/LITRO OU HORA/LITRO)"] || item["AUTONOMIA PADRÃO"] || item["AUTONOMIA PADRAO"] || item["AUTONOMIA"] || item["AUTONOMIA (KM/L)"] || row[28] || row[29];
     const autonomiaSecundariaVal = item["AUTONOMIA SECUNDÁRIA"] || item["AUTONOMIA SECUNDARIA"] || item["AUTONOMIA SEC"] || row[33] || row[34];
     const capacidadeVal = item["CAPACIDADE DO TANQUE"] || item["CAPACIDADE TANQUE"] || item["CAPACIDADE"] || item["TANQUE"] || row[30] || row[31];
+    
+    // Column AJ is index 35 (A=0, ..., J=9, ..., T=19, ..., AJ=35)
+    const operacao24h = (row[35] || item["OPERAÇÃO 24H"] || item["OPERACAO 24H"] || "").toUpperCase().trim();
 
     return {
       ...item,
@@ -436,6 +439,7 @@ export async function fetchFleetData(): Promise<Asset[]> {
       "AUTONOMIA PADRÃO (KM/LITRO OU HORA/LITRO)": parseNum(autonomiaVal),
       "AUTONOMIA SECUNDÁRIA": parseNum(autonomiaSecundariaVal),
       "CAPACIDADE DO TANQUE": parseNum(capacidadeVal),
+      OPERACAO_24H: operacao24h === 'SIM'
     };
   }).filter(Boolean) as Asset[];
 }
