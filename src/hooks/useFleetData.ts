@@ -9,7 +9,8 @@ import {
   fetchOrcamentos,
   fetchCustosDetalhes,
   fetchRegularizacaoData,
-  fetchControleOperacional
+  fetchControleOperacional,
+  fetchSpecialHoursData
 } from "../services/fleetService";
 
 export function useAssets() {
@@ -123,5 +124,13 @@ export function useControleOperacional() {
     queryFn: fetchControleOperacional,
     staleTime: 5 * 60 * 1000, // 5 min
     refetchInterval: 5 * 60 * 1000, 
+  });
+}
+
+export function useSpecialHoursData() {
+  return useQuery({
+    queryKey: ["special-hours"],
+    queryFn: fetchSpecialHoursData,
+    staleTime: 60 * 60 * 1000, // 1 hour
   });
 }

@@ -52,6 +52,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { useContactsData } from "@/hooks/useContactsData";
+import { useSpecialHoursData } from "@/hooks/useFleetData";
 
 interface SupplyPerformanceDashboardProps {
   fuel: FuelData[];
@@ -59,6 +60,7 @@ interface SupplyPerformanceDashboardProps {
 }
 
 export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDashboardProps) {
+  const { data: specialHours = [] } = useSpecialHoursData();
   const [searchTermUnknown, setSearchTermUnknown] = useState("");
   const [searchTermTime, setSearchTermTime] = useState("");
   const [selectedTimeRangeFilter, setSelectedTimeRangeFilter] = useState<string>("ALL");
@@ -80,10 +82,6 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
   const { getEmailsByGerencia } = useContactsData();
 
   const getCCEmails = () => "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
-
-  // Filtros de Data
-  const [startDateStr, setStartDateStr] = useState("");
-  const [endDateStr, setEndDateStr] = useState("");
 
   // Mapa de ativos OPERACIONAIS por placa para busca rápida
   const operationalAssetsMap = useMemo(() => {
@@ -107,25 +105,8 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
     return map;
   }, [assets]);
 
-  // Processamento base de dados com filtros
-  const filteredFuel = useMemo(() => {
-    return fuel.filter(f => {
-      if (!f._date) return true;
-
-      const txDate = f._date instanceof Date ? f._date : new Date(f._date);
-      if (isValid(txDate)) {
-        if (startDateStr) {
-          const start = startOfDay(new Date(startDateStr));
-          if (txDate < start) return false;
-        }
-        if (endDateStr) {
-          const end = endOfDay(new Date(endDateStr));
-          if (txDate > end) return false;
-        }
-      }
-      return true;
-    });
-  }, [fuel, startDateStr, endDateStr]);
+  // Processamento base de dados (usa o fuel prop já filtrado pelo pai)
+  const filteredFuel = fuel;
 
   // 3. Análise de Inconsistência de KM/Horímetro
   const inconsistencyAnalysis = useMemo(() => {
@@ -176,9 +157,10 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
           const asset = allAssetsMap.get(placa);
           inconsistencies.push({
             placa,
-            transacao: f._txId || (f as any).COL_0 || "N/A",
+            transacao: f._txId || (f as any).COL_4 || (f as any).COL_0 || "N/A",
             motorista: f._driver || "N/A",
-            data: f._date || "N/A",
+            data: f._date ? format(f.txDate, "dd/MM/yyyy") : "N/A",
+            time: f._time || "",
             odometer: f.odometer,
             kmRodados: f.kmRodados,
             unidade: asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A",
@@ -309,7 +291,10 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             // User: 08:00-17:00 + 1h tolerance = 07:00-18:00
             const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
             const isOutsideHours = hour < 7 || hour >= 18;
-            const outOfPattern = isWeekend || isOutsideHours;
+            
+            // Special hours logic: if plate is in special list, it is IN pattern
+            const isSpecialPlate = specialHours.some(sh => sh.placa === String(f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase());
+            const outOfPattern = (isWeekend || isOutsideHours) && !isSpecialPlate;
 
             vehiclesInRanges[rangeKey].push({
               placa: f.PLACA || f.Placa || "N/A",
@@ -358,8 +343,8 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
       return;
     }
 
-    const start = startDateStr ? format(new Date(startDateStr), "dd/MM/yyyy") : "Período Inicial";
-    const end = endDateStr ? format(new Date(endDateStr), "dd/MM/yyyy") : "Período Final";
+    const start = "Data Inicial";
+    const end = "Data Final";
     
     // Agrupar placas e somar valores
     const placasUnicas = [...new Set(filteredIrregular.map(t => t.placa))].join(", ");
@@ -527,30 +512,6 @@ Nexus BI Frota`;
         </div>
         
         <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-            <Calendar className="h-4 w-4 text-slate-400 ml-2" />
-            <Input 
-              type="date" 
-              className="border-none bg-transparent h-8 text-[10px] font-bold focus-visible:ring-0 w-32 cursor-pointer" 
-              value={startDateStr}
-              onChange={(e) => {
-                setStartDateStr(e.target.value);
-                setCurrentPageUnknown(1);
-                setCurrentPageTime(1);
-              }}
-            />
-            <span className="text-[10px] font-black text-slate-300">ATÉ</span>
-            <Input 
-              type="date" 
-              className="border-none bg-transparent h-8 text-[10px] font-bold focus-visible:ring-0 w-32 cursor-pointer" 
-              value={endDateStr}
-              onChange={(e) => {
-                setEndDateStr(e.target.value);
-                setCurrentPageUnknown(1);
-                setCurrentPageTime(1);
-              }}
-            />
-          </div>
           <Button onClick={handleExportIrregular} className="gap-2 bg-indigo-600 hover:bg-indigo-700 text-[10px] font-black shadow-lg shadow-indigo-200 dark:shadow-none h-11 px-6 rounded-xl">
             <Download className="h-4 w-4" /> EXPORTAR RELATÓRIO
           </Button>
@@ -626,10 +587,11 @@ Nexus BI Frota`;
               <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10">
                 <TableRow className="hover:bg-transparent border-none">
                   <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Placa</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Data / Hora</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Cód. Transação</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motorista</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Hodômetro</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">KM Rodados</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Hodômetro</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">KM Rodados</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motivo</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Ações</TableHead>
                 </TableRow>
@@ -638,10 +600,11 @@ Nexus BI Frota`;
                 {paginatedInconsistency.map((t, i) => (
                   <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
                     <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
+                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
                     <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
-                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[120px]">{t.motorista}</TableCell>
-                    <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300">{t.odometer.toLocaleString()}</TableCell>
-                    <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300">
+                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
+                    <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
+                    <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
                       <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
                     </TableCell>
                     <TableCell className="py-2">

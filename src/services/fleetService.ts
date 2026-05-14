@@ -17,6 +17,7 @@ const LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQduOE9Q5_4
 const CONTACTS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS-IX8SNiQVbdaxqRZVaseGcFzoj8-Y4x-i39e8-Q46PHU1tGq0oPMCXGpdzcTT98uNheWTmPp7SjR0/pub?gid=503746336&single=true&output=csv';
 const CONTROLE_OPERACIONAL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1763804481&single=true&output=csv';
 const DRIVERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRFDYDH_uSxf8ubJLThZOZGtBXd7akRvzv87oH46L9GmntevniA_rtu9qPhSX5gaA/pub?gid=281389062&single=true&output=csv';
+const SPECIAL_HOURS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSswA5LQw7xGA4imB90xBobAFn2k6T4DoXjuPhrbhLSCSnaWvSXijtR2-oANe6B7LUwf9yhM9Ib7L0d/pub?gid=0&single=true&output=csv';
 
 async function fetchCsv(url: string, retries = 3): Promise<string[][]> {
   const controller = new AbortController();
@@ -266,16 +267,20 @@ export async function fetchFuelData(): Promise<any[]> {
     });
 
     // Absolute Fallbacks (specific column indices for Ticket Log / ValeCard)
-    if (!obj._txId) obj._txId = row[0];
-    if (!obj._date) obj._date = row[4];
-    if (!obj._placa) obj._placa = String(row[5] || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
-    if (!obj._fuelType) obj._fuelType = row[13];
-    if (!obj._litros) obj._litros = parseNum(row[14]);
-    if (!obj._vlLitro) obj._vlLitro = parseNum(row[15]);
-    if (!obj._total) obj._total = parseNum(row[17]);
-    if (!obj._odometer) obj._odometer = parseNum(row[20]);
+    if (!obj._txId) obj._txId = row[4]; // Column E as requested
+    if (!obj._date) obj._date = row[5];
+    if (!obj._placa) obj._placa = String(row[10] || row[11] || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
+    if (!obj._fuelType) obj._fuelType = row[19];
+    if (!obj._litros) obj._litros = parseNum(row[21]);
+    if (!obj._vlLitro) obj._vlLitro = parseNum(row[22]);
+    if (!obj._total) obj._total = parseNum(row[24]);
+    if (!obj._odometer) obj._odometer = parseNum(row[27]);
     if (!obj._kmRodados) obj._kmRodados = row[39] ? parseNum(row[39]) : 0;
     if (!obj._monthYear) obj._monthYear = row[41];
+    if (!obj._autReal) obj._autReal = parseNum(row[42]); // Column AQ index 42
+    
+    // Add transaction time if available (Column G = index 6)
+    obj._time = row[6] || "";
 
     // Final normalization for MES/ANO if missing or non-standard
     if (obj._monthYear) {
@@ -378,7 +383,7 @@ export async function fetchFleetData(): Promise<Asset[]> {
     const isOperational = status === 'OPERACIONAL' || status === 'ATIVO';
 
     // Fallback para status se vazio - se tem placa e é item de frota, provavelmente deve ser considerado
-    if (!placa || placa.startsWith('MNE')) return null;
+    if (!placa) return null;
 
     const propriedade = String(item["PROPRIEDADE"] || item["TIPO PROPRIEDADE"] || "").toUpperCase();
     const isProprio = propriedade === 'COMPESA' || propriedade === 'COMPESA - IPA' || propriedade.includes('PROPRIO') || propriedade.includes('PRÓPRIO');
@@ -708,4 +713,16 @@ export async function fetchDriversData(): Promise<any[]> {
       const name = String(driver.nome || "").toUpperCase();
       return !name.includes("OFC ") && !name.includes("DESLIGADO");
     });
+}
+
+export async function fetchSpecialHoursData(): Promise<any[]> {
+  const rows = await fetchCsv(SPECIAL_HOURS_URL);
+  if (rows.length <= 2) return []; // Header row looks to be around index 2 based on user prompt
+  // Prompt says: "considerar os dados a partir da linha 03 (cabeçalho), e considerar os dados da placa (coluna B), em que a coluna C estiver escrita com "SIM""
+  
+  const dataRows = rows.slice(3); // Line 3 header, data starts after
+  return dataRows.map(row => ({
+    placa: String(row[1] || "").toUpperCase().replace(/[^A-Z0-9]/gi, ""), // Col B = index 1
+    operacaoEspecial: String(row[2] || "").toUpperCase().trim() === "SIM" // Col C = index 2
+  })).filter(item => item.placa && item.operacaoEspecial);
 }

@@ -10,17 +10,23 @@ import { toast } from "sonner";
 export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    setLoading(true);
     const q = query(collection(db, "users"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const usersData: UserProfile[] = [];
       snapshot.forEach((doc) => {
         usersData.push({ uid: doc.id, ...doc.data() } as UserProfile);
       });
+      console.log("Usuários carregados:", usersData.length);
       setUsers(usersData);
       setLoading(false);
+      setError(null);
     }, (error) => {
+      console.error("Erro no Snapshot de usuários:", error);
+      setError(error.message);
       handleFirestoreError(error, 'list', 'users');
       setLoading(false);
     });
@@ -64,7 +70,21 @@ export default function UserManagement() {
           <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-400">Usuários Cadastrados</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {error && (
+            <div className="p-6 text-center">
+              <p className="text-rose-500 font-bold uppercase text-xs">Erro ao carregar usuários: {error}</p>
+              <p className="text-slate-400 text-[10px] mt-1">Verifique as permissões no Firebase.</p>
+            </div>
+          )}
+          
+          {!error && users.length === 0 ? (
+            <div className="p-12 text-center">
+               <Users className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+               <p className="text-slate-400 font-black uppercase text-xs tracking-widest">Nenhum usuário encontrado</p>
+               <p className="text-slate-300 text-[10px] uppercase font-bold mt-1">Aguardando novos cadastros...</p>
+            </div>
+          ) : !error && (
+            <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
@@ -141,7 +161,8 @@ export default function UserManagement() {
               </tbody>
             </table>
           </div>
-        </CardContent>
+        )}
+      </CardContent>
       </Card>
     </div>
   );

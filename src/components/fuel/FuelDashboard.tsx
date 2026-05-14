@@ -705,13 +705,13 @@ Nexus BI Frota`;
   
   const avgAutonomiaReal = useMemo(() => {
     const validRecords = filteredFuel.filter(f => {
-      const value = f["AUTONOMIA"] || f["Autonomia"] || f["autonomia"] || f["KM/LITRO OU LITROS/HORA"];
+      const value = f._autReal || f["AUTONOMIA"] || f["Autonomia"] || f["autonomia"] || f["KM/LITRO OU LITROS/HORA"];
       const numValue = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
       return !isNaN(numValue) && numValue > 0;
     });
     if (validRecords.length === 0) return 0;
     const sum = validRecords.reduce((acc, f) => {
-      const value = f["AUTONOMIA"] || f["Autonomia"] || f["autonomia"] || f["KM/LITRO OU LITROS/HORA"];
+      const value = f._autReal || f["AUTONOMIA"] || f["Autonomia"] || f["autonomia"] || f["KM/LITRO OU LITROS/HORA"];
       const numValue = typeof value === 'string' ? parseFloat(value.replace(',', '.')) : Number(value);
       return acc + numValue;
     }, 0);
@@ -1751,7 +1751,7 @@ Nexus BI Frota`;
   </TabsContent>
 
         <TabsContent value="abast-perf" className="space-y-6 mt-0">
-          <SupplyPerformanceDashboard fuel={fuel} assets={assets} />
+          <SupplyPerformanceDashboard fuel={filteredFuel} assets={assets} />
         </TabsContent>
 
         <TabsContent value="prices" className="space-y-6 mt-0">

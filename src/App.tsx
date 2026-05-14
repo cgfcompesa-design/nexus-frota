@@ -30,6 +30,7 @@ import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMa
 import AlertConfig from './components/config/AlertConfig';
 import UserManagement from './components/config/UserManagement';
 import { Toaster } from 'sonner';
+import { ErrorBoundary } from 'react-error-boundary';
 
 import logoCgf from './assets/images/regenerated_image_1778593500523.png';
 
@@ -103,6 +104,26 @@ function AbastPerformanceView() {
 function MaintenanceDesempenhoView() {
   const { data: maintenanceCost = [] } = useMaintenanceCostData();
   return <MaintenanceHistoryDashboard maintenanceCost={maintenanceCost} />;
+}
+
+function ErrorFallback({ error, resetErrorBoundary }: any) {
+  return (
+    <div className="flex flex-col items-center justify-center p-12 bg-white dark:bg-slate-900 rounded-3xl border-2 border-dashed border-rose-200 dark:border-rose-900/30 space-y-6">
+      <div className="w-16 h-16 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl flex items-center justify-center">
+        <ShieldAlert size={32} />
+      </div>
+      <div className="text-center">
+        <h2 className="text-xl font-black uppercase text-slate-800 dark:text-white tracking-tighter">Ops! Algo deu errado</h2>
+        <p className="text-slate-400 font-medium text-xs uppercase tracking-widest mt-1">Ocorreu um erro ao renderizar este módulo.</p>
+        <pre className="mt-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-xl text-[10px] text-rose-500 font-mono overflow-auto max-w-md">
+          {error.message}
+        </pre>
+      </div>
+      <Button onClick={resetErrorBoundary} className="bg-indigo-600 hover:bg-indigo-700 font-black uppercase tracking-widest h-10 px-8 rounded-xl shadow-lg shadow-indigo-500/20">
+        Tentar Novamente
+      </Button>
+    </div>
+  );
 }
 
 export default function App() {
@@ -217,15 +238,17 @@ export default function App() {
     );
   }
 
-  // Handle Fullscreen DrivePage (No Auth Required)
-  if (currentView === 'drive') {
-    return (
-      <div className="min-h-screen">
-        <DrivePage />
-        <Toaster position="top-right" />
-      </div>
-    );
-  }
+    // Handle Fullscreen DrivePage (No Auth Required)
+    if (currentView === 'drive') {
+      return (
+        <ErrorBoundary FallbackComponent={ErrorFallback}>
+          <div className="min-h-screen">
+            <DrivePage />
+            <Toaster position="top-right" />
+          </div>
+        </ErrorBoundary>
+      );
+    }
 
   // Visitor Access (Public BI)
   if (!user) {
@@ -261,7 +284,9 @@ export default function App() {
             </div>
             <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar bg-slate-50 dark:bg-slate-950/50">
               <div className="max-w-7xl mx-auto h-full min-h-[600px] flex flex-col">
-                {renderView()}
+                <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setCurrentView('resumo')}>
+                  {renderView()}
+                </ErrorBoundary>
               </div>
             </div>
           </main>
@@ -327,10 +352,12 @@ export default function App() {
       );
     }
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-        {renderView()}
-        <Toaster position="top-right" />
-      </div>
+      <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setCurrentView('home')}>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+          {renderView()}
+          <Toaster position="top-right" />
+        </div>
+      </ErrorBoundary>
     );
   }
 
@@ -382,7 +409,9 @@ export default function App() {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
           <div className="max-w-7xl mx-auto">
-            {renderView() || <div className="text-center p-12 text-slate-400">Página não encontrada</div>}
+            <ErrorBoundary FallbackComponent={ErrorFallback}>
+              {renderView() || <div className="text-center p-12 text-slate-400">Página não encontrada</div>}
+            </ErrorBoundary>
           </div>
         </div>
       </main>
