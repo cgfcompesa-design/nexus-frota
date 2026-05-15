@@ -1,12 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
+import { fetchFleetData } from "../services/fleetService";
 
 export function useVeiculosLocadosDisponiveis() {
   return useQuery({
     queryKey: ["veiculos-locados-disponiveis"],
     queryFn: async () => {
-      // Valor base para cálculo de disponibilidade (ex: total de veículos * dias no mês)
-      // Ajuste conforme necessário ou busque de uma fonte dinâmica
-      return 350; 
+      const assets = await fetchFleetData();
+      // Total capacity should consider all Locados in the fleet
+      const totalLocados = assets.filter(a => 
+        a.PROPRIEDADE_TIPO === 'Locado'
+      );
+      return totalLocados.length;
     },
+    staleTime: 5 * 60 * 1000,
   });
 }

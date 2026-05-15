@@ -149,9 +149,12 @@ export const LocadosDashboard = () => {
     const totalVeiculos = filteredData.length;
     const mediaDiasParados = totalVeiculos > 0 ? (totalDiasParados / totalVeiculos).toFixed(1) : "0";
     
+    const numMeses = selectedMesAno === "all" ? Math.max(1, mesesAnos.length) : 1;
+    const capacidadeTotalDias = veiculosDisponiveis * 30 * numMeses;
+    
     // Cálculo de disponibilidade baseado nos dados filtrados
-    const disponibilidade = veiculosDisponiveis > 0 
-      ? ((veiculosDisponiveis - totalDiasParados) / veiculosDisponiveis) * 100 
+    const disponibilidade = capacidadeTotalDias > 0 
+      ? ((capacidadeTotalDias - totalDiasParados) / capacidadeTotalDias) * 100 
       : 0;
     const disponibilidadeFinal = Math.max(0, disponibilidade);
     const metaAtingida = disponibilidadeFinal >= 100;
@@ -192,11 +195,13 @@ export const LocadosDashboard = () => {
       
       if (dadosAnterior.length > 0) {
         const diasParadosAnterior = dadosAnterior.reduce((sum, item) => sum + item.diasParados, 0);
-        disponibilidadeAnterior = veiculosDisponiveis > 0 
-          ? Math.max(0, ((veiculosDisponiveis - diasParadosAnterior) / veiculosDisponiveis) * 100)
+        const capacidadeMensal = veiculosDisponiveis * 30;
+        
+        disponibilidadeAnterior = capacidadeMensal > 0 
+          ? Math.max(0, ((capacidadeMensal - diasParadosAnterior) / capacidadeMensal) * 100)
           : 0;
         
-        variacaoPercentual = disponibilidadeFinal - disponibilidadeAnterior;
+        variacaoPercentual = disponibilidadeFinal - (disponibilidadeAnterior || 0);
         tendencia = variacaoPercentual > 0.1 ? "up" : variacaoPercentual < -0.1 ? "down" : "neutral";
       }
     } else if (mesesAnos.length >= 2) {
@@ -225,15 +230,16 @@ export const LocadosDashboard = () => {
       if (dadosUltimoMes.length > 0 && dadosPenultimoMes.length > 0) {
         const diasParadosUltimo = dadosUltimoMes.reduce((sum, item) => sum + item.diasParados, 0);
         const diasParadosPenultimo = dadosPenultimoMes.reduce((sum, item) => sum + item.diasParados, 0);
+        const capacidadeMensal = veiculosDisponiveis * 30;
         
-        const dispUltimo = veiculosDisponiveis > 0 
-          ? Math.max(0, ((veiculosDisponiveis - diasParadosUltimo) / veiculosDisponiveis) * 100)
+        const dispUltimo = capacidadeMensal > 0 
+          ? Math.max(0, ((capacidadeMensal - diasParadosUltimo) / capacidadeMensal) * 100)
           : 0;
-        disponibilidadeAnterior = veiculosDisponiveis > 0 
-          ? Math.max(0, ((veiculosDisponiveis - diasParadosPenultimo) / veiculosDisponiveis) * 100)
+        disponibilidadeAnterior = capacidadeMensal > 0 
+          ? Math.max(0, ((capacidadeMensal - diasParadosPenultimo) / capacidadeMensal) * 100)
           : 0;
         
-        variacaoPercentual = dispUltimo - disponibilidadeAnterior;
+        variacaoPercentual = dispUltimo - (disponibilidadeAnterior || 0);
         tendencia = variacaoPercentual > 0.1 ? "up" : variacaoPercentual < -0.1 ? "down" : "neutral";
       }
     }
@@ -405,8 +411,10 @@ export const LocadosDashboard = () => {
       const diasParadosMes = dadosDoMes.reduce((sum, item) => sum + item.diasParados, 0);
       
       // A disponibilidade realizada deve ser calculada da mesma forma que o card principal
-      const disponibilidade = veiculosDisponiveis > 0 
-        ? Math.max(0, ((veiculosDisponiveis - diasParadosMes) / veiculosDisponiveis) * 100)
+      // Capacidade de um mês = veículos * 30 dias
+      const capacidadeMensal = veiculosDisponiveis * 30;
+      const disponibilidade = capacidadeMensal > 0 
+        ? Math.max(0, ((capacidadeMensal - diasParadosMes) / capacidadeMensal) * 100)
         : 100;
       
       return {
@@ -663,10 +671,11 @@ export const LocadosDashboard = () => {
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="space-y-1 text-sm">
                 <p><strong>Cálculo:</strong></p>
-                <p>Veículos Disponíveis: <strong>{veiculosDisponiveis}</strong></p>
-                <p>Dias Parados (filtrado): <strong>{metrics.totalDiasParados}</strong></p>
+                <p>Veículos Monitorados: <strong>{veiculosDisponiveis}</strong></p>
+                <p>Capacidade Total (Dias): <strong>{veiculosDisponiveis * 30 * (selectedMesAno === "all" ? Math.max(1, mesesAnos.length) : 1)}</strong></p>
+                <p>Dias Parados (Filtrado): <strong>{metrics.totalDiasParados}</strong></p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  ({veiculosDisponiveis} - {metrics.totalDiasParados}) / {veiculosDisponiveis} × 100
+                  (Capacidade - Dias Parados) / Capacidade × 100
                 </p>
               </div>
             </TooltipContent>

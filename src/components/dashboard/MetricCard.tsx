@@ -13,7 +13,7 @@ interface MetricCardProps {
   centered?: boolean;
 }
 
-export const MetricCard = ({ 
+export const MetricCard = React.forwardRef<HTMLDivElement, MetricCardProps>(({ 
   title, 
   value, 
   icon, 
@@ -23,7 +23,7 @@ export const MetricCard = ({
   onClick,
   isActive,
   centered = false
-}: MetricCardProps) => {
+}, ref) => {
   const getSchemeClasses = () => {
     if (isActive) {
       switch (colorScheme) {
@@ -45,6 +45,7 @@ export const MetricCard = ({
 
   return (
     <div 
+      ref={ref}
       onClick={onClick}
       className={cn(
         "p-2.5 rounded-xl border shadow-sm transition-all cursor-pointer flex flex-col",
@@ -74,4 +75,6 @@ export const MetricCard = ({
       )}
     </div>
   );
-};
+});
+
+MetricCard.displayName = "MetricCard";

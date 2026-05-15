@@ -404,6 +404,8 @@ export async function fetchFleetData(): Promise<Asset[]> {
 
     const status = (String(row[23] || item["STATUS OPERACIONAL"] || item["STATUS"] || item["SITUAÇÃO"] || item["SITUACAO"] || "").toUpperCase().trim());
     const placa = String(item["PLACA"] || item["PLACA DO VEICULO"] || "").toUpperCase().trim();
+    const titularidade = String(row[27] || item["TITULARIDADE"] || "").toUpperCase().trim();
+    item.TITULARIDADE = titularidade;
     
     // Status normalization: Strict OPERACIONAL as requested
     const isOperational = status === 'OPERACIONAL' || status === 'ATIVO';
@@ -411,7 +413,7 @@ export async function fetchFleetData(): Promise<Asset[]> {
     // Fallback para status se vazio - se tem placa e é item de frota, provavelmente deve ser considerado
     if (!placa) return null;
 
-    const propriedade = String(item["PROPRIEDADE"] || item["TIPO PROPRIEDADE"] || "").toUpperCase();
+    const propriedade = String(row[10] || item["PROPRIEDADE"] || item["TIPO PROPRIEDADE"] || "").toUpperCase();
     const isProprio = propriedade === 'COMPESA' || propriedade === 'COMPESA - IPA' || propriedade.includes('PROPRIO') || propriedade.includes('PRÓPRIO');
     
     const parseNum = (val: any) => {
