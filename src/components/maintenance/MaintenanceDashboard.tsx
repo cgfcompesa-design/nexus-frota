@@ -56,52 +56,59 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
 
   // Extrair valores únicos para filtros
   const directorias = useMemo(() => {
-    return (maintenance || []).map(m => {
+    const values = (maintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[7]?.toString() || ""; // Coluna H
+      return (vals[7]?.toString() || "").trim().toUpperCase();
     }).filter(Boolean);
+    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const gerencias = useMemo(() => {
-    return (maintenance || []).map(m => {
+    const values = (maintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[8]?.toString() || ""; // Coluna I
+      return (vals[8]?.toString() || "").trim().toUpperCase();
     }).filter(Boolean);
+    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const tipos = useMemo(() => {
-    return (maintenance || []).map(m => {
+    const values = (maintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[9]?.toString() || ""; // Coluna J
+      return (vals[9]?.toString() || "").trim().toUpperCase();
     }).filter(Boolean);
+    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const statusOperacionais = useMemo(() => {
-    return (maintenance || []).map(m => {
+    const values = (maintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[1]?.toString() || ""; // Coluna B - Status Operacional
+      return (vals[1]?.toString() || "").trim().toUpperCase();
     }).filter(Boolean);
+    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const statusManutencoes = useMemo(() => {
-    return (maintenance || []).map(m => {
+    const values = (maintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[2]?.toString() || ""; // Coluna C - Status Manutenção
+      return (vals[2]?.toString() || "").trim().toUpperCase();
     }).filter(v => v && v !== "N/A");
+    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const statusRevisoes = useMemo(() => {
-    return (preventiveMaintenance || []).map(m => {
+    const values = (preventiveMaintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[20]?.toString() || ""; // Coluna U - Status Revisão
+      return (vals[20]?.toString() || "").trim().toUpperCase();
     }).filter(Boolean);
+    return Array.from(new Set(values)).sort();
   }, [preventiveMaintenance]);
 
   const statusControles = useMemo(() => {
-    return (maintenance || []).map(m => {
+    const values = (maintenance || []).map(m => {
       const vals = m?.__raw || [];
-      return vals[11]?.toString() || ""; // Coluna L - Status Controle de Prazo
+      return (vals[11]?.toString() || "").trim().toUpperCase();
     }).filter(Boolean);
+    return Array.from(new Set(values)).sort();
   }, [maintenance]);
 
   const classificacoes = useMemo(() => {

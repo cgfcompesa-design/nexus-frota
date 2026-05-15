@@ -50,6 +50,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useContactsData } from "@/hooks/useContactsData";
 import { useSpecialHoursData } from "@/hooks/useFleetData";
@@ -72,6 +73,14 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
   const itemsPerPage = 20;
+
+const rangeLabels: Record<string, string> = {
+  "00:00 - 08:00": "Madrugada",
+  "08:00 - 11:59": "Manhã",
+  "12:00 - 13:00": "Almoço",
+  "13:01 - 17:00": "Tarde",
+  "17:01 - 23:59": "Noite"
+};
 
   // Estados para o E-mail
   const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
@@ -711,72 +720,75 @@ Nexus BI Frota`;
                </div>
             </div>
           </CardHeader>
-          <div className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10">
-                <TableRow className="hover:bg-transparent border-none">
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Placa</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Data / Hora</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Cód. Transação</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motorista</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Hodômetro</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">KM Rodados</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motivo</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedInconsistency.map((t, i) => (
-                  <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
-                    <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
-                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
-                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
-                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
-                    <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
-                    <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
-                      <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
-                    </TableCell>
-                    <TableCell className="py-2">
-                       <Badge variant="outline" className="text-[8px] h-4 font-bold border-amber-200 text-amber-600 uppercase">{t.motivo}</Badge>
-                    </TableCell>
-                    <TableCell className="py-2 text-right">
-                       <div className="flex justify-end gap-1">
-                         <Button 
-                           variant="ghost" 
-                           size="icon" 
-                           className="h-7 w-7 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50"
-                           onClick={() => handleExportInconsistency(t)}
-                           title="Baixar histórico da divergência"
-                         >
-                           <Download className="h-4 w-4" />
-                         </Button>
-                         <Button 
-                           variant="ghost" 
-                           size="icon" 
-                           className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                           onClick={() => {
-                             setSelectedInconsistency(t);
-                             setInconsistencyGerencia(t.unidade !== "N/A" ? t.unidade : "");
-                             setIsInconsistencyEmailDialogOpen(true);
-                           }}
-                           title="Notificar Gestor"
-                         >
-                           <Mail className="h-4 w-4" />
-                         </Button>
-                       </div>
-                    </TableCell>
+          <ScrollArea className="h-[400px] w-full">
+            <div className="relative w-full overflow-x-auto">
+              <Table className="min-w-[1000px]">
+                <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10 sticky top-0 z-10">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Placa</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Data / Hora</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Cód. Transação</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Motorista</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10 text-right">Hodômetro</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10 text-right">KM Rodados</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Motivo</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10 text-right">Ações</TableHead>
                   </TableRow>
-                ))}
-                {paginatedInconsistency.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
-                      Nenhuma divergência de hodômetro detectada
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {paginatedInconsistency.map((t, i) => (
+                    <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
+                      <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
+                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
+                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
+                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
+                      <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
+                      <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
+                        <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
+                      </TableCell>
+                      <TableCell className="py-2">
+                         <Badge variant="outline" className="text-[8px] h-4 font-bold border-amber-200 text-amber-600 uppercase">{t.motivo}</Badge>
+                      </TableCell>
+                      <TableCell className="py-2 text-right">
+                         <div className="flex justify-end gap-1">
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-7 w-7 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50"
+                             onClick={() => handleExportInconsistency(t)}
+                             title="Baixar histórico da divergência"
+                           >
+                             <Download className="h-4 w-4" />
+                           </Button>
+                           <Button 
+                             variant="ghost" 
+                             size="icon" 
+                             className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                             onClick={() => {
+                               setSelectedInconsistency(t);
+                               setInconsistencyGerencia(t.unidade !== "N/A" ? t.unidade : "");
+                               setIsInconsistencyEmailDialogOpen(true);
+                             }}
+                             title="Notificar Gestor"
+                           >
+                             <Mail className="h-4 w-4" />
+                           </Button>
+                         </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {paginatedInconsistency.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={8} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
+                        Nenhuma divergência de hodômetro detectada
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
              <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageInconsistency} de {Math.ceil(inconsistencyAnalysis.length/itemsPerPage)}</span>
              <div className="flex gap-1">
@@ -793,7 +805,7 @@ Nexus BI Frota`;
              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                <div className="flex items-center gap-2">
                  <History className="h-5 w-5 text-indigo-500" />
-                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Veículos por Faixa Horária</CardTitle>
+                 <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Veículos por Faixa / Horário</CardTitle>
                </div>
                <div className="flex items-center gap-2">
                  <Button 
@@ -863,66 +875,80 @@ Nexus BI Frota`;
                </div>
              </div>
           </CardHeader>
-          <div className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
-                <TableRow className="hover:bg-transparent border-none">
-                  <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Placa</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Data Transação</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Faixa</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Motorista</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isGroupedByUnit ? (
-                  groupedTimeVehicles.map(([unit, vehicles]) => (
-                    <Fragment key={unit}>
-                      <TableRow className="bg-slate-50/50 dark:bg-slate-800/20">
-                        <TableCell colSpan={5} className="py-1 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800">
-                           {unit} ({vehicles.length})
-                        </TableCell>
-                      </TableRow>
-                      {vehicles.map((v, i) => (
-                        <TableRow key={`${unit}-${i}`} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
-                          <TableCell className="py-2 text-xs font-black text-slate-700 dark:text-slate-300 pl-6">{v.placa}</TableCell>
-                          <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr} {v.horaStr}</TableCell>
-                          <TableCell className="py-2">
-                             <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase">{v.range}</Badge>
-                          </TableCell>
-                          <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
-                          <TableCell className="py-2 text-right">
-                            {v.outOfPattern && (
-                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
-                                <AlertTriangle className="h-2 w-2" /> Fora Padrão
-                              </Badge>
-                            )}
+          <ScrollArea className="h-[400px] w-full">
+            <div className="relative w-full overflow-x-auto">
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30 sticky top-0 z-10 transition-colors">
+                  <TableRow className="hover:bg-transparent border-none text-[9px] font-black uppercase text-slate-400">
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Placa</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Data</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Faixa / Hora Transação</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Motorista</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 text-right">Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {isGroupedByUnit ? (
+                    groupedTimeVehicles.map(([unit, vehicles]) => (
+                      <Fragment key={unit}>
+                        <TableRow className="bg-slate-50/50 dark:bg-slate-800/20">
+                          <TableCell colSpan={5} className="py-1.5 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800 sticky top-8 z-[5] bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-sm">
+                             {unit} ({vehicles.length})
                           </TableCell>
                         </TableRow>
-                      ))}
-                    </Fragment>
-                  ))
-                ) : (
-                  paginatedTime.map((v, i) => (
-                    <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
-                      <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
-                      <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr} {v.horaStr}</TableCell>
-                      <TableCell className="py-2">
-                         <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase">{v.range}</Badge>
-                      </TableCell>
-                      <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
-                      <TableCell className="py-2 text-right">
-                        {v.outOfPattern && (
-                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
-                            <AlertTriangle className="h-2 w-2" /> Fora Padrão
-                          </Badge>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                        {vehicles.map((v, i) => (
+                          <TableRow key={`${unit}-${i}`} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
+                            <TableCell className="py-2 text-xs font-black text-slate-700 dark:text-slate-300 pl-6">{v.placa}</TableCell>
+                            <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr}</TableCell>
+                            <TableCell className="py-2">
+                               <div className="flex flex-col gap-0.5">
+                                 <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
+                                   {rangeLabels[v.range] || v.range} ({v.range})
+                                 </Badge>
+                                 <span className="text-[10px] font-black text-indigo-600">Transação: {v.horaStr}</span>
+                               </div>
+                            </TableCell>
+                            <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                            <TableCell className="py-2 text-right">
+                              {v.outOfPattern && (
+                                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
+                                  <AlertTriangle className="h-2 w-2" /> Fora Padrão
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </Fragment>
+                    ))
+                  ) : (
+                    paginatedTime.map((v, i) => (
+                      <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
+                        <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
+                        <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr}</TableCell>
+                        <TableCell className="py-2">
+                           <div className="flex flex-col gap-0.5">
+                             <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
+                               {rangeLabels[v.range] || v.range} ({v.range})
+                             </Badge>
+                             <span className="text-[10px] font-black text-indigo-600">Transação: {v.horaStr}</span>
+                           </div>
+                        </TableCell>
+                        <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                        <TableCell className="py-2 text-right">
+                          {v.outOfPattern && (
+                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
+                              <AlertTriangle className="h-2 w-2" /> Fora Padrão
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
              <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageTime} de {Math.ceil(filteredTimeVehicles.length/itemsPerPage)}</span>
              <div className="flex gap-1">
@@ -973,40 +999,43 @@ Nexus BI Frota`;
                </div>
              </div>
           </CardHeader>
-          <div className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader className="bg-rose-50/30 dark:bg-rose-900/10">
-                <TableRow className="hover:bg-transparent border-none">
-                  <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8">Placa</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8">Condutor</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8">Data</TableHead>
-                  <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 text-right">Valor</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {paginatedIrregular.map((t, i) => (
-                  <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-rose-50/10 transition-colors">
-                    <TableCell className="py-2 text-[10px] font-black text-rose-600">{t.placa}</TableCell>
-                    <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.motorista}</TableCell>
-                    <TableCell className="py-2 text-[9px] text-slate-500">
-                      {typeof t.data === 'string' ? t.data : (function() {
-                        const d = new Date((t.data - 25569) * 86400 * 1000);
-                        return isValid(d) ? format(d, 'dd/MM/yyyy HH:mm') : String(t.data);
-                      })()}
-                    </TableCell>
-                    <TableCell className="py-2 text-[9px] text-right font-black text-slate-700 dark:text-slate-300">R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</TableCell>
+          <ScrollArea className="h-[400px] w-full">
+            <div className="relative w-full overflow-x-auto">
+              <Table className="min-w-[800px]">
+                <TableHeader className="bg-rose-50/30 dark:bg-rose-900/10 sticky top-0 z-10 transition-colors">
+                  <TableRow className="hover:bg-transparent border-none">
+                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Placa</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Condutor</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Data</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10 text-right">Valor</TableHead>
                   </TableRow>
-                ))}
-                {paginatedIrregular.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
-                      Nenhuma irregularidade encontrada no período
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+                </TableHeader>
+                <TableBody>
+                  {paginatedIrregular.map((t, i) => (
+                    <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-rose-50/10 transition-colors">
+                      <TableCell className="py-2 text-[10px] font-black text-rose-600">{t.placa}</TableCell>
+                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.motorista}</TableCell>
+                      <TableCell className="py-2 text-[9px] text-slate-500">
+                        {typeof t.data === 'string' ? t.data : (function() {
+                          const d = new Date((t.data - 25569) * 86400 * 1000);
+                          return isValid(d) ? format(d, 'dd/MM/yyyy HH:mm') : String(t.data);
+                        })()}
+                      </TableCell>
+                      <TableCell className="py-2 text-[9px] text-right font-black text-slate-700 dark:text-slate-300">R$ {t.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</TableCell>
+                    </TableRow>
+                  ))}
+                  {paginatedIrregular.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
+                        Nenhuma irregularidade encontrada no período
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <ScrollBar orientation="horizontal" />
+          </ScrollArea>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
              <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageUnknown} de {Math.ceil(filteredIrregular.length/itemsPerPage)}</span>
              <div className="flex gap-1">

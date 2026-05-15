@@ -812,27 +812,45 @@ Nexus BI Frota`;
       const targetRecords = recentRecords.length > 0 ? recentRecords : allRecords;
       
       if (targetRecords.length > 0) {
-        // Encontrar o menor preço no período alvo com filtro de sanidade
-        const bestMatch = targetRecords.reduce((best, curr) => {
-          if (curr._vlLitro < 0.5 || curr._vlLitro > 20) return best;
-          return (curr._vlLitro < best._vlLitro || best._vlLitro < 0.5) ? curr : best;
-        }, targetRecords[0]);
+        // Encontrar o melhor preço no período alvo. 
+        // Para evitar erros de base (preços absurdamente baixos que podem ser erros de lançamento), 
+        // priorizamos registros recentes.
+        const sortedByDate = [...targetRecords].sort((a, b) => b._dataWork - a._dataWork);
+        
+        // Pegamos o menor preço entre os mais recentes para evitar outliers históricos ou erros que ficaram na janela.
+        // Se houver registros muito recentes (últimos 3), focamos neles para garantir preços atuais.
+        const focusGroup = sortedByDate.slice(0, 3);
+        const bestMatch = focusGroup.reduce((best, curr) => {
+          // Filtro de sanidade (Preços absurdamente baixos em 2026 para Gasolina/Diesel costumam ser erros de input ou Arla)
+          const isGas = String(curr._fuelType).includes("GASOLINA");
+          const isDiesel = String(curr._fuelType).includes("DIESEL");
+          
+          // Se for gasolina e menor que 5.00 ou diesel menor que 4.50, provavelmente é erro de base/input na Ticket Log
+          if (isGas && curr._vlLitro < 4.90) return best;
+          if (isDiesel && curr._vlLitro < 4.40) return best;
+          if (curr._vlLitro < 1.0 || curr._vlLitro > 15) return best;
+          
+          return (curr._vlLitro < best._vlLitro || best._vlLitro < 1.0) ? curr : best;
+        }, focusGroup[0]);
 
-         const regiao = getPERegion(bestMatch._cidade === "N/A" ? bestMatch._posto : bestMatch._cidade);
+         // Fallback se o filtro de sanidade excluiu todos do focusGroup (improvável, mas por segurança)
+         const finalMatch = (bestMatch._vlLitro < 1.0) ? sortedByDate[0] || bestMatch : bestMatch;
+
+         const regiao = getPERegion(finalMatch._cidade === "N/A" ? finalMatch._posto : finalMatch._cidade);
          
          if (priceSelectedRegions.length > 0 && !priceSelectedRegions.includes(regiao)) return;
-         if (priceSelectedCities.length > 0 && !priceSelectedCities.includes(bestMatch._cidade)) return;
-         if (priceSelectedFuel.length > 0 && !priceSelectedFuel.includes(bestMatch._fuelType)) return;
+         if (priceSelectedCities.length > 0 && !priceSelectedCities.includes(finalMatch._cidade)) return;
+         if (priceSelectedFuel.length > 0 && !priceSelectedFuel.includes(finalMatch._fuelType)) return;
 
          finalResults.push({
            regiao,
-           cidade: bestMatch._cidade,
-           tipo: bestMatch._fuelType,
-           posto: bestMatch._posto,
-           preco: bestMatch._vlLitro,
-           data: bestMatch._dataWork,
-           endereco: bestMatch._endereco,
-           bairro: bestMatch._bairro
+           cidade: finalMatch._cidade,
+           tipo: finalMatch._fuelType,
+           posto: finalMatch._posto,
+           preco: finalMatch._vlLitro,
+           data: finalMatch._dataWork,
+           endereco: finalMatch._endereco,
+           bairro: finalMatch._bairro
          });
       }
     });

@@ -559,12 +559,12 @@ export default function RankingView() {
           setSelectedTemplate('auto');
         }
       }}>
-        <DialogContent className="max-w-[98vw] sm:max-w-[96vw] lg:max-w-[1400px] xl:max-w-[1600px] h-[90vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 flex flex-col overflow-hidden shadow-2xl">
+        <DialogContent className="max-w-[98vw] sm:max-w-[98vw] lg:max-w-[1800px] xl:max-w-[2000px] h-[96vh] bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl p-0 flex flex-col overflow-hidden shadow-2xl">
           {selectedDriverDetails && (
             <div className="flex flex-col h-full w-full overflow-hidden">
               <ScrollArea className="flex-1 h-full">
-                <div className="p-8 pt-10">
-                  <div className="max-w-5xl mx-auto space-y-10">
+                <div className="p-10 pt-12">
+                  <div className="max-w-7xl mx-auto space-y-10">
                     {/* Cabeçalho Interno */}
                     <div className="flex justify-between items-start pb-8 border-b border-slate-100 dark:border-slate-800">
                       <div>
