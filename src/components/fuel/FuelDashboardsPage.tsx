@@ -178,6 +178,15 @@ const FuelDashboardsPage = () => {
 
       // Metadata extraction
       const fuelType = f._fuelType || "N/A";
+      const vlLitro = f._vlLitro || 0;
+
+      // Filter extreme price outliers (batch amounts incorrectly reported as unit price)
+      if (vlLitro > 0) {
+        const ftUpper = String(fuelType).toUpperCase();
+        if (ftUpper.includes("ARLA") && (vlLitro > 15 || vlLitro < 2)) return false;
+        if (!ftUpper.includes("ARLA") && (vlLitro > 15 || vlLitro < 3)) return false;
+      }
+      
       const model = asset?.MODELO || asset?.Modelo || f._vehicleModel || "N/A";
       const diretoria = asset?.DIRETORIA || asset?.Diretoria || "N/A";
       const gerencia = asset?.GERENCIA || asset?.["GER\u00CANCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || f._unit || "N/A";
@@ -663,12 +672,12 @@ const FuelDashboardsPage = () => {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-5">
-        <MetricCard title="Total de Combustível" value={`${metrics.totalCombustivel.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}L`} icon={<Droplets className="h-5 w-5" />} centered />
-        <MetricCard title="Custo Total" value={`R$ ${metrics.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<DollarSign className="h-5 w-5" />} centered />
-        <MetricCard title="Preço Médio/Litro" value={`R$ ${metrics.avgPrecoLitro.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`} icon={<Tag className="h-5 w-5" />} centered />
-        <MetricCard title="Autonomia Real Média" value={metrics.avgAutonomiaReal > 0 ? `${metrics.avgAutonomiaReal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km/L` : "N/A"} icon={<Activity className="h-5 w-5" />} centered />
-        <MetricCard title="KM Médio" value={metrics.avgKmMedio > 0 ? `${metrics.avgKmMedio.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "N/A"} icon={<Gauge className="h-5 w-5" />} centered />
+      <div className="grid gap-3 md:grid-cols-5">
+        <MetricCard title="Total de Combustível" value={`${metrics.totalCombustivel.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}L`} icon={<Droplets className="h-4 w-4" />} centered />
+        <MetricCard title="Custo Total" value={`R$ ${metrics.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<DollarSign className="h-4 w-4" />} centered />
+        <MetricCard title="Preço Médio/Litro" value={`R$ ${metrics.avgPrecoLitro.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`} icon={<Tag className="h-4 w-4" />} centered />
+        <MetricCard title="Autonomia Real Média" value={metrics.avgAutonomiaReal > 0 ? `${metrics.avgAutonomiaReal.toLocaleString('pt-BR', { maximumFractionDigits: 2 })} km/L` : "N/A"} icon={<Activity className="h-4 w-4" />} centered />
+        <MetricCard title="KM Médio" value={metrics.avgKmMedio > 0 ? `${metrics.avgKmMedio.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "N/A"} icon={<Gauge className="h-4 w-4" />} centered />
       </div>
 
       <ChartCard 
@@ -750,8 +759,8 @@ const FuelDashboardsPage = () => {
         )}
       </ChartCard>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <ChartCard title="Top 10 - Consumo por Ativo (L)" description="Veículos com maior volume abastecido (Litros)">
+      <div className="grid gap-4 md:grid-cols-2">
+        <ChartCard title="Top 10 - Consumo por Ativo (L)" description="Veículos com maior volume abastecido" className="h-[350px]">
           {top10ByAsset.length === 0 ? (
             <ChartEmptyState title="Consumo por Ativo" />
           ) : (
@@ -771,7 +780,7 @@ const FuelDashboardsPage = () => {
           )}
         </ChartCard>
 
-        <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos em combustíveis (R$)">
+        <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos (R$)" className="h-[350px]">
           {top10ByUnit.length === 0 ? (
             <ChartEmptyState title="Gastos por Gerência" />
           ) : (
@@ -792,8 +801,8 @@ const FuelDashboardsPage = () => {
         </ChartCard>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <ChartCard title="Custo por Tipo de Ativo (Top 10)" description="Maiores gastos por categoria de veículo">
+      <div className="grid gap-4 md:grid-cols-2">
+        <ChartCard title="Custo por Tipo de Ativo (Top 10)" description="Maiores gastos por categoria" className="h-[350px]">
           {costByType.length === 0 ? (
             <ChartEmptyState title="Custo por Tipo" />
           ) : (
@@ -813,7 +822,7 @@ const FuelDashboardsPage = () => {
           )}
         </ChartCard>
 
-        <ChartCard title="Custo por Tipo de Combustível" description="Total gasto por categoria de combustível">
+        <ChartCard title="Custo por Tipo de Combustível" description="Total gasto por categoria" className="h-[350px]">
           {costByFuelType.length === 0 ? (
             <ChartEmptyState title="Custo por Combustível" />
           ) : (
@@ -842,9 +851,9 @@ const FuelDashboardsPage = () => {
         </ChartCard>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card className="p-4">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+      <div className="grid gap-4 md:grid-cols-2">
+        <Card className="p-3 shadow-none border-slate-200">
+          <h3 className="text-xs font-black uppercase tracking-widest mb-3 flex items-center gap-2">
             <Calendar className="h-5 w-5 text-destructive" />
             Top 10 - Mais Tempo Sem Abastecer
           </h3>
@@ -910,9 +919,9 @@ const FuelDashboardsPage = () => {
         </Card>
       </div>
 
-      <Card className="p-4">
-        <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2">
+      <Card className="p-3 shadow-none border-slate-200">
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
             <Milestone className="h-5 w-5 text-primary" />
             Resumo de Abastecimento por Veículo
           </h3>

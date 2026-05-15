@@ -835,8 +835,9 @@ Nexus BI Frota`;
             if (isGas && (curr._vlLitro < 4.00 || curr._vlLitro > 8.50)) return best;
             if (isDiesel && (curr._vlLitro < 4.00 || curr._vlLitro > 8.00)) return best;
           } else {
-            // ARLA 32 usually costs per liter between R$ 3 and R$ 8. 
-            // Values above 15.00 are almost certainly totals for 20L jugs incorrectly reported as unit price.
+            // ARLA 32 usually costs per liter between R$ 3 and R$ 7. 
+            // Values mentioned by user (R$ 99k, R$ 120k) are surely total batch amounts.
+            // We cap ARLA unit price at R$ 15.00 to safely exclude these outliers.
             if (curr._vlLitro > 15.00 || curr._vlLitro < 2.00) return best;
           }
           
@@ -1436,18 +1437,18 @@ Nexus BI Frota`;
             <Button variant="outline" className="gap-2" onClick={handleExport}><Download className="h-4 w-4" /> Exportar para Excel</Button>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-4">
-            <MetricCard title="Total de Combustível" value={`${totalLitros.toFixed(0)}L`} icon={<Fuel className="h-5 w-5" />} description={`${totalAbastecimentos} abastecimentos`} />
-            <MetricCard title="Custo Total" value={`R$ ${totalValor.toFixed(2)}`} icon={<DollarSign className="h-5 w-5" />} />
-            <MetricCard title="Preço Médio/Litro" value={`R$ ${avgPrecoLitro.toFixed(2)}`} icon={<Droplets className="h-5 w-5" />} />
-            <MetricCard title="Autonomia Real" value={avgAutonomiaReal > 0 ? avgAutonomiaReal.toFixed(2) : 'N/A'} icon={<Activity className="h-5 w-5" />} />
+      <div className="grid gap-3 md:grid-cols-4">
+            <MetricCard title="Total de Combustível" value={`${totalLitros.toFixed(0)}L`} icon={<Fuel className="h-4 w-4" />} description={`${totalAbastecimentos} abastecimentos`} />
+            <MetricCard title="Custo Total" value={`R$ ${totalValor.toFixed(2)}`} icon={<DollarSign className="h-4 w-4" />} />
+            <MetricCard title="Preço Médio/Litro" value={`R$ ${avgPrecoLitro.toFixed(2)}`} icon={<Droplets className="h-4 w-4" />} />
+            <MetricCard title="Autonomia Real" value={avgAutonomiaReal > 0 ? avgAutonomiaReal.toFixed(2) : 'N/A'} icon={<Activity className="h-4 w-4" />} />
           </div>
         </>
       )}
 
       {/* Main Analysis Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <ChartCard title="Frequência de Desvios" className="h-[400px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <ChartCard title="Frequência de Desvios" className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartDesviosData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
@@ -1466,7 +1467,7 @@ Nexus BI Frota`;
           </ResponsiveContainer>
         </ChartCard>
 
-        <ChartCard title="Top 10 Condutores com Desvios" className="h-[400px]">
+        <ChartCard title="Top 10 Condutores com Desvios" className="h-[350px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={condutoresRanking} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
@@ -1478,8 +1479,8 @@ Nexus BI Frota`;
           </ResponsiveContainer>
         </ChartCard>
 
-        <Card className="h-[400px]">
-          <CardHeader className="py-3">
+        <Card className="h-[350px]">
+          <CardHeader className="py-2.5">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <AlertTriangle className="h-4 w-4 text-warning" />
               Últimos Desvios
@@ -1520,8 +1521,8 @@ Nexus BI Frota`;
       </div>
 
       {/* Second Row: Top Placas and Unit Ranking */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Top 5 Placas com mais Desvios" className="h-[350px]">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <ChartCard title="Top 5 Placas com mais Desvios" className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={plaquesRanking.slice(0, 5).map(p => ({ name: p.placa, total: p.totalAlerts }))} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
@@ -1534,8 +1535,8 @@ Nexus BI Frota`;
         </ChartCard>
 
         {/* Ranking of Units Card */}
-        <Card className="h-[350px]">
-          <CardHeader className="py-3">
+        <Card className="h-[300px]">
+          <CardHeader className="py-2.5">
             <CardTitle className="text-sm font-bold flex items-center gap-2">
               <Layers className="h-4 w-4 text-primary" />
               Top 5 Gerências Críticas

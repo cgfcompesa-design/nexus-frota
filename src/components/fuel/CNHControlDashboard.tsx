@@ -114,7 +114,7 @@ export function CNHControlDashboard() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <MetricCard title="Total Condutores" value={stats.total} icon={<Users className="text-slate-500" />} centered />
         <MetricCard title="Regulares" value={stats.regulares} icon={<CheckCircle2 className="text-emerald-500" />} centered />
         <MetricCard title="Vencendo (30d)" value={stats.em30dias} icon={<Clock className="text-orange-500" />} centered />
@@ -122,7 +122,7 @@ export function CNHControlDashboard() {
         <MetricCard title="Vencidos" value={stats.vencidas} icon={<AlertCircle className="text-rose-500" />} centered />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
         <ChartCard title="Filtros e Busca" className="lg:col-span-1">
           <div className="p-4 space-y-4">
             <div className="space-y-2">

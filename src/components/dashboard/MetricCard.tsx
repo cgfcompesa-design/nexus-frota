@@ -47,30 +47,30 @@ export const MetricCard = ({
     <div 
       onClick={onClick}
       className={cn(
-        "p-5 rounded-2xl border shadow-sm transition-all cursor-pointer flex flex-col",
+        "p-2.5 rounded-xl border shadow-sm transition-all cursor-pointer flex flex-col",
         centered && "items-center justify-center text-center",
         isActive 
           ? "bg-slate-50 dark:bg-slate-800 border-indigo-600 dark:border-indigo-500 ring-2 ring-indigo-500/20" 
           : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 hover:border-indigo-300 dark:hover:border-indigo-700"
       )}
     >
-      <div className={cn("flex mb-4 w-full", centered ? "justify-center" : "justify-between items-start")}>
-        <div className={cn("p-2.5 rounded-xl transition-colors", getSchemeClasses())}>
+      <div className={cn("flex mb-1.5 w-full", centered ? "justify-center" : "justify-between items-start")}>
+        <div className={cn("p-1.5 rounded-lg transition-colors", getSchemeClasses())}>
           {icon}
         </div>
         {!centered && trend && (
           <div className={cn(
-            "text-xs font-bold px-2 py-1 rounded-full",
+            "text-[10px] font-bold px-1.5 py-0.5 rounded-full",
             trend === "up" ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
           )}>
             {trend === "up" ? "↑" : "↓"}
           </div>
         )}
       </div>
-      <p className={cn("text-sm font-medium text-slate-500 dark:text-slate-400", centered && "mx-auto")}>{title}</p>
-      <h3 className={cn("text-2xl font-black text-slate-800 dark:text-white mt-1", centered && "mx-auto")}>{value}</h3>
+      <p className={cn("text-[10px] font-black uppercase tracking-widest text-slate-400 ml-0.5", centered && "mx-auto")}>{title}</p>
+      <h3 className={cn("text-xl font-black text-slate-800 dark:text-white mt-0.5", centered && "mx-auto")}>{value}</h3>
       {description && (
-        <p className={cn("text-xs text-slate-400 mt-2 font-medium", centered && "mx-auto")}>{description}</p>
+        <p className={cn("text-[9px] text-slate-400 mt-1.5 font-bold uppercase tracking-tight", centered && "mx-auto")}>{description}</p>
       )}
     </div>
   );
