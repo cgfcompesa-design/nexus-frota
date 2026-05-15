@@ -807,9 +807,11 @@ Nexus BI Frota`;
     Object.keys(pricesByGroup).forEach(key => {
       const allRecords = pricesByGroup[key];
       // Se não houver filtro de data específico, aplica janela de 20 dias, senão usa todos os registros filtrados
-      const hasSpecificDateFilter = (selectedMonthsYears.length > 1 || dateFrom || dateTo);
+      const hasSpecificDateFilter = (selectedMonthsYears.length > 0 || dateFrom || dateTo);
       const recentRecords = (!hasSpecificDateFilter && windowStartTs > 0) ? allRecords.filter(f => f._dataWork >= windowStartTs) : allRecords;
-      const targetRecords = recentRecords.length > 0 ? recentRecords : allRecords;
+      
+      // Strict requirement: only show records from the last 20 days if no specific date filter is active
+      const targetRecords = recentRecords;
       
       if (targetRecords.length > 0) {
         // Encontrar o melhor preço no período alvo. 
@@ -818,23 +820,31 @@ Nexus BI Frota`;
         const sortedByDate = [...targetRecords].sort((a, b) => b._dataWork - a._dataWork);
         
         // Pegamos o menor preço entre os mais recentes para evitar outliers históricos ou erros que ficaram na janela.
-        // Se houver registros muito recentes (últimos 3), focamos neles para garantir preços atuais.
-        const focusGroup = sortedByDate.slice(0, 3);
+        // Se houver registros muito recentes (últimos 5), focamos neles para garantir preços atuais.
+        const focusGroup = sortedByDate.slice(0, 5);
         const bestMatch = focusGroup.reduce((best, curr) => {
-          // Filtro de sanidade (Preços absurdamente baixos em 2026 para Gasolina/Diesel costumam ser erros de input ou Arla)
-          const isGas = String(curr._fuelType).includes("GASOLINA");
-          const isDiesel = String(curr._fuelType).includes("DIESEL");
+          // Filtro de sanidade rigoroso para 2026
+          const fuelType = String(curr._fuelType).toUpperCase();
+          const isGas = fuelType.includes("GASOLINA");
+          const isDiesel = fuelType.includes("DIESEL");
+          const isArla = fuelType.includes("ARLA");
           
-          // Se for gasolina e menor que 5.00 ou diesel menor que 4.50, provavelmente é erro de base/input na Ticket Log
-          if (isGas && curr._vlLitro < 4.90) return best;
-          if (isDiesel && curr._vlLitro < 4.40) return best;
-          if (curr._vlLitro < 1.0 || curr._vlLitro > 15) return best;
+          // Se for gasolina e menor que 5.50 ou diesel menor que 5.00, provavelmente é erro de base ou ARLA classificado errado
+          if (!isArla) {
+            if (isGas && curr._vlLitro < 5.40) return best;
+            if (isDiesel && curr._vlLitro < 5.20) return best;
+          }
           
-          return (curr._vlLitro < best._vlLitro || best._vlLitro < 1.0) ? curr : best;
+          if (curr._vlLitro <= 0.5 || curr._vlLitro > 15) return best;
+          
+          return (curr._vlLitro < best._vlLitro || best._vlLitro < 0.5) ? curr : best;
         }, focusGroup[0]);
 
-         // Fallback se o filtro de sanidade excluiu todos do focusGroup (improvável, mas por segurança)
-         const finalMatch = (bestMatch._vlLitro < 1.0) ? sortedByDate[0] || bestMatch : bestMatch;
+         // Fallback se o filtro de sanidade excluiu o primeiro do focusGroup
+         const finalMatch = (bestMatch._vlLitro < 0.5) ? sortedByDate.find(r => r._vlLitro > 4.0) || bestMatch : bestMatch;
+
+         // Se ainda assim o registro for mais antigo que 20 dias e não houver filtro, descartamos
+         if (!hasSpecificDateFilter && windowStartTs > 0 && finalMatch._dataWork < windowStartTs) return;
 
          const regiao = getPERegion(finalMatch._cidade === "N/A" ? finalMatch._posto : finalMatch._cidade);
          
