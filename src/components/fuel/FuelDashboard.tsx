@@ -767,15 +767,17 @@ Nexus BI Frota`;
   };
 
   const priceAnalysis = useMemo(() => {
-    if (!preProcessedFuel.length) return [];
+    // Usar filteredFuel para respeitar filtros de data (mês/ano) se aplicados, senão preProcessedFuel
+    const sourceData = (selectedMonthsYears.length > 0 || dateFrom || dateTo) ? filteredFuel : preProcessedFuel;
+    if (!sourceData.length) return [];
     
-    // Encontrar a data mais recente no dataset para definir a janela de análise
-    const maxTsInData = preProcessedFuel.reduce((max, f) => Math.max(max, f._timestamp || 0), 0);
-    const windowStartTs = maxTsInData > 0 ? maxTsInData - (60 * 24 * 60 * 60 * 1000) : 0; // 60 dias de janela a partir do último dado
+    // Encontrar a data mais recente no dataset filtrado para definir a janela de análise
+    const maxTsInData = sourceData.reduce((max, f) => Math.max(max, f._timestamp || 0), 0);
+    const windowStartTs = maxTsInData > 0 ? maxTsInData - (20 * 24 * 60 * 60 * 1000) : 0; 
 
     const pricesByGroup: Record<string, any[]> = {};
 
-    preProcessedFuel.forEach(f => {
+    sourceData.forEach(f => {
       let data = f._timestamp || 0;
       
       if (data === 0 && f._monthYearBase !== "N/A" && f._monthYearBase !== null) {
@@ -804,8 +806,9 @@ Nexus BI Frota`;
 
     Object.keys(pricesByGroup).forEach(key => {
       const allRecords = pricesByGroup[key];
-      // Se tivermos dados recentes (ex: últimos 60 dias do dataset), use eles. Se não, use o melhor histórico.
-      const recentRecords = windowStartTs > 0 ? allRecords.filter(f => f._dataWork >= windowStartTs) : allRecords;
+      // Se não houver filtro de data específico, aplica janela de 20 dias, senão usa todos os registros filtrados
+      const hasSpecificDateFilter = (selectedMonthsYears.length > 1 || dateFrom || dateTo);
+      const recentRecords = (!hasSpecificDateFilter && windowStartTs > 0) ? allRecords.filter(f => f._dataWork >= windowStartTs) : allRecords;
       const targetRecords = recentRecords.length > 0 ? recentRecords : allRecords;
       
       if (targetRecords.length > 0) {
@@ -842,7 +845,7 @@ Nexus BI Frota`;
       if (a.cidade !== b.cidade) return a.cidade.localeCompare(b.cidade);
       return a.preco - b.preco;
     });
-  }, [preProcessedFuel, priceSelectedRegions, priceSelectedCities, priceSelectedFuel]);
+  }, [preProcessedFuel, filteredFuel, priceSelectedRegions, priceSelectedCities, priceSelectedFuel, selectedMonthsYears, dateFrom, dateTo]);
 
   const priceAnalysisPaginated = useMemo(() => {
     const start = (priceCurrentPage - 1) * rowsPerPage;
@@ -876,19 +879,11 @@ Nexus BI Frota`;
       Object.entries(byLocality).forEach(([locality, items]) => {
         summary += `\n📍 *${locality.toUpperCase()}*\n`;
         items.forEach(item => {
-          let locationInfo = "";
-          if (item.endereco && item.endereco !== "N/A") {
-            locationInfo += ` - ${item.endereco}`;
-          }
-          if (item.bairro && item.bairro !== "N/A") {
-            locationInfo += `, ${item.bairro}`;
-          }
-          summary += `• ${item.tipo}: R$ ${item.preco.toFixed(3)} [${item.posto}${locationInfo}]\n`;
+          summary += `• ${item.tipo}: R$ ${item.preco.toFixed(3)} [${item.posto}]\n`;
         });
       });
     }
 
-    summary += `\n*Ação Recomendada:* Propomos que o abastecimento da frota local seja priorizado neste posto indicado para otimização de custos.\n`;
     summary += `\n_Gerado em tempo real via Nexus Frotas - Auditoria e Inteligência de Custos_`;
     
     navigator.clipboard.writeText(summary);
@@ -1013,6 +1008,10 @@ Nexus BI Frota`;
 
       const placaRaw = f.PLACA || f.Placa || "";
       const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+      
+      // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
+      if (placa.startsWith("MAQ")) continue;
+
       const valR = f._valR;
       
       if (valR > 0) {
@@ -1093,7 +1092,13 @@ Nexus BI Frota`;
       
       const placaRaw = f.PLACA || f.Placa || "";
       const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+      
+      // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
+      if (placa.startsWith("MAQ")) continue;
+
       const v = vehicleMap.get(placa);
+      if (!v) continue;
+      
       const asset = assetsByPlaca.get(placa);
       const litros = f._litros;
       const vlLitro = f._vlLitro;
@@ -1214,7 +1219,11 @@ Nexus BI Frota`;
     const condutoresRanking = Object.entries(
       filteredFuel.reduce((acc: Record<string, number>, f: any) => {
         const condutor = f["NOME MOTORISTA"] || ((f as any).__raw && (f as any).__raw[11]) || "NÃO IDENTIFICADO";
-        const placa = String(f.PLACA || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        const placaRaw = f.PLACA || f.Placa || "";
+        const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        
+        if (placa.startsWith("MAQ")) return acc;
+        
         const v = vehicleMap.get(placa);
         if (v && v.alerts.size > 0) {
           acc[condutor] = (acc[condutor] || 0) + v.alerts.size;

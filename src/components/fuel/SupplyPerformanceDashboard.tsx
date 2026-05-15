@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, Fragment } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -68,6 +68,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
   const [currentPageUnknown, setCurrentPageUnknown] = useState(1);
   const [currentPageTime, setCurrentPageTime] = useState(1);
   const [currentPageInconsistency, setCurrentPageInconsistency] = useState(1);
+  const [isGroupedByUnit, setIsGroupedByUnit] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
   const itemsPerPage = 20;
@@ -362,6 +363,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
             
             const plateClean = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
             const asset = allAssetsMap.get(plateClean);
+            const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A";
             const isSpecialPlate = specialHours.some(sh => sh.placa === plateClean) || (asset && (asset as any).OPERACAO_24H);
             const outOfPattern = (isWeekend || isOutsideHours) && !isSpecialPlate;
 
@@ -372,6 +374,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
               dataStr: (txDate && isValid(txDate)) ? format(txDate, "dd/MM/yyyy") : "N/A",
               horaStr: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
               motorista: raw[11] || "N/A",
+              gerencia,
               outOfPattern
             });
           }
@@ -404,6 +407,17 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
                           (selectedPatternFilter === "IN" && !v.outOfPattern);
     return matchesSearch && matchesTimeRange && matchesPattern;
   });
+
+  const groupedTimeVehicles = useMemo(() => {
+    if (!isGroupedByUnit) return [];
+    const grouped: Record<string, any[]> = {};
+    filteredTimeVehicles.forEach(v => {
+      if (!grouped[v.gerencia]) grouped[v.gerencia] = [];
+      grouped[v.gerencia].push(v);
+    });
+    return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredTimeVehicles, isGroupedByUnit]);
+
   const paginatedTime = filteredTimeVehicles.slice((currentPageTime - 1) * itemsPerPage, currentPageTime * itemsPerPage);
 
   const handleSendEmail = () => {
@@ -783,6 +797,13 @@ Nexus BI Frota`;
                </div>
                <div className="flex items-center gap-2">
                  <Button 
+                   variant={isGroupedByUnit ? "default" : "outline"}
+                   onClick={() => setIsGroupedByUnit(!isGroupedByUnit)}
+                   className={`h-7 text-[9px] font-black uppercase transition-all ${isGroupedByUnit ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 'border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                 >
+                   Agrupar por Unidade
+                 </Button>
+                 <Button 
                    variant={selectedPatternFilter === "OUT" ? "default" : "outline"}
                    onClick={() => {
                      setSelectedPatternFilter(prev => prev === "OUT" ? "ALL" : "OUT");
@@ -847,27 +868,58 @@ Nexus BI Frota`;
               <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
                 <TableRow className="hover:bg-transparent border-none">
                   <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Placa</TableHead>
+                  <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Data Transação</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Faixa</TableHead>
                   <TableHead className="text-[9px] font-black uppercase text-slate-400 h-8">Motorista</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {paginatedTime.map((v, i) => (
-                  <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
-                    <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
-                    <TableCell className="py-2">
-                       <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase">{v.range}</Badge>
-                    </TableCell>
-                    <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
-                    <TableCell className="py-2 text-right">
-                      {v.outOfPattern && (
-                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
-                          <AlertTriangle className="h-2 w-2" /> Fora Padrão
-                        </Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {isGroupedByUnit ? (
+                  groupedTimeVehicles.map(([unit, vehicles]) => (
+                    <Fragment key={unit}>
+                      <TableRow className="bg-slate-50/50 dark:bg-slate-800/20">
+                        <TableCell colSpan={5} className="py-1 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800">
+                           {unit} ({vehicles.length})
+                        </TableCell>
+                      </TableRow>
+                      {vehicles.map((v, i) => (
+                        <TableRow key={`${unit}-${i}`} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
+                          <TableCell className="py-2 text-xs font-black text-slate-700 dark:text-slate-300 pl-6">{v.placa}</TableCell>
+                          <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr} {v.horaStr}</TableCell>
+                          <TableCell className="py-2">
+                             <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase">{v.range}</Badge>
+                          </TableCell>
+                          <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                          <TableCell className="py-2 text-right">
+                            {v.outOfPattern && (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
+                                <AlertTriangle className="h-2 w-2" /> Fora Padrão
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  ))
+                ) : (
+                  paginatedTime.map((v, i) => (
+                    <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
+                      <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
+                      <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr} {v.horaStr}</TableCell>
+                      <TableCell className="py-2">
+                         <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase">{v.range}</Badge>
+                      </TableCell>
+                      <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                      <TableCell className="py-2 text-right">
+                        {v.outOfPattern && (
+                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
+                            <AlertTriangle className="h-2 w-2" /> Fora Padrão
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
               </TableBody>
             </Table>
           </div>

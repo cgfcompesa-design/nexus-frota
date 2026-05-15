@@ -7,7 +7,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, Cell 
 } from "recharts";
 import { Asset, TelemetryData, FuelData, MaintenanceData, MaintenanceCostData } from "../../types";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAssets, useMaintenanceData } from "../../hooks/useFleetData";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -72,7 +72,7 @@ export default function Overview() {
   }, [assets, searchPlaca, selectedTipo, selectedDiretoria, selectedGerencia, selectedCriticidade]);
 
   // Reset to first page when filters change
-  useMemo(() => {
+  useEffect(() => {
     setCurrentPage(1);
   }, [searchPlaca, selectedTipo, selectedDiretoria, selectedGerencia, selectedCriticidade]);
 

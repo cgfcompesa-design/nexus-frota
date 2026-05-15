@@ -268,6 +268,8 @@ const FuelDashboardsPage = () => {
   // Charts Logic
 
   // 1. Histórico de Abastecimentos (Liters and Value by Month/Year)
+  const [chartViewMode, setChartViewMode] = useState<'liters' | 'cost'>('liters');
+
   const timelineData = useMemo(() => {
     if (!filteredFuel.length) return [];
     
@@ -284,7 +286,9 @@ const FuelDashboardsPage = () => {
       if (!timeline[monthYear]) {
         timeline[monthYear] = { 
           monthYear, 
-          sortDate: parseMonthYear(monthYearRaw) 
+          sortDate: parseMonthYear(monthYearRaw),
+          totalL: 0,
+          totalV: 0
         };
         allTypes.forEach(t => {
           timeline[monthYear][`${t}_L`] = 0;
@@ -293,6 +297,8 @@ const FuelDashboardsPage = () => {
       }
       timeline[monthYear][`${type}_L`] = (timeline[monthYear][`${type}_L`] || 0) + liters;
       timeline[monthYear][`${type}_V`] = (timeline[monthYear][`${type}_V`] || 0) + cost;
+      timeline[monthYear].totalL += liters;
+      timeline[monthYear].totalV += cost;
     });
 
     return Object.values(timeline)
@@ -665,7 +671,30 @@ const FuelDashboardsPage = () => {
         <MetricCard title="KM Médio" value={metrics.avgKmMedio > 0 ? `${metrics.avgKmMedio.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "N/A"} icon={<Gauge className="h-5 w-5" />} centered />
       </div>
 
-      <ChartCard title="Histórico de Abastecimentos" description="Consumo mensal (L) por tipo de combustível">
+      <ChartCard 
+        title="Histórico de Abastecimentos" 
+        description={chartViewMode === 'liters' ? "Consumo mensal (L) por tipo de combustível" : "Custo mensal (R$) por tipo de combustível"}
+        headerAction={
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+            <Button 
+              variant={chartViewMode === 'liters' ? "secondary" : "ghost"} 
+              size="sm" 
+              onClick={() => setChartViewMode('liters')}
+              className="h-7 text-[10px] font-black uppercase px-3"
+            >
+              Litros (L)
+            </Button>
+            <Button 
+              variant={chartViewMode === 'cost' ? "secondary" : "ghost"} 
+              size="sm" 
+              onClick={() => setChartViewMode('cost')}
+              className="h-7 text-[10px] font-black uppercase px-3"
+            >
+              Custo (R$)
+            </Button>
+          </div>
+        }
+      >
         {timelineData.length === 0 ? (
           <ChartEmptyState title="Histórico de Abastecimentos" />
         ) : (
@@ -680,19 +709,24 @@ const FuelDashboardsPage = () => {
                 <YAxis 
                   tick={{ fontSize: 10 }}
                   axisLine={{ stroke: '#e2e8f0' }}
-                  label={{ value: 'Litros (L)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' } }} 
+                  label={{ 
+                    value: chartViewMode === 'liters' ? 'Litros (L)' : 'Valor (R$)', 
+                    angle: -90, 
+                    position: 'insideLeft', 
+                    style: { textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' } 
+                  }} 
                 />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '10px' }}
-                  itemStyle={{ color: '#fff' }}
-                  formatter={(value: number) => value.toLocaleString('pt-BR')} 
+                   contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '10px' }}
+                   itemStyle={{ color: '#fff' }}
+                   formatter={(value: number) => chartViewMode === 'liters' ? value.toLocaleString('pt-BR') + ' L' : 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 
                 />
                 <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '20px' }} />
                 {fuelTypes.map((type, i) => (
                   <Line 
                     key={String(type)} 
                     type="monotone" 
-                    dataKey={`${String(type)}_L`} 
+                    dataKey={chartViewMode === 'liters' ? `${String(type)}_L` : `${String(type)}_V`} 
                     name={String(type)} 
                     stroke={SHADES_OF_BLUE[i % SHADES_OF_BLUE.length]} 
                     strokeWidth={3}
@@ -701,6 +735,16 @@ const FuelDashboardsPage = () => {
                     connectNulls
                   />
                 ))}
+                <Line 
+                    type="monotone" 
+                    dataKey={chartViewMode === 'liters' ? "totalL" : "totalV"} 
+                    name="TOTAL" 
+                    stroke="#000" 
+                    strokeWidth={2}
+                    strokeDasharray="5 5"
+                    dot={false}
+                    activeDot={{ r: 4 }}
+                />
               </LineChart>
             </ResponsiveContainer>
         )}
