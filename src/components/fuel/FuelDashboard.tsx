@@ -18,7 +18,7 @@ import {
 import { format, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   Table,
   TableBody,
@@ -78,8 +78,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Input } from "@/components/ui/input";
 
 import { SupplyPerformanceDashboard } from './SupplyPerformanceDashboard';
+
+import { SearchableMultiSelect } from "@/components/ui/searchable-multi-select";
 
 interface FuelDashboardProps {
   fuel: FuelData[];
@@ -297,7 +306,6 @@ const standardizeFuelType = (fuelType: string | undefined): string => {
   
   return fuelType;
 };
-
 
 export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false, initialTab }: FuelDashboardProps) => {
   // Hook para dados de locados (veículos em manutenção)
@@ -766,7 +774,8 @@ Nexus BI Frota`;
     return "Outras Regiões";
   };
 
-  const priceAnalysis = useMemo(() => {
+  // Base analysis without table-specific filters to avoid circular dependency
+  const basePriceAnalysis = useMemo(() => {
     // Usar filteredFuel para respeitar filtros de data (mês/ano) se aplicados, senão preProcessedFuel
     const sourceData = (selectedMonthsYears.length > 0 || dateFrom || dateTo) ? filteredFuel : preProcessedFuel;
     if (!sourceData.length) return [];
@@ -810,50 +819,38 @@ Nexus BI Frota`;
       const hasSpecificDateFilter = (selectedMonthsYears.length > 0 || dateFrom || dateTo);
       const recentRecords = (!hasSpecificDateFilter && windowStartTs > 0) ? allRecords.filter(f => f._dataWork >= windowStartTs) : allRecords;
       
-      // Strict requirement: only show records from the last 20 days if no specific date filter is active
       const targetRecords = recentRecords;
       
       if (targetRecords.length > 0) {
-        // Encontrar o melhor preço no período alvo. 
-        // Para evitar erros de base (preços absurdamente baixos que podem ser erros de lançamento), 
-        // priorizamos registros recentes.
         const sortedByDate = [...targetRecords].sort((a, b) => b._dataWork - a._dataWork);
-        
-        // Pegamos o menor preço entre os mais recentes para evitar outliers históricos ou erros que ficaram na janela.
-        // Se houver registros muito recentes (últimos 5), focamos neles para garantir preços atuais.
         const focusGroup = sortedByDate.slice(0, 5);
+        
         const bestMatch = focusGroup.reduce((best, curr) => {
-          // Filtro de sanidade rigoroso para 2026
           const fuelType = String(curr._fuelType).toUpperCase();
           const isGas = fuelType.includes("GASOLINA");
           const isDiesel = fuelType.includes("DIESEL");
           const isArla = fuelType.includes("ARLA");
           
-          // Se for gasolina e menor que 5.50 ou diesel menor que 5.00, provavelmente é erro de base ou ARLA classificado errado
           if (!isArla) {
-            if (isGas && curr._vlLitro < 5.40) return best;
-            if (isDiesel && curr._vlLitro < 5.20) return best;
+            if (isGas && (curr._vlLitro < 4.00 || curr._vlLitro > 8.50)) return best;
+            if (isDiesel && (curr._vlLitro < 4.00 || curr._vlLitro > 8.00)) return best;
+          } else {
+            // ARLA 32 usually costs per liter between R$ 3 and R$ 8. 
+            // Values above 15.00 are almost certainly totals for 20L jugs incorrectly reported as unit price.
+            if (curr._vlLitro > 15.00 || curr._vlLitro < 2.00) return best;
           }
           
-          if (curr._vlLitro <= 0.5 || curr._vlLitro > 15) return best;
+          if (curr._vlLitro <= 0.5 || curr._vlLitro > 100) return best;
           
-          return (curr._vlLitro < best._vlLitro || best._vlLitro < 0.5) ? curr : best;
+          return (best._vlLitro <= 0.5 || curr._vlLitro < best._vlLitro) ? curr : best;
         }, focusGroup[0]);
 
-         // Fallback se o filtro de sanidade excluiu o primeiro do focusGroup
-         const finalMatch = (bestMatch._vlLitro < 0.5) ? sortedByDate.find(r => r._vlLitro > 4.0) || bestMatch : bestMatch;
+         const finalMatch = (bestMatch._vlLitro < 0.5) ? sortedByDate.find(r => r._vlLitro > 2.0) || bestMatch : bestMatch;
 
-         // Se ainda assim o registro for mais antigo que 20 dias e não houver filtro, descartamos
          if (!hasSpecificDateFilter && windowStartTs > 0 && finalMatch._dataWork < windowStartTs) return;
 
-         const regiao = getPERegion(finalMatch._cidade === "N/A" ? finalMatch._posto : finalMatch._cidade);
-         
-         if (priceSelectedRegions.length > 0 && !priceSelectedRegions.includes(regiao)) return;
-         if (priceSelectedCities.length > 0 && !priceSelectedCities.includes(finalMatch._cidade)) return;
-         if (priceSelectedFuel.length > 0 && !priceSelectedFuel.includes(finalMatch._fuelType)) return;
-
          finalResults.push({
-           regiao,
+           regiao: getPERegion(finalMatch._cidade === "N/A" ? finalMatch._posto : finalMatch._cidade),
            cidade: finalMatch._cidade,
            tipo: finalMatch._fuelType,
            posto: finalMatch._posto,
@@ -865,24 +862,35 @@ Nexus BI Frota`;
       }
     });
 
-    return finalResults.sort((a, b) => {
-      const rOrder = ["RMR", "Mata Norte", "Mata Sul", "Agreste", "Sertão", "Outras Regiões"];
-      const rA = rOrder.indexOf(a.regiao);
-      const rB = rOrder.indexOf(b.regiao);
-      if (rA !== rB) return rA - rB;
-      if (a.cidade !== b.cidade) return a.cidade.localeCompare(b.cidade);
-      return a.preco - b.preco;
-    });
-  }, [preProcessedFuel, filteredFuel, priceSelectedRegions, priceSelectedCities, priceSelectedFuel, selectedMonthsYears, dateFrom, dateTo]);
+    return finalResults;
+  }, [preProcessedFuel, filteredFuel, selectedMonthsYears, dateFrom, dateTo]);
+
+  const priceAnalysis = useMemo(() => {
+    return basePriceAnalysis
+      .filter(item => {
+        if (priceSelectedRegions.length > 0 && !priceSelectedRegions.includes(item.regiao)) return false;
+        if (priceSelectedCities.length > 0 && !priceSelectedCities.includes(item.cidade)) return false;
+        if (priceSelectedFuel.length > 0 && !priceSelectedFuel.includes(item.tipo)) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const rOrder = ["RMR", "Mata Norte", "Mata Sul", "Agreste", "Sertão", "Outras Regiões"];
+        const rA = rOrder.indexOf(a.regiao);
+        const rB = rOrder.indexOf(b.regiao);
+        if (rA !== rB) return rA - rB;
+        if (a.cidade !== b.cidade) return a.cidade.localeCompare(b.cidade);
+        return a.preco - b.preco;
+      });
+  }, [basePriceAnalysis, priceSelectedRegions, priceSelectedCities, priceSelectedFuel]);
 
   const priceAnalysisPaginated = useMemo(() => {
     const start = (priceCurrentPage - 1) * rowsPerPage;
     return priceAnalysis.slice(start, start + rowsPerPage);
   }, [priceAnalysis, priceCurrentPage]);
 
-  // Opções para filtros de preço
-  const priceCityOptions = useMemo(() => Array.from(new Set(priceAnalysis.map(p => p.cidade))).sort(), [priceAnalysis]);
-  const priceFuelOptions = useMemo(() => Array.from(new Set(priceAnalysis.map(p => p.tipo))).sort(), [priceAnalysis]);
+  // Opções para filtros de preço (fixo baseado na base sem filtros de preço)
+  const priceCityOptions = useMemo(() => Array.from(new Set(basePriceAnalysis.map(p => p.cidade))).sort(), [basePriceAnalysis]);
+  const priceFuelOptions = useMemo(() => Array.from(new Set(basePriceAnalysis.map(p => p.tipo))).sort(), [basePriceAnalysis]);
 
   const generateShareSummary = () => {
     const fuelTypes = selectedFuelTypes.length > 0 ? selectedFuelTypes.join(", ") : "Todos";
@@ -1836,47 +1844,27 @@ Nexus BI Frota`;
 
                   {/* Filtros Internos da Aba de Preços */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/20 p-3 rounded-lg border border-slate-100 dark:border-slate-800">
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Região</label>
-                      <Select value={priceSelectedRegions[0] || "ALL"} onValueChange={(v) => setPriceSelectedRegions(v === "ALL" ? [] : [v])}>
-                        <SelectTrigger className="h-8 text-[10px] uppercase font-bold">
-                          <SelectValue placeholder="Todas as Regiões" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">Todas as Regiões</SelectItem>
-                          <SelectItem value="RMR">RMR</SelectItem>
-                          <SelectItem value="Mata Norte">Mata Norte</SelectItem>
-                          <SelectItem value="Mata Sul">Mata Sul</SelectItem>
-                          <SelectItem value="Agreste">Agreste</SelectItem>
-                          <SelectItem value="Sertão">Sertão</SelectItem>
-                          <SelectItem value="Outras Regiões">Outras Regiões</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Cidade</label>
-                      <Select value={priceSelectedCities[0] || "ALL"} onValueChange={(v) => setPriceSelectedCities(v === "ALL" ? [] : [v])}>
-                        <SelectTrigger className="h-8 text-[10px] uppercase font-bold">
-                          <SelectValue placeholder="Todas as Cidades" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-[300px]">
-                          <SelectItem value="ALL">Todas as Cidades</SelectItem>
-                          {priceCityOptions.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-[9px] font-black uppercase tracking-widest text-slate-400 ml-1">Combustível</label>
-                      <Select value={priceSelectedFuel[0] || "ALL"} onValueChange={(v) => setPriceSelectedFuel(v === "ALL" ? [] : [v])}>
-                        <SelectTrigger className="h-8 text-[10px] uppercase font-bold">
-                          <SelectValue placeholder="Todos os Tipos" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="ALL">Todos os Tipos</SelectItem>
-                          {priceFuelOptions.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                    <SearchableMultiSelect 
+                      label="Região"
+                      options={regiaoOptions}
+                      selected={priceSelectedRegions}
+                      onChange={setPriceSelectedRegions}
+                      placeholder="Todas as Regiões"
+                    />
+                    <SearchableMultiSelect 
+                      label="Cidade"
+                      options={priceCityOptions}
+                      selected={priceSelectedCities}
+                      onChange={setPriceSelectedCities}
+                      placeholder="Todas as Cidades"
+                    />
+                    <SearchableMultiSelect 
+                      label="Combustível"
+                      options={priceFuelOptions}
+                      selected={priceSelectedFuel}
+                      onChange={setPriceSelectedFuel}
+                      placeholder="Todos os Tipos"
+                    />
                     <div className="flex items-end pb-0.5">
                       <Button 
                         variant="ghost" 
@@ -1896,8 +1884,9 @@ Nexus BI Frota`;
                 </div>
               </CardHeader>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
+                <ScrollArea className="w-full">
+                  <Table className="min-w-[900px]">
+                    <TableHeader>
                     <TableRow className="bg-slate-50/50 dark:bg-slate-800/50 hover:bg-transparent border-b border-slate-100 dark:border-slate-800">
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4 h-auto">Região</TableHead>
                       <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-400 py-4 h-auto">Cidade</TableHead>
@@ -1965,6 +1954,8 @@ Nexus BI Frota`;
                     )}
                   </TableBody>
                 </Table>
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
                 
                 {/* Paginação */}
                 <div className="flex items-center justify-between p-4 border-t border-slate-100 dark:border-slate-800">

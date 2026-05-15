@@ -881,9 +881,11 @@ Nexus BI Frota`;
                 <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30 sticky top-0 z-10 transition-colors">
                   <TableRow className="hover:bg-transparent border-none text-[9px] font-black uppercase text-slate-400">
                     <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Placa</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Data</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Faixa / Hora Transação</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Data Transação</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Faixa Horária</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Hora</TableHead>
                     <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Motorista</TableHead>
+                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 uppercase">Gerência/Unidade</TableHead>
                     <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 text-right">Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -892,23 +894,22 @@ Nexus BI Frota`;
                     groupedTimeVehicles.map(([unit, vehicles]) => (
                       <Fragment key={unit}>
                         <TableRow className="bg-slate-50/50 dark:bg-slate-800/20">
-                          <TableCell colSpan={5} className="py-1.5 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800 sticky top-8 z-[5] bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-sm">
+                          <TableCell colSpan={7} className="py-1.5 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800 sticky top-8 z-[5] bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-sm">
                              {unit} ({vehicles.length})
                           </TableCell>
                         </TableRow>
                         {vehicles.map((v, i) => (
                           <TableRow key={`${unit}-${i}`} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
                             <TableCell className="py-2 text-xs font-black text-slate-700 dark:text-slate-300 pl-6">{v.placa}</TableCell>
-                            <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr}</TableCell>
+                            <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.dataStr}</TableCell>
                             <TableCell className="py-2">
-                               <div className="flex flex-col gap-0.5">
-                                 <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
-                                   {rangeLabels[v.range] || v.range} ({v.range})
-                                 </Badge>
-                                 <span className="text-[10px] font-black text-indigo-600">Transação: {v.horaStr}</span>
-                               </div>
+                               <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
+                                 {rangeLabels[v.range] || v.range}
+                               </Badge>
                             </TableCell>
+                            <TableCell className="py-2 text-[10px] font-black text-indigo-600 whitespace-nowrap">{v.horaStr}</TableCell>
                             <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                            <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.gerencia}</TableCell>
                             <TableCell className="py-2 text-right">
                               {v.outOfPattern && (
                                 <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
@@ -924,16 +925,15 @@ Nexus BI Frota`;
                     paginatedTime.map((v, i) => (
                       <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
                         <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
-                        <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase">{v.dataStr}</TableCell>
+                        <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.dataStr}</TableCell>
                         <TableCell className="py-2">
-                           <div className="flex flex-col gap-0.5">
-                             <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
-                               {rangeLabels[v.range] || v.range} ({v.range})
-                             </Badge>
-                             <span className="text-[10px] font-black text-indigo-600">Transação: {v.horaStr}</span>
-                           </div>
+                           <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
+                             {rangeLabels[v.range] || v.range}
+                           </Badge>
                         </TableCell>
+                        <TableCell className="py-2 text-[10px] font-black text-indigo-600 whitespace-nowrap">{v.horaStr}</TableCell>
                         <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                        <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.gerencia}</TableCell>
                         <TableCell className="py-2 text-right">
                           {v.outOfPattern && (
                             <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
@@ -1003,11 +1003,11 @@ Nexus BI Frota`;
             <div className="relative w-full overflow-x-auto">
               <Table className="min-w-[800px]">
                 <TableHeader className="bg-rose-50/30 dark:bg-rose-900/10 sticky top-0 z-10 transition-colors">
-                  <TableRow className="hover:bg-transparent border-none">
-                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Placa</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Condutor</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Data</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-rose-800/60 dark:text-rose-400 h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10 text-right">Valor</TableHead>
+                  <TableRow className="hover:bg-transparent border-none uppercase text-[9px] font-black text-rose-800/60 dark:text-rose-400">
+                    <TableHead className="h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Placa</TableHead>
+                    <TableHead className="h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Condutor</TableHead>
+                    <TableHead className="h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Data Transação</TableHead>
+                    <TableHead className="h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10 text-right">Valor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

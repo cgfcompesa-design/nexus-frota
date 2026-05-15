@@ -17,6 +17,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
+import { SearchableMultiSelect } from "@/components/ui/searchable-multi-select";
+
 export const FuelDashboardsFilterBar = ({ 
   onClearFilters, 
   searchPlaca, 
@@ -113,65 +115,45 @@ export const FuelDashboardsFilterBar = ({
           </div>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Diretoria</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedDirectorias, onDirectoriasChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              {diretoriaOptions.map((d: string) => <SelectItem key={String(d)} value={String(d)} className="text-xs">{String(d)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Diretoria"
+          options={diretoriaOptions}
+          selected={selectedDirectorias || []}
+          onChange={onDirectoriasChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Gerência</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedGerencias, onGerenciasChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20 text-left overflow-hidden">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {gerenciaOptions.map((g: string) => <SelectItem key={String(g)} value={String(g)} className="text-xs">{String(g)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Gerência"
+          options={gerenciaOptions}
+          selected={selectedGerencias || []}
+          onChange={onGerenciasChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Região</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedRegioes, onRegioesChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              {regiaoOptions.map((r: string) => <SelectItem key={r} value={r} className="text-xs">{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Região"
+          options={regiaoOptions}
+          selected={selectedRegioes || []}
+          onChange={onRegioesChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Cidade</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedCidades, onCidadesChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {cidadeOptions.map((c: string) => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Cidade"
+          options={cidadeOptions}
+          selected={selectedCidades || []}
+          onChange={onCidadesChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">MÊS/ANO</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedMonthsYears, onMonthsYearsChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {monthYearOptions.map((m: string) => <SelectItem key={String(m)} value={String(m)} className="text-xs">{String(m)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="MÊS/ANO"
+          options={monthYearOptions}
+          selected={selectedMonthsYears || []}
+          onChange={onMonthsYearsChange}
+          placeholder="Selecionar..."
+        />
 
         <div className="space-y-1 md:col-span-1 lg:col-span-2">
           <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Período Selecionado</label>
@@ -215,53 +197,37 @@ export const FuelDashboardsFilterBar = ({
         </div>
 
         {/* Row 2: Características Técnicas */}
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Combustível</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedFuelTypes, onFuelTypesChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              {fuelTypeOptions.map((t: string) => <SelectItem key={t} value={t} className="text-xs">{t}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Combustível"
+          options={fuelTypeOptions}
+          selected={selectedFuelTypes || []}
+          onChange={onFuelTypesChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Modelo</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedVehicleModels, onVehicleModelsChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {modelOptions.map((m: string) => <SelectItem key={String(m)} value={String(m)} className="text-xs">{String(m)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Modelo"
+          options={modelOptions}
+          selected={selectedVehicleModels || []}
+          onChange={onVehicleModelsChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Tipo de Ativo</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedTipos, onTiposChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              {tipoOptions.map((t: string) => <SelectItem key={String(t)} value={String(t)} className="text-xs">{String(t)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Tipo de Ativo"
+          options={tipoOptions}
+          selected={selectedTipos || []}
+          onChange={onTiposChange}
+          placeholder="Selecionar..."
+        />
 
-        <div className="space-y-1">
-          <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1 font-mono tracking-tight text-primary/80">Controle Autonomia</label>
-          <Select onValueChange={(val: string) => handleMultiSelect(selectedTipoControleAutonomia, onTipoControleAutonomiaChange, val)}>
-            <SelectTrigger className="h-9 text-xs bg-white/50 border-primary/20">
-              <SelectValue placeholder="Selecionar..." />
-            </SelectTrigger>
-            <SelectContent>
-              {autoControleOptions.map((c: string) => <SelectItem key={String(c)} value={String(c)} className="text-xs">{String(c)}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
+        <SearchableMultiSelect 
+          label="Controle Autonomia"
+          options={autoControleOptions}
+          selected={selectedTipoControleAutonomia || []}
+          onChange={onTipoControleAutonomiaChange}
+          placeholder="Selecionar..."
+        />
       </div>
 
       {/* Filtros de Alerta (Exclusivo para Análise de Desvios) */}
