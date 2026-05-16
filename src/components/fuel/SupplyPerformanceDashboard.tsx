@@ -55,6 +55,7 @@ import { toast } from "sonner";
 import { useContactsData } from "@/hooks/useContactsData";
 import { useSpecialHoursData } from "@/hooks/useFleetData";
 import { CoringaCardsTable } from "./CoringaCardsTable";
+import { MachineSupplyIndicators } from "./MachineSupplyIndicators";
 
 interface SupplyPerformanceDashboardProps {
   fuel: FuelData[];
@@ -462,10 +463,14 @@ Valor para Transferência: R$ ${valorTotal}
 (Consulte o relatório em anexo para o resumo das transações, contendo código da transação, datas e demais informações pertinentes)
 
 Atenciosamente,
-Nexus BI Frota`;
+Coordenação de Gestão de Frotas - CGF`;
 
-    const to = getEmailsByGerencia(emailGerencia).join(";");
     const cc = getCCEmails();
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toRaw = getEmailsByGerencia(emailGerencia);
+    const toFiltered = toRaw.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    const to = toFiltered.join(";");
+    
     const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
     window.location.href = mailto;
     setIsEmailDialogOpen(false);
@@ -523,10 +528,14 @@ Solicitamos que as justificativas sejam encaminhadas no prazo de até 02 (dois) 
 Em caso de dúvidas, permanecemos à disposição.
 
 Atenciosamente,
-Nexus BI Frota`;
+Coordenação de Gestão de Frotas - CGF`;
 
-    const to = getEmailsByGerencia(justifyGerencia).join(";");
     const cc = getCCEmails();
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toRaw = getEmailsByGerencia(justifyGerencia);
+    const toFiltered = toRaw.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    const to = toFiltered.join(";");
+    
     const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
     window.location.href = mailto;
     setIsJustifyDialogOpen(false);
@@ -562,10 +571,14 @@ Pedimos que o retorno seja realizado no prazo de 01 (um) dia útil para correç�
 Caso não haja retorno dentro do prazo informado, o cartão de abastecimento poderá ser bloqueado.
 
 Atenciosamente,
-Nexus BI Frota`;
+Coordenação de Gestão de Frotas - CGF`;
 
-    const to = getEmailsByGerencia(inconsistencyGerencia).join(";");
     const cc = getCCEmails();
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toRaw = getEmailsByGerencia(inconsistencyGerencia);
+    const toFiltered = toRaw.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    const to = toFiltered.join(";");
+
     const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
     window.location.href = mailto;
     setIsInconsistencyEmailDialogOpen(false);
@@ -719,6 +732,22 @@ Nexus BI Frota`;
         </CardHeader>
         <CardContent className="pt-6">
           <CoringaCardsTable fuel={filteredFuel} assetsMap={allAssetsMap} />
+        </CardContent>
+      </Card>
+
+      {/* NEW SECTION: MACHINE SUPPLY INDICATORS */}
+      <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-t-4 border-t-indigo-500 overflow-hidden">
+        <CardHeader className="border-b border-slate-50 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-5 w-5 text-indigo-500" />
+            <div>
+              <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Compliance Abastecimento Máquinas (MAQ/GER)</CardTitle>
+              <CardDescription className="text-[9px] uppercase font-bold text-slate-400 italic">Monitoramento de preenchimento de justificativas complementares por unidade</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <MachineSupplyIndicators fuel={filteredFuel} />
         </CardContent>
       </Card>
 

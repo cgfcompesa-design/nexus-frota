@@ -38,6 +38,8 @@ export const CoringaCardsTable = ({ fuel, assetsMap }: CoringaCardsTableProps) =
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [isGroupedByUnit, setIsGroupedByUnit] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
   const { getEmailsByGerencia } = useContactsData();
 
   useEffect(() => {
@@ -164,14 +166,18 @@ ${tableRows}
 
 Solicitamos a gentileza de encaminhar a justificativa para o uso do cartão coringa em vez do cartão titular do veículo. 
 
-Ressaltamos a orientação para que o abastecimento seja realizado preferencialmente com o cartão titular. Caso o veículo não possua o cartão ou este esteja danificado, favor providenciar a coleta do novo cartão titular na GAD (Gerência de Apoio ao Desempenho), localizada no prédio sede.
+Ressaltamos a orientação para que o abastecimento seja realizado preferencialmente com o cartão titular. Caso o veículo não possua o cartão ou este esteja danificado, favor providenciar a coleta do novo cartão titular na GAD (Gerência Administrativa e de Suporte), localizada no prédio sede.
 
 Em caso de dúvidas, permanecemos à disposição.
 
 Atenciosamente,
-Nexus BI Frota`;
+Coordenação de Gestão de Frotas - CGF`;
 
-      const mailto = `mailto:${emails.join(";") || ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
+      // Filter out CC from TO to avoid duplicates
+      const ccList = ["gadmonitoramento@compesa.com.br", "gadabastecimento@compesa.com.br"];
+      const filteredTo = emails.filter(e => !ccList.some(ccEmail => e.toLowerCase().includes(ccEmail.toLowerCase())));
+
+      const mailto = `mailto:${filteredTo.join(";") || ""}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
       window.open(mailto, '_blank');
     });
 
@@ -265,7 +271,7 @@ Nexus BI Frota`;
                 </React.Fragment>
               ))
             ) : (
-              filteredMatches.map((item, idx) => (
+              filteredMatches.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((item, idx) => (
                 <CoringaRow key={`${item.transacao}-${idx}`} item={item} onNotify={() => handleSendEmail(item)} />
               ))
             )}
@@ -282,6 +288,34 @@ Nexus BI Frota`;
           </TableBody>
         </Table>
       </div>
+
+      {!isGroupedByUnit && filteredMatches.length > itemsPerPage && (
+        <div className="flex items-center justify-between px-2 py-4 border-t border-slate-100 dark:border-slate-800">
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Exibindo {Math.min(filteredMatches.length, (currentPage - 1) * itemsPerPage + 1)}-{Math.min(filteredMatches.length, currentPage * itemsPerPage)} de {filteredMatches.length} registros
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+              disabled={currentPage === 1}
+              className="h-8 text-[10px] font-black uppercase tracking-widest border-slate-200"
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(Math.ceil(filteredMatches.length / itemsPerPage), prev + 1))}
+              disabled={currentPage === Math.ceil(filteredMatches.length / itemsPerPage)}
+              className="h-8 text-[10px] font-black uppercase tracking-widest border-slate-200"
+            >
+              Próximo
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

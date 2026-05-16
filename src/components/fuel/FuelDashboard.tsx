@@ -465,6 +465,10 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
     // 2. Abrir Mailto
     const emails = getEmailsByGerencia(gerencia);
     const cc = "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toRaw = getEmailsByGerencia(gerencia);
+    const toFiltered = toRaw.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    
     const subject = `Solicitação de Painéis - Análise de Desvios de Abastecimento - ${gerencia}`;
     
     const periodoFiltro = dateFrom && dateTo 
@@ -493,9 +497,9 @@ Informamos que o prazo para envio é de até 2 (dois) dias. Caso não haja respo
 Permanecemos à disposição para esclarecimentos.
  
 Atenciosamente,
-Nexus BI Frota`;
+Coordenação de Gestão de Frotas - CGF`;
 
-    const mailto = `mailto:${emails.join(";")}?cc=${cc}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    const mailto = `mailto:${encodeURIComponent(toFiltered.join(";"))}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailto;
     toast.success("E-mail gerado com sucesso para " + gerencia);
   };

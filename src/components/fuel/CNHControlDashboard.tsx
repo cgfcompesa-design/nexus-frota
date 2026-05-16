@@ -84,7 +84,7 @@ export function CNHControlDashboard() {
 
   const handleSendEmail = (record: CNHRecord) => {
     const subject = `Vencimento de CNH - ${record.nome}`;
-    const body = `Prezado(a) ${record.nome},\n\nIdentificamos em nosso sistema que sua CNH está com vencimento próximo ou vencida (${record.validadeStr}).\n\nFavor providenciar a renovação e enviar a cópia para a Nexus BI Frota.\n\nAtenciosamente,\nNexus BI Frota`;
+    const body = `Prezado(a) ${record.nome},\n\nIdentificamos em nosso sistema que sua CNH está com vencimento próximo ou vencida (${record.validadeStr}).\n\nFavor providenciar a renovação e enviar a cópia para a Coordenação de Gestão de Frotas - CGF.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas - CGF`;
     const cc = "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
     const mailto = `mailto:?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailto;

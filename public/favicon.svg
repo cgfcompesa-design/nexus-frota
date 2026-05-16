@@ -1,12 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
   <defs>
-    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#4f46e5;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#10b981;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#3b82f6;stop-opacity:1" />
     </linearGradient>
   </defs>
-  <rect width="32" height="32" rx="6" fill="url(#grad)" />
-  <path d="M8 24V8l8 10 8-10v16" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
-  <circle cx="24" cy="24" r="4" fill="#0f172a" />
-  <path d="M22 24h4M24 22v4" stroke="white" stroke-width="1.5" stroke-linecap="round" />
+  <rect width="32" height="32" rx="8" fill="url(#grad1)" />
+  <path d="M6 10 C6 9 7 8 8 8 H18 C19 8 20 9 20 10 V18 H6 V10 Z" fill="white" />
+  <path d="M20 12 H24 C25 12 26 13 26 14 V18 H20 V12 Z" fill="#e2e8f0" />
+  <circle cx="9" cy="22" r="2.5" fill="white" />
+  <circle cx="21" cy="22" r="2.5" fill="white" />
+  <rect x="10" y="11" width="6" height="4" rx="1" fill="#4f46e5" />
+  <rect x="22" y="14" width="2" height="2" rx="0.5" fill="#4f46e5" />
+  <rect x="27" y="10" width="2" height="8" rx="1" fill="white" />
+  <rect x="27" y="13" width="2" height="2" fill="#4f46e5" opacity="0.5" />
 </svg>

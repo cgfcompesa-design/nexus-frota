@@ -86,7 +86,7 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
 
   const filteredMenuItems = menuItems.filter(item => {
     if (item.restricted && !isPrivileged) return false;
-    if (item.hideForGestao && isGestao) return false;
+    if (item.hideForGestao && isPrivileged) return false;
     return true;
   });
 
