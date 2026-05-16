@@ -1406,6 +1406,14 @@ Coordenação de Gestão de Frotas - CGF`;
             >
               Configurações
             </TabsTrigger>
+            {(userRole === 'Master' || userRole === 'Gestão') && (
+              <TabsTrigger 
+                value="maq-report" 
+                className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+              >
+                Relatório Máquinas
+              </TabsTrigger>
+            )}
           </TabsList>
         </div>
 
@@ -1416,24 +1424,6 @@ Coordenação de Gestão de Frotas - CGF`;
               <h2 className="text-lg font-bold uppercase tracking-tight">Monitoramento e Análise de Desvios</h2>
             </div>
 
-            {(userRole === 'Master' || userRole === 'Gestão') && (
-              <div className="mb-8">
-                <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-t-4 border-t-indigo-500 overflow-hidden">
-                  <CardHeader className="border-b border-slate-50 dark:border-slate-800 pb-4">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-5 w-5 text-indigo-500" />
-                      <div>
-                        <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Compliance Abastecimento Máquinas (MAQ/GER)</CardTitle>
-                        <CardDescription className="text-[9px] uppercase font-bold text-slate-400 italic">Integrado em Monitoramento e Análise para Gestão</CardDescription>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <MachineSupplyIndicators fuel={filteredFuel} />
-                  </CardContent>
-                </Card>
-              </div>
-            )}
             <FuelFilterBar
             fuel={fuel} assets={assets} autonomia={autonomia}
         selectedFuelTypes={selectedFuelTypes} selectedVehicleModels={selectedVehicleModels} searchPlaca={searchPlaca}
@@ -2048,6 +2038,14 @@ Coordenação de Gestão de Frotas - CGF`;
             <FuelAlertConfigTab />
           </div>
         </TabsContent>
+
+        {(userRole === 'Master' || userRole === 'Gestão') && (
+          <TabsContent value="maq-report" className="space-y-6 mt-0">
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+              <MachineSupplyIndicators fuel={fuel} />
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       <Dialog open={semAbastecerEmailDialogOpen} onOpenChange={setSemAbastecerEmailDialogOpen}>
