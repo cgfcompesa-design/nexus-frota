@@ -44,48 +44,34 @@ function useAppLogic() {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
+      setLoading(true);
       if (authUser) {
         setUser(authUser);
         try {
           const docRef = doc(db, 'users', authUser.uid);
-          try {
-            const userDoc = await getDoc(docRef);
-            if (userDoc.exists()) {
-              setUserProfile(userDoc.data());
-            } else if (authUser.email === 'cgf.compesa@gmail.com') {
-              // Fallback creation for Master user if document is missing
-              const newProfile = {
-                uid: authUser.uid,
-                email: authUser.email,
-                displayName: authUser.displayName || authUser.email?.split('@')[0],
-                role: 'Master',
-                createdAt: new Date().toISOString()
-              };
-              await setDoc(docRef, newProfile);
-              setUserProfile(newProfile);
-            } else {
-              // Create default profile for others if missing
-              const newProfile = {
-                uid: authUser.uid,
-                email: authUser.email,
-                displayName: authUser.displayName || authUser.email?.split('@')[0],
-                role: 'Visualizador',
-                createdAt: new Date().toISOString()
-              };
-              await setDoc(docRef, newProfile);
-              setUserProfile(newProfile);
-            }
-          } catch (error) {
-            handleFirestoreError(error, 'get', `users/${authUser.uid}`);
+          const userDoc = await getDoc(docRef);
+          if (userDoc.exists()) {
+            setUserProfile(userDoc.data());
+          } else {
+            const role = authUser.email === 'cgf.compesa@gmail.com' ? 'Master' : 'Visualizador';
+            const newProfile = {
+              uid: authUser.uid,
+              email: authUser.email,
+              displayName: authUser.displayName || authUser.email?.split('@')[0],
+              role,
+              createdAt: new Date().toISOString()
+            };
+            await setDoc(docRef, newProfile);
+            setUserProfile(newProfile);
           }
         } catch (error) {
-          console.error("Erro ao buscar perfil do usuário:", error);
+          console.error("Erro ao buscar perfil:", error);
         }
+        setCurrentView('home');
       } else {
         setUser(null);
         setUserProfile(null);
-        // Force visitor to Resumo ALWAYS as requested
-        setCurrentView('resumo');
+        setCurrentView('home');
       }
       setLoading(false);
     });
@@ -165,19 +151,13 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
 }
 
 export default function App() {
-  const {
-    user,
-    loading,
-    userProfile,
-    currentView,
-    setCurrentView
-  } = useAppLogic();
+  const { user, loading, userProfile, currentView, setCurrentView } = useAppLogic();
 
   useEffect(() => {
-    if (!user && !loading) {
-      const publicViews = ['home', 'resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
-      if (!publicViews.includes(currentView) && currentView !== 'login') {
-        setCurrentView('resumo');
+    if (!loading && !user) {
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'login'];
+      if (!publicViews.includes(currentView)) {
+        setCurrentView('home');
       }
     }
   }, [user, currentView, loading]);
@@ -186,19 +166,19 @@ export default function App() {
   const effectiveRole = user?.email === MASTER_EMAIL ? 'Master' : (userProfile?.role || 'Visualizador');
 
   const renderView = () => {
-    // Role based protection - only if user is logged in
-    if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'visitor', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas'];
-      if (!allowedViews.includes(currentView) && currentView !== 'home') {
-        return <Home setView={setCurrentView} userRole={effectiveRole} />;
+    // Visitor protection
+    if (!user) {
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas'];
+      if (!publicViews.includes(currentView)) {
+        return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
     }
 
-    if (currentView === 'kanban' || currentView === 'gestao-vista' || currentView === 'gerenciamento-atividades') {
-      if (currentView === 'kanban') return <KanbanBoard onBack={() => setCurrentView('home')} />;
-      if (currentView === 'gestao-vista') return <GestaoVista onBack={() => setCurrentView('home')} />;
-      if (currentView === 'gerenciamento-atividades') {
-        return <ActivityManagement onBack={() => setCurrentView('home')} />;
+    // Role based protection for Visualizadores
+    if (user && effectiveRole === 'Visualizador') {
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas'];
+      if (!allowedViews.includes(currentView)) {
+        return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
     }
 
@@ -210,33 +190,8 @@ export default function App() {
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
       case 'abast-maquinas': return <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />;
       case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
-      case 'gestao-vista':
-      case 'gerenciamento-atividades':
-        if (effectiveRole !== 'Master' && effectiveRole !== 'Gestão') {
-// ...
-          return (
-            <div className="flex flex-col items-center justify-center h-[400px] space-y-4">
-              <div className="w-12 h-12 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-2xl flex items-center justify-center">
-                <ShieldAlert size={24} />
-              </div>
-              <h2 className="text-xl font-black uppercase text-slate-800 dark:text-white">Acesso Restrito</h2>
-              <p className="text-slate-500 font-bold uppercase text-[10px]">Somente usuários com perfil Gestão ou Master podem acessar este módulo.</p>
-              <Button onClick={() => setCurrentView('home')} variant="outline" className="font-black uppercase text-[10px]">Voltar ao Início</Button>
-            </div>
-          );
-        }
-        return (
-          <div className="flex flex-col items-center justify-center h-[500px] space-y-6 bg-slate-50 dark:bg-slate-900/50 rounded-3xl border-2 border-dashed border-slate-200 dark:border-slate-800 m-8">
-            <div className="w-20 h-20 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-3xl flex items-center justify-center animate-pulse">
-               <Settings size={40} />
-            </div>
-            <div className="text-center">
-               <h2 className="text-2xl font-black uppercase tracking-tighter text-slate-800 dark:text-white mb-2">Módulo em Integração</h2>
-               <p className="text-slate-500 font-bold uppercase text-xs tracking-widest">Este recurso estará disponível na próxima atualização do sistema.</p>
-            </div>
-            <Button onClick={() => setCurrentView('home')} className="bg-indigo-600 hover:bg-indigo-700 font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20 rounded-xl px-8">Explorar Outros Módulos</Button>
-          </div>
-        );
+      case 'gestao-vista': return <GestaoVista onBack={() => setCurrentView('home')} />;
+      case 'gerenciamento-atividades': return <ActivityManagement onBack={() => setCurrentView('home')} />;
       case 'abast-desvios': return <AbastDesviosView desviosOnly={true} />;
       case 'abast-perf': return <AbastPerformanceView />;
       case 'rankings': return <RankingView />;
@@ -250,21 +205,7 @@ export default function App() {
       case 'config': return <AlertConfig />;
       case 'abast-alertas': return <AlertConfig />;
       case 'users': return <UserManagement />;
-      default: 
-        if (currentView.startsWith('abast-') || currentView.startsWith('mnt-') || currentView.startsWith('reg-') || currentView === 'locados') {
-          return (
-            <div className="flex flex-col items-center justify-center h-[400px] space-y-4">
-              <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 rounded-2xl flex items-center justify-center">
-                <Settings className="animate-spin-slow" />
-              </div>
-              <div className="text-center">
-                <h2 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Módulo em Integração</h2>
-                <p className="text-slate-400 font-medium text-sm">Esta funcionalidade está sendo sincronizada com o banco de dados Compesa.</p>
-              </div>
-            </div>
-          );
-        }
-        return <Overview />;
+      default: return <Overview />;
     }
   };
 
@@ -385,7 +326,7 @@ export default function App() {
               </button>
             </div>
           </div>
-          <Home setView={setCurrentView} />
+          <Home setView={setCurrentView} userRole={effectiveRole} />
           <Toaster position="top-right" />
         </div>
       );

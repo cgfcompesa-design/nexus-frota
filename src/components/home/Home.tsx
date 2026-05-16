@@ -55,6 +55,14 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       restricted: true,
     },
     {
+      title: "Abastecimento Máquinas",
+      id: 'abast-maquinas',
+      icon: Fuel,
+      onClick: () => setView('abast-maquinas'),
+      external: false,
+      restricted: false,
+    },
+    {
       title: "Dashboard Operacional",
       id: 'cco',
       icon: Trophy,
