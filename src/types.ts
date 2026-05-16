@@ -128,8 +128,9 @@ export interface MachineSupplyAssignment {
   transactionId: string;
   machineryDestination: string;
   model: string;
-  property: 'PRÓPRIO' | 'LOCADO';
+  property: string;
   tombamentoNumber: string;
+  userName?: string;
   userUnit: string;
   updatedBy: string;
   updatedAt: any;

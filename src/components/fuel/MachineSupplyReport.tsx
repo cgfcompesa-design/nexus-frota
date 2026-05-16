@@ -20,6 +20,12 @@ import {
   SelectValue 
 } from "@/components/ui/select";
 import { 
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
+import { 
   Fuel, 
   ArrowLeft, 
   Save, 
@@ -28,7 +34,8 @@ import {
   Building2, 
   CheckCircle2, 
   Loader2,
-  FilterX
+  FilterX,
+  ChevronDown
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -58,6 +65,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
+  const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
 
   // Sorting
   const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
@@ -81,41 +89,102 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (!isMaqOrGer) return false;
 
+      // Filter by User's Unit fixed in login
+      if (userUnit) {
+        const lotacao = String(f.COL_29 || "").trim();
+        if (lotacao !== userUnit) return false;
+      }
+
       // Apply search and filters
       if (searchPlaca && !placa.includes(searchPlaca.toUpperCase())) return false;
       
       const unit = String(f._unit || "").trim();
       if (selectedUnits.length > 0 && !selectedUnits.includes(unit)) return false;
 
+      const mesAno = String(f.COL_41 || "").trim();
+      if (selectedMonths.length > 0 && !selectedMonths.includes(mesAno)) return false;
+
       const txId = String(f.COL_0 || f._txId || "");
       const assignment = assignments.find(a => a.transactionId === txId);
 
       // Filter by assignment destination
       if (selectedDestinations.length > 0) {
-        if (!assignment || !selectedDestinations.includes(assignment.machineryDestination)) return false;
+        if (!assignment || !selectedDestinations.some(d => (assignment.machineryDestination || "").includes(d))) return false;
       }
 
       // Filter by assignment property
       if (selectedProperties.length > 0) {
-        if (!assignment || !selectedProperties.includes(assignment.property)) return false;
+        if (!assignment || !selectedProperties.some(p => (assignment.property || "").includes(p))) return false;
       }
 
       return true;
     });
-  }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, assignments]);
+  }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit]);
 
   const unitOptions = useMemo(() => {
     const units = new Set<string>();
     fuel.forEach(f => {
-      const placa = String(f._placa || "").toUpperCase();
-      if (placa.startsWith("MAQ") || placa.startsWith("GER")) {
-        const u = String(f._unit || "").trim();
-        if (u) units.add(u);
-      }
+      const u = String(f.COL_29 || "").trim();
+      if (u) units.add(u);
     });
     return Array.from(units).sort();
   }, [fuel]);
 
+  const monthOptions = useMemo(() => {
+    const months = new Set<string>();
+    fuel.forEach(f => {
+      const m = String(f.COL_41 || "").trim();
+      if (m) months.add(m);
+    });
+    return Array.from(months).sort((a, b) => {
+      // Basic sort for month names if possible, but alphabetically is usually fine for these reports
+      return b.localeCompare(a); 
+    });
+  }, [fuel]);
+
+  const handleExport = () => {
+    try {
+      const dataToExport = filteredFuel.map(f => {
+        const txId = String(f.COL_0 || f._txId || "");
+        const a = assignments.find(as => as.transactionId === txId);
+        return {
+          'Transação': txId,
+          'Data': f._date || f.COL_4,
+          'Placa': String(f._placa || f.COL_5).toUpperCase(),
+          'Motorista': f._driver || f.COL_11,
+          'Combustível': f._fuelType || f.COL_13,
+          'Litros': Number(f._litros || f.COL_14),
+          'VL/L': Number(f._vlLitro || f.COL_15),
+          'Estabelecimento': f.COL_21,
+          'Endereço': f.COL_23,
+          'Bairro': f.COL_24,
+          'Cidade': f.COL_25,
+          'Lotação': f.COL_29,
+          'Cartão': f.COL_35,
+          'Mês/Ano': f.COL_41,
+          'Destino Maquinário': a?.machineryDestination || '',
+          'Modelo': a?.model || '',
+          'Propriedade': a?.property || '',
+          'Tombamento': a?.tombamentoNumber || '',
+          'Preenchido Por': a?.userName || '',
+          'Unidade Usuário': a?.userUnit || ''
+        };
+      });
+
+      const jsonStr = JSON.stringify(dataToExport, null, 2);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `relatorio_maquinas_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Relatório exportado com sucesso!");
+    } catch (error) {
+      toast.error("Erro ao exportar relatório.");
+    }
+  };
   const handleSave = async (transactionId: string, data: any) => {
     try {
       await saveAssignment.mutateAsync({
@@ -157,13 +226,17 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Unidade / Lotação</label>
                 <div className="relative">
-                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input 
-                    placeholder="Ex: GMN, GRM, etc" 
-                    value={userUnit} 
-                    onChange={(e) => setUserUnit(e.target.value)}
-                    className="pl-10 h-12 rounded-xl bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500 font-medium"
-                  />
+                  <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
+                  <Select value={userUnit} onValueChange={setUserUnit}>
+                    <SelectTrigger className="pl-10 h-12 rounded-xl bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500 font-medium text-xs">
+                      <SelectValue placeholder="Selecione sua lotação" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unitOptions.map(u => (
+                        <SelectItem key={u} value={u}>{u}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
               <Button type="submit" className="w-full h-12 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest rounded-xl shadow-lg shadow-indigo-200 transition-all">
@@ -268,6 +341,32 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
             </SelectContent>
           </Select>
 
+          <Select 
+            value={selectedMonths.length > 0 ? "filtered" : "all"} 
+            onValueChange={(val) => val === "all" ? setSelectedMonths([]) : null}
+          >
+            <SelectTrigger className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0">
+              <SelectValue placeholder="Mês/Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Meses</SelectItem>
+              {monthOptions.map(m => (
+                <div key={m} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedMonths.includes(m)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedMonths([...selectedMonths, m]);
+                      else setSelectedMonths(selectedMonths.filter(x => x !== m));
+                    }}
+                    className="mr-2"
+                  />
+                  {m}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Button 
             variant="outline" 
             size="sm" 
@@ -276,6 +375,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               setSelectedUnits([]);
               setSelectedDestinations([]);
               setSelectedProperties([]);
+              setSelectedMonths([]);
             }}
             className="h-9 gap-2 text-[10px] font-black uppercase tracking-widest border-slate-200"
           >
@@ -289,7 +389,10 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                 <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Abastecimentos</p>
                 <p className="text-sm font-bold text-slate-800 dark:text-white leading-none">{filteredFuel.length}</p>
              </div>
-             <Button className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[10px] rounded-lg shadow-sm">
+             <Button 
+                onClick={handleExport}
+                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[10px] rounded-lg shadow-sm"
+              >
                 Baixar Planilha
              </Button>
           </div>
@@ -319,6 +422,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[300px]">Endereço / Bairro / Cidade</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Lotação</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Cartão</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[80px]">Mês/Ano</TableHead>
                   
                   {/* Fornecimento / Inputs */}
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[250px]">Destino Maquinário</TableHead>
@@ -344,28 +448,46 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                       <TableCell className="text-[10px] uppercase font-bold">{f._fuelType || f.COL_13}</TableCell>
                       <TableCell className="text-[10px] font-black text-right">{Number(f._litros || f.COL_14).toLocaleString('pt-BR')}L</TableCell>
                       <TableCell className="text-[10px] font-black text-right">R$ {Number(f._vlLitro || f.COL_15).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</TableCell>
-                      <TableCell className="text-[10px] truncate max-w-[180px]" title={f._establishment || f.COL_21}>{f._establishment || f.COL_21}</TableCell>
+                      <TableCell className="text-[10px] truncate max-w-[180px]" title={f.COL_21}>{f.COL_21}</TableCell>
                       <TableCell className="text-[10px] truncate max-w-[250px]" title={`${f.COL_23 || ''} - ${f.COL_24 || ''} - ${f.COL_25 || ''}`}>
                         {f.COL_23} / {f.COL_24} / {f.COL_25}
                       </TableCell>
-                      <TableCell className="text-[10px] uppercase font-bold">{f._unit || f.COL_29}</TableCell>
+                      <TableCell className="text-[10px] uppercase font-bold">{f.COL_29}</TableCell>
                       <TableCell className="text-[10px] font-mono text-slate-400">{f.COL_35 || 'N/A'}</TableCell>
+                      <TableCell className="text-[10px] font-bold text-slate-500">{f.COL_41}</TableCell>
 
                       {/* Input Cells */}
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
-                        <Select 
-                          defaultValue={assignment?.machineryDestination}
-                          onValueChange={(val) => handleSave(txId, { machineryDestination: val })}
-                        >
-                          <SelectTrigger className="h-8 text-[10px] font-medium rounded-lg border-slate-200">
-                            <SelectValue placeholder="Selecione Destino" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {MACHINERY_OPTIONS.map(opt => (
-                              <SelectItem key={opt} value={opt} className="text-[10px]">{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full h-8 px-2 text-[10px] justify-between font-medium">
+                              <span className="truncate">
+                                {assignment?.machineryDestination || "Selecionar..."}
+                              </span>
+                              <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[250px] p-2" align="start">
+                            <div className="space-y-1">
+                              {MACHINERY_OPTIONS.map(opt => {
+                                const currentList = (assignment?.machineryDestination || "").split("; ").filter(Boolean);
+                                const isChecked = currentList.includes(opt);
+                                return (
+                                  <div key={opt} className="flex items-center space-x-2 p-1.5 hover:bg-slate-50 cursor-pointer rounded" onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newList = isChecked 
+                                      ? currentList.filter(x => x !== opt)
+                                      : [...currentList, opt];
+                                    handleSave(txId, { machineryDestination: newList.join("; ") });
+                                  }}>
+                                    <Checkbox checked={isChecked} />
+                                    <span className="text-[10px] font-medium leading-none">{opt}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </TableCell>
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
                         <Input 
@@ -380,19 +502,36 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                         />
                       </TableCell>
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
-                        <Select 
-                          defaultValue={assignment?.property}
-                          onValueChange={(val) => handleSave(txId, { property: val })}
-                        >
-                          <SelectTrigger className="h-8 text-[10px] font-medium rounded-lg border-slate-200">
-                            <SelectValue placeholder="Tipo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {PROPERTY_OPTIONS.map(opt => (
-                              <SelectItem key={opt} value={opt} className="text-[10px]">{opt}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" size="sm" className="w-full h-8 px-2 text-[10px] justify-between font-medium">
+                              <span className="truncate">
+                                {assignment?.property || "Tipo"}
+                              </span>
+                              <ChevronDown className="w-3 h-3 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[150px] p-2" align="start">
+                            <div className="space-y-1">
+                              {PROPERTY_OPTIONS.map(opt => {
+                                const currentList = (assignment?.property || "").split("; ").filter(Boolean);
+                                const isChecked = currentList.includes(opt);
+                                return (
+                                  <div key={opt} className="flex items-center space-x-2 p-1.5 hover:bg-slate-50 cursor-pointer rounded" onClick={(e) => {
+                                    e.stopPropagation();
+                                    const newList = isChecked 
+                                      ? currentList.filter(x => x !== opt)
+                                      : [...currentList, opt];
+                                    handleSave(txId, { property: newList.join("; ") });
+                                  }}>
+                                    <Checkbox checked={isChecked} />
+                                    <span className="text-[10px] font-medium leading-none">{opt}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
                       </TableCell>
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
                         <Input 

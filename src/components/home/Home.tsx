@@ -1,52 +1,70 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel } from "lucide-react";
+import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel, Trophy } from "lucide-react";
 
 import logoCgf from "../../assets/images/regenerated_image_1778593500523.png";
 
 interface HomeProps {
   setView: (view: string) => void;
+  userRole?: string;
 }
 
-const Home = ({ setView }: HomeProps) => {
+const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
+  const isMaster = userRole === 'Master' || userRole === 'Gestão';
+
   const menuItems = [
     {
       title: "Nexus Frota BI",
+      id: 'nexus-bi',
       icon: BarChart3,
-      onClick: () => setView('resumo'), // Redirect to main dashboard (Ativos/Resumo)
+      onClick: () => setView('resumo'),
       external: false,
+      restricted: true,
     },
     {
       title: "Kanban de Atividades",
+      id: 'kanban',
       icon: KanbanSquare,
-      onClick: () => {
-        // This would navigate to a route if using react-router-dom properly,
-        // but the app seems to use an internal 'view' state.
-        // For now, if the view doesn't exist, we show the "Módulo em Integração"
-        setView('kanban');
-      },
+      onClick: () => setView('kanban'),
       external: false,
+      restricted: true,
     },
     {
       title: "Quadro Gestão à Vista",
+      id: 'gestao-vista',
       icon: Eye,
       onClick: () => setView('gestao-vista'),
       external: false,
+      restricted: true,
     },
     {
       title: "Gerenciamento de Atividades",
+      id: 'config',
       icon: Settings,
       onClick: () => setView('gerenciamento-atividades'),
       external: false,
+      restricted: true,
     },
     {
       title: "Drive de Informações",
+      id: 'drive',
       icon: Share2,
       onClick: () => setView('drive'),
       external: true,
+      restricted: true,
+    },
+    {
+      title: "Dashboard Operacional",
+      id: 'cco',
+      icon: Trophy,
+      onClick: () => setView('cco'),
+      external: false,
+      restricted: false,
     },
   ];
+
+  const filteredMenuItems = menuItems.filter(item => !item.restricted || isMaster);
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-6">
@@ -63,8 +81,8 @@ const Home = ({ setView }: HomeProps) => {
           </p>
         </header>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-          {menuItems.map((item) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6 justify-center max-w-4xl mx-auto">
+          {filteredMenuItems.map((item) => (
             <Card
               key={item.title}
               className="hover:shadow-2xl transition-all duration-300 cursor-pointer border-2 border-slate-100 dark:border-slate-800 hover:border-indigo-500/50 group bg-white dark:bg-slate-900 rounded-3xl"

@@ -40,7 +40,7 @@ function useAppLogic() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState('resumo');
+  const [currentView, setCurrentView] = useState('home');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
@@ -188,9 +188,9 @@ export default function App() {
   const renderView = () => {
     // Role based protection - only if user is logged in
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'visitor', 'resumo', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'kanban', 'gestao-vista', 'drive'];
+      const allowedViews = ['home', 'visitor', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas'];
       if (!allowedViews.includes(currentView) && currentView !== 'home') {
-        return <Home setView={setCurrentView} />;
+        return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
     }
 
@@ -203,7 +203,7 @@ export default function App() {
     }
 
     switch (currentView) {
-      case 'home': return <Home setView={setCurrentView} />;
+      case 'home': return <Home setView={setCurrentView} userRole={effectiveRole} />;
       case 'drive': return <DrivePage />;
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
@@ -291,7 +291,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['home', 'resumo', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'drive'];
+    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
