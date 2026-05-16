@@ -18,7 +18,8 @@ import {
   Mail,
   CheckCircle2,
   AlertTriangle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Building2
 } from "lucide-react";
 import { Asset, FuelData } from "@/types";
 import { 

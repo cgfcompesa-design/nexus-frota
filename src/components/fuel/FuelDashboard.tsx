@@ -2,7 +2,7 @@ import { useManagersData } from "@/hooks/useManagersData";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FuelFilterBar } from "./FuelFilterBar";
-import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag } from "lucide-react";
+import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag, Building2 } from "lucide-react";
 import { useAlertaValeData } from "@/hooks/useAlertaValeData";
 import { Button } from "@/components/ui/button";
 import { exportToExcelMultiSheet } from "@/lib/exportToExcel";
@@ -90,6 +90,8 @@ import { SupplyPerformanceDashboard } from './SupplyPerformanceDashboard';
 
 import { SearchableMultiSelect } from "@/components/ui/searchable-multi-select";
 
+import { MachineSupplyIndicators } from './MachineSupplyIndicators';
+
 interface FuelDashboardProps {
   fuel: FuelData[];
   assets: Asset[];
@@ -99,6 +101,7 @@ interface FuelDashboardProps {
   maintenance: MaintenanceData[];
   desviosOnly?: boolean;
   initialTab?: string;
+  userRole?: string;
 }
 
 // Função auxiliar para parsear números brasileiros (trata separadores de milhar e decimal)
@@ -307,7 +310,7 @@ const standardizeFuelType = (fuelType: string | undefined): string => {
   return fuelType;
 };
 
-export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false, initialTab }: FuelDashboardProps) => {
+export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false, initialTab, userRole }: FuelDashboardProps) => {
   // Hook para dados de locados (veículos em manutenção)
   const { data: locadosData = [] } = useLocadosData();
   
@@ -1412,6 +1415,25 @@ Coordenação de Gestão de Frotas - CGF`;
               <AlertTriangle className="h-5 w-5 text-rose-500" />
               <h2 className="text-lg font-bold uppercase tracking-tight">Monitoramento e Análise de Desvios</h2>
             </div>
+
+            {(userRole === 'Master' || userRole === 'Gestão') && (
+              <div className="mb-8">
+                <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-t-4 border-t-indigo-500 overflow-hidden">
+                  <CardHeader className="border-b border-slate-50 dark:border-slate-800 pb-4">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-indigo-500" />
+                      <div>
+                        <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Compliance Abastecimento Máquinas (MAQ/GER)</CardTitle>
+                        <CardDescription className="text-[9px] uppercase font-bold text-slate-400 italic">Integrado em Monitoramento e Análise para Gestão</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-6">
+                    <MachineSupplyIndicators fuel={filteredFuel} />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
             <FuelFilterBar
             fuel={fuel} assets={assets} autonomia={autonomia}
         selectedFuelTypes={selectedFuelTypes} selectedVehicleModels={selectedVehicleModels} searchPlaca={searchPlaca}

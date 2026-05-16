@@ -83,7 +83,7 @@ function useAppLogic() {
 }
 
 // Separate components to keep App.tsx clean and avoid re-definition during render
-function AbastDesviosView({ desviosOnly }: { desviosOnly: boolean }) {
+function AbastDesviosView({ desviosOnly, userRole }: { desviosOnly: boolean, userRole: string }) {
   const { data: fuel = [] } = useFuelData();
   const { data: assets = [] } = useAssets();
   const { data: autonomia = [] } = useAutonomiaData();
@@ -100,11 +100,12 @@ function AbastDesviosView({ desviosOnly }: { desviosOnly: boolean }) {
       maintenanceCost={maintenanceCost} 
       maintenance={maintenance} 
       desviosOnly={desviosOnly} 
+      userRole={userRole}
     />
   );
 }
 
-function AbastPerformanceView() {
+function AbastPerformanceView({ userRole }: { userRole: string }) {
   const { data: fuel = [] } = useFuelData();
   const { data: assets = [] } = useAssets();
   const { data: autonomia = [] } = useAutonomiaData();
@@ -121,6 +122,7 @@ function AbastPerformanceView() {
       maintenanceCost={maintenanceCost} 
       maintenance={maintenance} 
       initialTab="abast-perf" 
+      userRole={userRole}
     />
   );
 }
@@ -192,8 +194,8 @@ export default function App() {
       case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
       case 'gestao-vista': return <GestaoVista onBack={() => setCurrentView('home')} />;
       case 'gerenciamento-atividades': return <ActivityManagement onBack={() => setCurrentView('home')} />;
-      case 'abast-desvios': return <AbastDesviosView desviosOnly={true} />;
-      case 'abast-perf': return <AbastPerformanceView />;
+      case 'abast-desvios': return <AbastDesviosView desviosOnly={true} userRole={effectiveRole} />;
+      case 'abast-perf': return <AbastPerformanceView userRole={effectiveRole} />;
       case 'rankings': return <RankingView />;
       case 'reg-infracoes': return <RegularizacaoDashboard />;
       case 'reg-taxas': return <TaxasInspecoesDashboard />;
