@@ -17,6 +17,7 @@ import MaintenanceDashboardPage from './components/maintenance/MaintenanceDashbo
 import { MaintenanceHistoryDashboard } from './components/maintenance/MaintenanceHistoryDashboard';
 import { LocadosDashboard } from './components/maintenance/LocadosDashboard';
 import FuelDashboardsPage from './components/fuel/FuelDashboardsPage';
+import MachineSupplyReport from './components/fuel/MachineSupplyReport';
 import { FuelDashboard } from './components/fuel/FuelDashboard';
 import { SupplyPerformanceDashboard } from './components/fuel/SupplyPerformanceDashboard';
 import { CNHControlDashboard } from './components/fuel/CNHControlDashboard';
@@ -206,7 +207,8 @@ export default function App() {
       case 'drive': return <DrivePage />;
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
-      case 'abast-dash': return <FuelDashboardsPage />;
+      case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
+      case 'abast-maquinas': return <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />;
       case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
       case 'gestao-vista':
       case 'gerenciamento-atividades':
@@ -275,12 +277,12 @@ export default function App() {
     );
   }
 
-    // Handle Fullscreen DrivePage (No Auth Required)
-    if (currentView === 'drive') {
+    // Handle Fullscreen views (No Auth Required for Drive, Auth depends on component for others)
+    if (currentView === 'drive' || currentView === 'abast-maquinas') {
       return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <div className="min-h-screen">
-            <DrivePage />
+            {currentView === 'drive' ? <DrivePage /> : <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />}
             <Toaster position="top-right" />
           </div>
         </ErrorBoundary>

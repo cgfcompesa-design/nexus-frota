@@ -4,7 +4,7 @@ import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData } from
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FuelDashboardsFilterBar } from "@/components/dashboards/FuelDashboardsFilterBar";
-import { Fuel, DollarSign, Droplets, Download, Activity, Gauge, FileText, TrendingUp, Users, Calendar, Tag, Milestone, AlertTriangle, Share2 } from "lucide-react";
+import { Fuel, DollarSign, Droplets, Download, Activity, Gauge, FileText, TrendingUp, Users, Calendar, Tag, Milestone, AlertTriangle, Share2, ClipboardList } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import {
   Table,
@@ -128,7 +128,7 @@ const getFormattedDate = (dateString: any): Date | null => {
   } catch { return null; }
 };
 
-const FuelDashboardsPage = () => {
+const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) => {
   const { data: fuel = [], isLoading: loadingFuel, isError: isErrorFuel, refetch: refetchFuel } = useFuelData();
   const { data: assets = [], isLoading: loadingAssets, isError: isErrorAssets, refetch: refetchAssets } = useAssets();
   
@@ -666,10 +666,20 @@ const FuelDashboardsPage = () => {
           <Fuel className="h-6 w-6 text-primary" />
           Dashboard de Abastecimento
         </h1>
-        <Button onClick={handleExport} variant="default" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
-          <FileText className="h-4 w-4" />
-          Exportar para Excel (Filtrado)
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => setView?.('abast-maquinas')} 
+            variant="outline" 
+            className="gap-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+          >
+            <ClipboardList className="h-4 w-4" />
+            Relatório Cartões Máquinas e Equipamentos
+          </Button>
+          <Button onClick={handleExport} variant="default" className="gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
+            <FileText className="h-4 w-4" />
+            Exportar para Excel (Filtrado)
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-3 md:grid-cols-5">

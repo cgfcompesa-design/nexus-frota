@@ -123,6 +123,18 @@ export interface MaintenanceCostData {
   [key: string]: any;
 }
 
+export interface MachineSupplyAssignment {
+  id?: string;
+  transactionId: string;
+  machineryDestination: string;
+  model: string;
+  property: 'PRÓPRIO' | 'LOCADO';
+  tombamentoNumber: string;
+  userUnit: string;
+  updatedBy: string;
+  updatedAt: any;
+}
+
 export interface PreventiveMaintenanceData {
   [key: string]: any;
 }

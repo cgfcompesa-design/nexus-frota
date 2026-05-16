@@ -82,6 +82,22 @@
         "target": { "type": "number" },
         "current_value": { "type": "number" }
       }
+    },
+    "MachineSupplyAssignment": {
+      "title": "Machine Supply Assignment",
+      "description": "Vínculo de maquinário e equipamentos a abastecimentos (MAQ/GER)",
+      "type": "object",
+      "properties": {
+        "transactionId": { "type": "string", "description": "ID da transação/abastecimento (CÓD. TRANSAÇÃO)" },
+        "machineryDestination": { "type": "string", "enum": ["GERADOR PEQUENO PORTE (ATÉ 15 KVA)", "GERADOR MÉDIO PORTE (DE 15 ATÉ 75 KVA)", "GERADOR GRANDE PORTE (75 ATÉ 500 KVA)", "ROÇADEIRA(S)", "BOMBA SUBMERSA"] },
+        "model": { "type": "string" },
+        "property": { "type": "string", "enum": ["PRÓPRIO", "LOCADO"] },
+        "tombamentoNumber": { "type": "string" },
+        "userUnit": { "type": "string" },
+        "updatedBy": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["transactionId", "machineryDestination", "updatedBy"]
     }
   },
   "firestore": {
@@ -108,6 +124,10 @@
     "/indicator_values/{valueId}": {
       "schema": "IndicatorValue",
       "description": "Valores mensais de indicadores"
+    },
+    "/machine_supply_assignments/{assignmentId}": {
+      "schema": "MachineSupplyAssignment",
+      "description": "Preenchimento de dados de maquinário para abastecimentos"
     }
   }
 }
