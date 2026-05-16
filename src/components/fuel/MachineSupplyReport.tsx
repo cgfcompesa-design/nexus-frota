@@ -60,6 +60,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   // User Authentication & Profile
   const [userName, setUserName] = useState("");
   const [userUnit, setUserUnit] = useState("");
+  const [userRole, setUserRole] = useState("Visualizador");
   const [isAccessGranted, setIsAccessGranted] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
 
@@ -70,17 +71,23 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       if (currentUser) {
         setUserName(currentUser.displayName || currentUser.email || "");
         
-        // Try to fetch unit from profile or localStorage as fallback
+        // Try to fetch unit from profile
         try {
           const profileDoc = await getDoc(doc(db, "users", currentUser.uid));
           if (profileDoc.exists()) {
             const data = profileDoc.data();
             const unit = data.gerencia || data.unidade || data.lotacao || "";
+            const role = data.role || 'Visualizador';
+            
             setUserUnit(unit);
-            // Auto grant access if unit exists in profile
-            if (unit) setIsAccessGranted(true);
+            setUserRole(role);
+            
+            // If user has a unit in profile and is not Master, lock them to it
+            if (unit && role !== 'Master') {
+              setIsAccessGranted(true);
+            }
           } else {
-            // Check localStorage for previously saved unit if no profile doc
+            // Check localStorage for previously saved unit if no profile doc (fallback)
             const savedUnit = localStorage.getItem("machine_report_unit");
             if (savedUnit) {
                setUserUnit(savedUnit);
@@ -115,13 +122,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   };
 
   const unitOptions = useMemo(() => {
+    if (isAccessGranted && userUnit && userRole !== 'Master') {
+      return [userUnit];
+    }
     const units = new Set<string>();
     fuel.forEach(f => {
       const u = String(f.COL_29 || "").trim();
       if (u) units.add(u);
     });
     return Array.from(units).sort();
-  }, [fuel]);
+  }, [fuel, isAccessGranted, userUnit, userRole]);
 
   const monthOptions = useMemo(() => {
     const months = new Set<string>();

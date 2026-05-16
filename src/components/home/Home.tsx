@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel, Trophy } from "lucide-react";
+import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel, Trophy, UserCheck } from "lucide-react";
 
 import logoCgf from "../../assets/images/regenerated_image_1778593500523.png";
 
@@ -11,7 +11,9 @@ interface HomeProps {
 }
 
 const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
-  const isMaster = userRole === 'Master' || userRole === 'Gestão';
+  const isMaster = userRole === 'Master';
+  const isGestao = userRole === 'Gestão';
+  const isPrivileged = isMaster || isGestao;
 
   const menuItems = [
     {
@@ -61,6 +63,7 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       onClick: () => setView('abast-maquinas'),
       external: false,
       restricted: false,
+      hideForGestao: true,
     },
     {
       title: "Dashboard Operacional",
@@ -69,10 +72,23 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       onClick: () => setView('cco'),
       external: false,
       restricted: false,
+      hideForGestao: true,
+    },
+    {
+      title: "Gerenciamento de Usuários",
+      id: 'users',
+      icon: UserCheck,
+      onClick: () => setView('users'),
+      external: false,
+      restricted: true,
     },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => !item.restricted || isMaster);
+  const filteredMenuItems = menuItems.filter(item => {
+    if (item.restricted && !isPrivileged) return false;
+    if (item.hideForGestao && isGestao) return false;
+    return true;
+  });
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center p-6">

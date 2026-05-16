@@ -113,7 +113,6 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       ]
     },
     { id: 'drive', label: 'Drive de Informações', icon: Share2 },
-    ...(userRole === 'Master' ? [{ id: 'users', label: 'Usuários', icon: Users }] : []),
   ];
 
   const filteredMenuItems = menuItems.filter(item => {

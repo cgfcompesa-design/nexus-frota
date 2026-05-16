@@ -54,6 +54,7 @@ import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 import { useContactsData } from "@/hooks/useContactsData";
 import { useSpecialHoursData } from "@/hooks/useFleetData";
+import { CoringaCardsTable } from "./CoringaCardsTable";
 
 interface SupplyPerformanceDashboardProps {
   fuel: FuelData[];
@@ -704,6 +705,22 @@ Nexus BI Frota`;
           </CardContent>
         </Card>
       </div>
+
+      {/* NEW SECTION: CORINGA CARDS ANALYSIS */}
+      <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-t-4 border-t-amber-500 overflow-hidden">
+        <CardHeader className="border-b border-slate-50 dark:border-slate-800 pb-4">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-amber-500" />
+            <div>
+              <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Abastecimento com Cartões Coringa</CardTitle>
+              <CardDescription className="text-[9px] uppercase font-bold text-slate-400 italic">Confronto de transações com base de cartões de emergência GAD</CardDescription>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <CoringaCardsTable fuel={filteredFuel} assetsMap={allAssetsMap} />
+        </CardContent>
+      </Card>
 
       {/* TABLES SECTION */}
       <div className="grid grid-cols-1 gap-6">
