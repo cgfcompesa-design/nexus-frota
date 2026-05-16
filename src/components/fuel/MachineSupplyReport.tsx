@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useFuelData, useAssets } from "@/hooks/useFleetData";
+import { useFuelData } from "@/hooks/useFleetData";
 import { useMachineSupplyAssignments, useSaveMachineAssignment } from "@/hooks/useMachineSupplyAssignments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,17 +28,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Fuel, 
   ArrowLeft, 
-  Save, 
   Search, 
   User, 
   Building2, 
   CheckCircle2, 
   Loader2,
   FilterX,
-  ChevronDown
+  ChevronDown,
+  Calendar as CalendarIcon
 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { auth, db } from "@/lib/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const MACHINERY_OPTIONS = [
   "GERADOR PEQUENO PORTE (ATÉ 15 KVA)",
@@ -55,10 +57,44 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   const { data: assignments = [], isLoading: loadingAssignments } = useMachineSupplyAssignments();
   const saveAssignment = useSaveMachineAssignment();
   
-  // User Access State
-  const [userName, setUserName] = useState(() => localStorage.getItem("machine_report_user") || "");
-  const [userUnit, setUserUnit] = useState(() => localStorage.getItem("machine_report_unit") || "");
-  const [isAccessGranted, setIsAccessGranted] = useState(!!(userName && userUnit));
+  // User Authentication & Profile
+  const [userName, setUserName] = useState("");
+  const [userUnit, setUserUnit] = useState("");
+  const [isAccessGranted, setIsAccessGranted] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      setCheckingAuth(true);
+      const currentUser = auth.currentUser;
+      if (currentUser) {
+        setUserName(currentUser.displayName || currentUser.email || "");
+        
+        // Try to fetch unit from profile or localStorage as fallback
+        try {
+          const profileDoc = await getDoc(doc(db, "users", currentUser.uid));
+          if (profileDoc.exists()) {
+            const data = profileDoc.data();
+            const unit = data.gerencia || data.unidade || data.lotacao || "";
+            setUserUnit(unit);
+            // Auto grant access if unit exists in profile
+            if (unit) setIsAccessGranted(true);
+          } else {
+            // Check localStorage for previously saved unit if no profile doc
+            const savedUnit = localStorage.getItem("machine_report_unit");
+            if (savedUnit) {
+               setUserUnit(savedUnit);
+               setIsAccessGranted(true);
+            }
+          }
+        } catch (e) {
+          console.error("Error fetching profile:", e);
+        }
+      }
+      setCheckingAuth(false);
+    };
+    fetchUserProfile();
+  }, []);
 
   // Filters State
   const [searchPlaca, setSearchPlaca] = useState("");
@@ -67,59 +103,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
 
-  // Sorting
-  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
-
   const handleAccessSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!userName || !userUnit) {
       toast.error("Por favor, informe seu nome e unidade.");
       return;
     }
-    localStorage.setItem("machine_report_user", userName);
     localStorage.setItem("machine_report_unit", userUnit);
     setIsAccessGranted(true);
     toast.success(`Bem-vindo, ${userName}!`);
   };
-
-  const filteredFuel = useMemo(() => {
-    // Filter by MAQ or GER plates
-    return fuel.filter(f => {
-      const placa = String(f._placa || "").toUpperCase();
-      const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
-      if (!isMaqOrGer) return false;
-
-      // Filter by User's Unit fixed in login
-      if (userUnit) {
-        const lotacao = String(f.COL_29 || "").trim();
-        if (lotacao !== userUnit) return false;
-      }
-
-      // Apply search and filters
-      if (searchPlaca && !placa.includes(searchPlaca.toUpperCase())) return false;
-      
-      const unit = String(f._unit || "").trim();
-      if (selectedUnits.length > 0 && !selectedUnits.includes(unit)) return false;
-
-      const mesAno = String(f.COL_41 || "").trim();
-      if (selectedMonths.length > 0 && !selectedMonths.includes(mesAno)) return false;
-
-      const txId = String(f.COL_0 || f._txId || "");
-      const assignment = assignments.find(a => a.transactionId === txId);
-
-      // Filter by assignment destination
-      if (selectedDestinations.length > 0) {
-        if (!assignment || !selectedDestinations.some(d => (assignment.machineryDestination || "").includes(d))) return false;
-      }
-
-      // Filter by assignment property
-      if (selectedProperties.length > 0) {
-        if (!assignment || !selectedProperties.some(p => (assignment.property || "").includes(p))) return false;
-      }
-
-      return true;
-    });
-  }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit]);
 
   const unitOptions = useMemo(() => {
     const units = new Set<string>();
@@ -136,11 +129,45 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       const m = String(f.COL_41 || "").trim();
       if (m) months.add(m);
     });
-    return Array.from(months).sort((a, b) => {
-      // Basic sort for month names if possible, but alphabetically is usually fine for these reports
-      return b.localeCompare(a); 
-    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
   }, [fuel]);
+
+  const filteredFuel = useMemo(() => {
+    // If not matching any MAQ/GER first, return empty to speed up
+    return fuel.filter(f => {
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase();
+      const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+      if (!isMaqOrGer) return false;
+
+      // Filter by fixed User Unit (from login)
+      if (isAccessGranted && userUnit) {
+        const lotacao = String(f.COL_29 || "").trim();
+        if (lotacao !== userUnit) return false;
+      }
+
+      // Apply UI filters
+      if (searchPlaca && !placa.includes(searchPlaca.toUpperCase())) return false;
+      
+      const unit = String(f.COL_29 || "").trim();
+      if (selectedUnits.length > 0 && !selectedUnits.includes(unit)) return false;
+
+      const mesAno = String(f.COL_41 || "").trim();
+      if (selectedMonths.length > 0 && !selectedMonths.includes(mesAno)) return false;
+
+      const txId = String(f.COL_0 || f._txId || "");
+      const assignment = assignments.find(a => a.transactionId === txId);
+
+      if (selectedDestinations.length > 0) {
+        if (!assignment || !selectedDestinations.some(d => (assignment.machineryDestination || "").includes(d))) return false;
+      }
+
+      if (selectedProperties.length > 0) {
+        if (!assignment || !selectedProperties.some(p => (assignment.property || "").includes(p))) return false;
+      }
+
+      return true;
+    });
+  }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
 
   const handleExport = () => {
     try {
@@ -185,6 +212,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       toast.error("Erro ao exportar relatório.");
     }
   };
+
   const handleSave = async (transactionId: string, data: any) => {
     try {
       await saveAssignment.mutateAsync({
@@ -194,11 +222,19 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
         updatedBy: userName,
         ...data
       });
-      toast.success("Dados salvos com sucesso!");
+      toast.success("Dados salvos!");
     } catch (error) {
-      toast.error("Erro ao salvar dados.");
+      toast.error("Erro ao salvar.");
     }
   };
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <Loader2 className="w-10 h-10 animate-spin text-indigo-600" />
+      </div>
+    );
+  }
 
   if (!isAccessGranted) {
     return (
@@ -271,9 +307,9 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100 text-[10px] font-black uppercase">MAQ / GER</Badge>
             </div>
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-0.5">
-              Usuário: <span className="text-slate-600 dark:text-slate-300">{userName}</span>
+              Responsável: <span className="text-slate-600 dark:text-slate-300">{userName}</span>
               <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-              Unidade: <span className="text-slate-600 dark:text-slate-300">{userUnit}</span>
+              Lotação Ativa: <span className="text-slate-600 dark:text-slate-300">{userUnit}</span>
             </p>
           </div>
         </div>
@@ -290,63 +326,14 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
           </div>
           
           <Select 
-            value={selectedUnits.length > 0 ? "filtered" : "all"} 
-            onValueChange={(val) => val === "all" ? setSelectedUnits([]) : null}
-          >
-            <SelectTrigger className="h-9 w-[140px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0">
-              <SelectValue placeholder="Lotação" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas Unidades</SelectItem>
-              {unitOptions.map(u => (
-                <div key={u} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedUnits.includes(u)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedUnits([...selectedUnits, u]);
-                      else setSelectedUnits(selectedUnits.filter(x => x !== u));
-                    }}
-                    className="mr-2"
-                  />
-                  {u}
-                </div>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select 
-            value={selectedDestinations.length > 0 ? "filtered" : "all"} 
-            onValueChange={(val) => val === "all" ? setSelectedDestinations([]) : null}
-          >
-            <SelectTrigger className="h-9 w-[150px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0">
-              <SelectValue placeholder="Destino" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Destinos</SelectItem>
-              {MACHINERY_OPTIONS.map(opt => (
-                <div key={opt} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedDestinations.includes(opt)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedDestinations([...selectedDestinations, opt]);
-                      else setSelectedDestinations(selectedDestinations.filter(x => x !== opt));
-                    }}
-                    className="mr-2"
-                  />
-                  {opt}
-                </div>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select 
             value={selectedMonths.length > 0 ? "filtered" : "all"} 
             onValueChange={(val) => val === "all" ? setSelectedMonths([]) : null}
           >
-            <SelectTrigger className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0">
-              <SelectValue placeholder="Mês/Ano" />
+            <SelectTrigger className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
+              <div className="flex items-center gap-2">
+                <CalendarIcon className="w-3.5 h-3.5 opacity-50" />
+                <SelectValue placeholder="Mês/Ano" />
+              </div>
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos Meses</SelectItem>
@@ -384,28 +371,22 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
           
-          <div className="flex items-center gap-3">
-             <div className="text-right hidden sm:block">
-                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Abastecimentos</p>
-                <p className="text-sm font-bold text-slate-800 dark:text-white leading-none">{filteredFuel.length}</p>
-             </div>
-             <Button 
-                onClick={handleExport}
-                className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[10px] rounded-lg shadow-sm"
-              >
-                Baixar Planilha
-             </Button>
-          </div>
+          <Button 
+            onClick={handleExport}
+            className="h-9 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-[10px] rounded-lg shadow-sm"
+          >
+            Baixar Planilha
+          </Button>
         </div>
       </header>
 
       {/* Main Table */}
       <main className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-          {loadingFuel ? (
+          {loadingFuel || loadingAssignments ? (
             <div className="flex flex-col items-center justify-center p-20 gap-4">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Carregando dados de abastecimento...</p>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Carregando dados...</p>
             </div>
           ) : (
             <Table>
@@ -422,14 +403,14 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[300px]">Endereço / Bairro / Cidade</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Lotação</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Cartão</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[80px]">Mês/Ano</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Mês/Ano</TableHead>
                   
-                  {/* Fornecimento / Inputs */}
+                  {/* Inputs */}
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[250px]">Destino Maquinário</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[150px]">Modelo</TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 w-[120px]">Propriedade</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[150px]">Tombamento</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 text-center w-[80px]">Status</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-100/10 min-w-[150px]">Tombamento</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-100/10 text-center w-[60px]">Ok</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -456,11 +437,10 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                       <TableCell className="text-[10px] font-mono text-slate-400">{f.COL_35 || 'N/A'}</TableCell>
                       <TableCell className="text-[10px] font-bold text-slate-500">{f.COL_41}</TableCell>
 
-                      {/* Input Cells */}
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
                         <Popover>
                           <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="w-full h-8 px-2 text-[10px] justify-between font-medium">
+                            <Button variant="outline" size="sm" className="w-full h-8 px-2 text-[10px] justify-between font-medium border-slate-200">
                               <span className="truncate">
                                 {assignment?.machineryDestination || "Selecionar..."}
                               </span>
@@ -504,7 +484,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
                         <Popover>
                           <PopoverTrigger asChild>
-                            <Button variant="outline" size="sm" className="w-full h-8 px-2 text-[10px] justify-between font-medium">
+                            <Button variant="outline" size="sm" className="w-full h-8 px-2 text-[10px] justify-between font-medium border-slate-200">
                               <span className="truncate">
                                 {assignment?.property || "Tipo"}
                               </span>
@@ -563,7 +543,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
           {!loadingFuel && filteredFuel.length === 0 && (
             <div className="flex flex-col items-center justify-center p-20 gap-4 opacity-50">
               <Fuel className="w-12 h-12 text-slate-300" />
-              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum abastecimento de MAQ/GER encontrado.</p>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-400">Nenhum abastecimento de MAQ/GER disponível para esta lotação.</p>
             </div>
           )}
         </div>
@@ -572,13 +552,13 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       {/* Footer */}
       <footer className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
         <div className="flex items-center gap-4">
-          <span>Total de Registros: {filteredFuel.length}</span>
+          <span>Total: {filteredFuel.length}</span>
           <span className="w-px h-3 bg-slate-300"></span>
           <span>Preenchidos: {assignments.length}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-emerald-100 font-black">Online</Badge>
-          <span>Nexus Frota - Relatório Cartões Maquinário</span>
+          <Badge variant="secondary" className="bg-emerald-50 text-emerald-600 border-emerald-100 font-black">Sistema CGF</Badge>
+          <span>Nexus Frota - Maquinário</span>
         </div>
       </footer>
     </div>
