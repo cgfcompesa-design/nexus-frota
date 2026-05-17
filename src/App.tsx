@@ -30,6 +30,7 @@ import ActivityManagement from './components/config/ActivityManagement';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
 import AlertConfig from './components/config/AlertConfig';
 import UserManagement from './components/config/UserManagement';
+import ManagementAlertsPopup from './components/dashboard/ManagementAlertsPopup';
 import { Toaster } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 
@@ -41,6 +42,7 @@ function useAppLogic() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState('home');
+  const [showAlerts, setShowAlerts] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
@@ -51,7 +53,13 @@ function useAppLogic() {
           const docRef = doc(db, 'users', authUser.uid);
           const userDoc = await getDoc(docRef);
           if (userDoc.exists()) {
-            setUserProfile(userDoc.data());
+            const profile = userDoc.data();
+            setUserProfile(profile);
+            
+            // Check for Master or Gestão role to show alerts
+            if (profile.role === 'Master' || profile.role === 'Gestão' || authUser.email === 'cgf.compesa@gmail.com') {
+              setShowAlerts(true);
+            }
           } else {
             const role = authUser.email === 'cgf.compesa@gmail.com' ? 'Master' : 'Visualizador';
             const newProfile = {
@@ -63,6 +71,8 @@ function useAppLogic() {
             };
             await setDoc(docRef, newProfile);
             setUserProfile(newProfile);
+            
+            if (role === 'Master') setShowAlerts(true);
           }
         } catch (error) {
           console.error("Erro ao buscar perfil:", error);
@@ -72,6 +82,7 @@ function useAppLogic() {
         setUser(null);
         setUserProfile(null);
         setCurrentView('home');
+        setShowAlerts(false);
       }
       setLoading(false);
     });
@@ -79,7 +90,7 @@ function useAppLogic() {
     return () => unsubscribe();
   }, []);
 
-  return { user, loading, userProfile, currentView, setCurrentView };
+  return { user, loading, userProfile, currentView, setCurrentView, showAlerts, setShowAlerts };
 }
 
 // Separate components to keep App.tsx clean and avoid re-definition during render
@@ -152,8 +163,9 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
   );
 }
 
+
 export default function App() {
-  const { user, loading, userProfile, currentView, setCurrentView } = useAppLogic();
+  const { user, loading, userProfile, currentView, setCurrentView, showAlerts, setShowAlerts } = useAppLogic();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -211,6 +223,13 @@ export default function App() {
     }
   };
 
+  const managementAlerts = (
+    <ManagementAlertsPopup 
+      isOpen={showAlerts} 
+      onClose={() => setShowAlerts(false)} 
+    />
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 space-y-4">
@@ -226,6 +245,7 @@ export default function App() {
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <div className="min-h-screen">
             {currentView === 'drive' ? <DrivePage /> : <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />}
+            {managementAlerts}
             <Toaster position="top-right" />
           </div>
         </ErrorBoundary>
@@ -329,6 +349,7 @@ export default function App() {
             </div>
           </div>
           <Home setView={setCurrentView} userRole={effectiveRole} />
+          {managementAlerts}
           <Toaster position="top-right" />
         </div>
       );
@@ -337,6 +358,7 @@ export default function App() {
       <ErrorBoundary FallbackComponent={ErrorFallback} onReset={() => setCurrentView('home')}>
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
           {renderView()}
+          {managementAlerts}
           <Toaster position="top-right" />
         </div>
       </ErrorBoundary>
@@ -397,6 +419,7 @@ export default function App() {
           </div>
         </div>
       </main>
+      {managementAlerts}
       <Toaster position="top-right" />
     </div>
   );
