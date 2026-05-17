@@ -24,6 +24,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useTelemetryRealtime, useNotificacoes } from '../../hooks/useTelemetryData';
 import { useFuelData, useMaintenanceCostData, useAssets, useRegularizacaoData, useMaintenanceData, usePreventiveMaintenanceData } from '../../hooks/useFleetData';
+import { useDisponibilidadeLocados } from '../../hooks/useDisponibilidadeLocados';
 import { 
   ResponsiveContainer, 
   AreaChart, 
@@ -49,6 +50,7 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
   const { data: infractionsData = [] } = useRegularizacaoData();
   const { data: maintenanceDataStatus = [] } = useMaintenanceData();
   const { data: preventiveData = [] } = usePreventiveMaintenanceData();
+  const { disponibilidade: dispLocados, veiculosDisponiveis: totalLocados } = useDisponibilidadeLocados();
 
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -145,19 +147,20 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
       // User says: mai./26 in Column AP (41). 
       const rowStr = JSON.stringify(i).toUpperCase();
       
-      // Magic match for specific IDs mentioned by user to ensure they are captured
-      if (rowStr.includes("NIC0063461") || rowStr.includes("DT07466440")) return true;
-
       const mesVal41 = String(i.COL_41 || "").toLowerCase();
       const mesVal40 = String(i.COL_40 || "").toLowerCase();
       const dateVal = String(i.DATA || i.COL_2 || "").toLowerCase();
       
       const isMai26 = mesVal41.includes("mai") || mesVal40.includes("mai") || (dateVal.includes("/05/2026") || dateVal.includes("/05/26"));
       
-      const typeVal = String(i.COL_11 || i.COL_10 || "").toUpperCase();
-      const isAutuacao = typeVal.includes("AUTUAÇÃO") || typeVal.includes("AUTUACAO");
+      // Let's check for any mention of the current month and year in the whole row if explicit filters fail
+      const isExplicitMai26 = isMai26;
       
-      return isMai26 && isAutuacao;
+      const typeVal = String(i.COL_11 || i.COL_10 || "").toUpperCase();
+      // Relaxing Autuação check - many items might be Autuações but with different text
+      const isInfraction = typeVal.includes("AUTUAÇÃO") || typeVal.includes("AUTUACAO") || typeVal.includes("NOTIFICAÇÃO") || typeVal.includes("INFRAÇÃO");
+      
+      return isExplicitMai26 && isInfraction;
     });
   }, [infractionsData]);
 
@@ -464,13 +467,21 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
                   color="amber"
                   centered
                 />
-                <div className="grid grid-cols-1 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <CCOStatCard 
-                    label="Disponibilidade" 
+                    label="Disp. Próprios" 
                     value={`${disponibilidadeProprios.toFixed(1)}%`}
-                    secondary="Meta 90%"
-                    icon={<Activity className="h-4 w-4 text-blue-400" />}
-                    color="blue"
+                    secondary="Meta 80%"
+                    icon={<Activity className={cn("h-4 w-4", disponibilidadeProprios >= 80 ? "text-emerald-400" : "text-rose-400")} />}
+                    color={disponibilidadeProprios >= 80 ? "emerald" : "rose"}
+                    centered
+                  />
+                  <CCOStatCard 
+                    label="Disp. Locados" 
+                    value={`${dispLocados.toFixed(1)}%`}
+                    secondary={`${totalLocados} Titulares`}
+                    icon={<Activity className={cn("h-4 w-4", dispLocados >= 80 ? "text-emerald-400" : "text-rose-400")} />}
+                    color={dispLocados >= 80 ? "emerald" : "rose"}
                     centered
                   />
                 </div>
@@ -859,17 +870,17 @@ function CCOStatCard({ label, value, secondary, icon, color, centered }: { label
   };
 
   return (
-    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-5 shadow-xl backdrop-blur-md group hover:border-slate-700 transition-all">
-      <div className={cn("flex flex-col gap-3", centered && "items-center text-center")}>
-        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center border transition-all group-hover:scale-110", colorClasses[color])}>
+    <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-4 shadow-xl backdrop-blur-md group hover:border-slate-700 transition-all">
+      <div className={cn("flex flex-col gap-2", centered && "items-center text-center")}>
+        <div className={cn("w-8 h-8 rounded-lg flex items-center justify-center border transition-all group-hover:scale-110", colorClasses[color])}>
           {icon}
         </div>
         <div>
-          <h4 className="text-[10px] font-black uppercase text-slate-500 tracking-widest mb-1 group-hover:text-slate-400 transition-colors">{label}</h4>
+          <h4 className="text-[9px] font-black uppercase text-slate-500 tracking-widest mb-0.5 group-hover:text-slate-400 transition-colors leading-tight">{label}</h4>
           <div className={cn("flex items-baseline gap-2", centered && "justify-center")}>
-            <span className="text-2xl font-black text-white tracking-tighter tabular-nums">{value}</span>
+            <span className="text-xl font-black text-white tracking-tighter tabular-nums">{value}</span>
           </div>
-          <p className="text-[9px] font-bold text-slate-600 uppercase mt-1 italic tracking-tight">{secondary}</p>
+          <p className="text-[8px] font-bold text-slate-600 uppercase mt-0.5 italic tracking-tight">{secondary}</p>
         </div>
       </div>
     </div>

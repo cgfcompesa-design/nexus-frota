@@ -56,7 +56,6 @@ import { toast } from "sonner";
 import { useContactsData } from "@/hooks/useContactsData";
 import { useSpecialHoursData } from "@/hooks/useFleetData";
 import { CoringaCardsTable } from "./CoringaCardsTable";
-import { MachineSupplyIndicators } from "./MachineSupplyIndicators";
 
 interface SupplyPerformanceDashboardProps {
   fuel: FuelData[];
@@ -634,6 +633,29 @@ Coordenação de Gestão de Frotas - CGF`;
     exportToExcelMultiSheet([{ data: dataExport, sheetName: "Resumo Uso Temporal" }], "Resumo_Uso_Veiculos_Horario");
   };
 
+  const topUnitsWithAnomalies = useMemo(() => {
+    const counts: Record<string, number> = {};
+
+    // Count Time Pattern Anomalies
+    timeAndDayAnalysis.vehicles.forEach(v => {
+      if (v.outOfPattern && v.gerencia && v.gerencia !== "N/A") {
+        counts[v.gerencia] = (counts[v.gerencia] || 0) + 1;
+      }
+    });
+
+    // Count KM/Time Inconsistencies
+    inconsistencyAnalysis.forEach(inc => {
+      if (inc.unidade && inc.unidade !== "N/A") {
+        counts[inc.unidade] = (counts[inc.unidade] || 0) + 1;
+      }
+    });
+
+    return Object.entries(counts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8); // Top 8 units
+  }, [timeAndDayAnalysis.vehicles, inconsistencyAnalysis]);
+
   const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#f43f5e'];
 
   return (
@@ -672,7 +694,7 @@ Coordenação de Gestão de Frotas - CGF`;
       </div>
 
       {/* CHARTS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden group">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
@@ -691,6 +713,41 @@ Coordenação de Gestão de Frotas - CGF`;
                   <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={50}>
                     {timeAndDayAnalysis.ranges.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Bar>
+               </BarChart>
+             </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden group">
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+               <div className="h-8 w-8 rounded-lg bg-rose-50 dark:bg-rose-900/30 flex items-center justify-center text-rose-600 transition-transform group-hover:scale-110">
+                 <AlertTriangle className="h-4 w-4" />
+               </div>
+               <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">Unidades com Mais Out of Pattern</CardTitle>
+            </div>
+            <CardDescription className="text-[9px] uppercase font-bold text-slate-400">Ranking de unidades com detectação de anomalias/desvios</CardDescription>
+          </CardHeader>
+          <CardContent className="h-[250px]">
+             <ResponsiveContainer width="100%" height="100%">
+               <BarChart data={topUnitsWithAnomalies} layout="vertical" margin={{ left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
+                  <XAxis type="number" hide />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    fontSize={8} 
+                    fontWeight="900" 
+                    tickLine={false} 
+                    axisLine={false} 
+                    width={80}
+                  />
+                  <Tooltip cursor={{fill: 'rgba(0,0,0,0.02)'}} contentStyle={{borderRadius: '12px', border: 'none', fontSize: '10px'}} />
+                  <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={20}>
+                    {topUnitsWithAnomalies.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.value > 10 ? '#e11d48' : '#f59e0b'} />
                     ))}
                   </Bar>
                </BarChart>

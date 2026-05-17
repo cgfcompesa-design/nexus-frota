@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useLocadosData, LocadoData } from "@/hooks/useLocadosData";
-import { useVeiculosLocadosDisponiveis } from "@/hooks/useDisponibilidadeLocados";
+import { useVeiculosLocadosDisponiveis, useDisponibilidadeLocados } from "@/hooks/useDisponibilidadeLocados";
 import { usePreventiveLocadosData } from "@/hooks/usePreventiveLocadosData";
 import { useAssets } from "@/hooks/useFleetData";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,8 @@ const STATUS_COLORS: Record<string, string> = {
 
 export const LocadosDashboard = () => {
   const { data: locados = [], isLoading, isError, refetch } = useLocadosData();
-  const { data: veiculosDisponiveis = 0, isLoading: isLoadingVeiculos, isError: isErrorVeiculos } = useVeiculosLocadosDisponiveis();
+  const { data: veiculosDisponiveisCount = 0, isLoading: isLoadingVeiculos, isError: isErrorVeiculos } = useVeiculosLocadosDisponiveis();
+  const { disponibilidade: globalDisp, totalDiasParados: globalDiasParados } = useDisponibilidadeLocados();
   const { data: preventiveLocados = [], isLoading: isLoadingPreventive, isError: isErrorPreventive } = usePreventiveLocadosData();
   const { data: assets = [], isLoading: isLoadingAssets, isError: isErrorAssets } = useAssets();
 
@@ -149,12 +150,10 @@ export const LocadosDashboard = () => {
     const totalVeiculos = filteredData.length;
     const mediaDiasParados = totalVeiculos > 0 ? (totalDiasParados / totalVeiculos).toFixed(1) : "0";
     
-    const numMeses = selectedMesAno === "all" ? Math.max(1, mesesAnos.length) : 1;
-    const capacidadeTotalDias = veiculosDisponiveis * 30 * numMeses;
-    
-    // Cálculo de disponibilidade baseado nos dados filtrados
-    const disponibilidade = capacidadeTotalDias > 0 
-      ? ((capacidadeTotalDias - totalDiasParados) / capacidadeTotalDias) * 100 
+    // Alinhando com a lógica que o usuário pediu
+    // Disponibilidade = (veiculosDisponiveisCount - totalDiasParados) / veiculosDisponiveisCount * 100
+    const disponibilidade = veiculosDisponiveisCount > 0 
+      ? ((veiculosDisponiveisCount - totalDiasParados) / veiculosDisponiveisCount) * 100 
       : 0;
     const disponibilidadeFinal = Math.max(0, disponibilidade);
     const metaAtingida = disponibilidadeFinal >= 100;
@@ -195,7 +194,7 @@ export const LocadosDashboard = () => {
       
       if (dadosAnterior.length > 0) {
         const diasParadosAnterior = dadosAnterior.reduce((sum, item) => sum + item.diasParados, 0);
-        const capacidadeMensal = veiculosDisponiveis * 30;
+        const capacidadeMensal = veiculosDisponiveisCount * 30;
         
         disponibilidadeAnterior = capacidadeMensal > 0 
           ? Math.max(0, ((capacidadeMensal - diasParadosAnterior) / capacidadeMensal) * 100)
@@ -230,7 +229,7 @@ export const LocadosDashboard = () => {
       if (dadosUltimoMes.length > 0 && dadosPenultimoMes.length > 0) {
         const diasParadosUltimo = dadosUltimoMes.reduce((sum, item) => sum + item.diasParados, 0);
         const diasParadosPenultimo = dadosPenultimoMes.reduce((sum, item) => sum + item.diasParados, 0);
-        const capacidadeMensal = veiculosDisponiveis * 30;
+        const capacidadeMensal = veiculosDisponiveisCount * 30;
         
         const dispUltimo = capacidadeMensal > 0 
           ? Math.max(0, ((capacidadeMensal - diasParadosUltimo) / capacidadeMensal) * 100)
@@ -254,7 +253,7 @@ export const LocadosDashboard = () => {
       variacaoPercentual,
       disponibilidadeAnterior,
     };
-  }, [filteredData, veiculosDisponiveis, locados, searchPlaca, selectedDiretoria, selectedGerencia, selectedModelo, selectedPropriedade, selectedMesAno, mesesAnos]);
+  }, [filteredData, veiculosDisponiveisCount, locados, searchPlaca, selectedDiretoria, selectedGerencia, selectedModelo, selectedPropriedade, selectedMesAno, mesesAnos]);
 
   // Timeline data by Gerência - uses filteredData to respect filters
   const timelineByGerencia = useMemo(() => {
@@ -412,7 +411,7 @@ export const LocadosDashboard = () => {
       
       // A disponibilidade realizada deve ser calculada da mesma forma que o card principal
       // Capacidade de um mês = veículos * 30 dias
-      const capacidadeMensal = veiculosDisponiveis * 30;
+      const capacidadeMensal = veiculosDisponiveisCount * 30;
       const disponibilidade = capacidadeMensal > 0 
         ? Math.max(0, ((capacidadeMensal - diasParadosMes) / capacidadeMensal) * 100)
         : 100;
@@ -426,7 +425,7 @@ export const LocadosDashboard = () => {
         semDados: dadosDoMes.length === 0
       };
     });
-  }, [locados, veiculosDisponiveis, searchPlaca, selectedDiretoria, selectedGerencia, selectedModelo, selectedPropriedade]);
+  }, [locados, veiculosDisponiveisCount, searchPlaca, selectedDiretoria, selectedGerencia, selectedModelo, selectedPropriedade]);
 
   // Preventiva data processing
   const statusPreventiva = useMemo(() => {
@@ -670,12 +669,11 @@ export const LocadosDashboard = () => {
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="space-y-1 text-sm">
-                <p><strong>Cálculo:</strong></p>
-                <p>Veículos Monitorados: <strong>{veiculosDisponiveis}</strong></p>
-                <p>Capacidade Total (Dias): <strong>{veiculosDisponiveis * 30 * (selectedMesAno === "all" ? Math.max(1, mesesAnos.length) : 1)}</strong></p>
-                <p>Dias Parados (Filtrado): <strong>{metrics.totalDiasParados}</strong></p>
+                <p><strong>Cálculo Realizado conforme solicitado:</strong></p>
+                <p>Veículos Disponíveis (Base): <strong>{veiculosDisponiveisCount}</strong></p>
+                <p>Dias Parados Acumulados: <strong>{metrics.totalDiasParados}</strong></p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  (Capacidade - Dias Parados) / Capacidade × 100
+                  (Veículos - Dias Parados) / Veículos × 100
                 </p>
               </div>
             </TooltipContent>
