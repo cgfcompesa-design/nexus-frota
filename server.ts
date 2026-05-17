@@ -14,11 +14,19 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
   app.post("/api/send-management-report", async (req, res) => {
     const { alerts, targetEmail, vehicleType } = req.body;
     const email = targetEmail || (vehicleType === 'Locado' ? 'gadlocados@compesa.com.br' : 'gadveiculos@compesa.com.br');
     
-    console.log(`[API] Receiving request to send ${vehicleType || 'management'} report to ${email}`);
+    console.log(`[API] Processing request for ${vehicleType || 'management'} report to ${email}`);
+    
+    if (!alerts || alerts.length === 0) {
+      return res.status(400).json({ success: false, error: "Nenhum alerta para enviar." });
+    }
     
     try {
       console.log(`[INFO] Report data summary: ${alerts?.length || 0} alerts found.`);
