@@ -141,33 +141,31 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
     }, 0);
   }, [fuelData]);
 
-  // Infractions Month (mai./26) - Column L (index 11) is "Autuação", Column H (index 7) is Value, Month in AP (41)
+  // Infractions Month (mai./26) - Column I (index 8) is Notification Date, Column L (index 11) is "Autuação", Column H (index 7) is Value
   const currentMonthInfractionsData = useMemo(() => {
     return infractionsData.filter(i => {
-      // User says: mai./26 in Column AP (41). 
-      const rowStr = JSON.stringify(i).toUpperCase();
+      // Column I (index 8) - Data Notificação
+      const dateVal = String(i.COL_8 || "").toLowerCase();
       
-      const mesVal41 = String(i.COL_41 || "").toLowerCase();
-      const mesVal40 = String(i.COL_40 || "").toLowerCase();
-      const dateVal = String(i.DATA || i.COL_2 || "").toLowerCase();
+      // Filtro para o mês atual (Maio 2026)
+      // Suporta formatos DD/MM/YYYY e DD/MM/YY
+      const isMai26 = dateVal.includes("/05/2026") || dateVal.includes("/05/26");
       
-      const isMai26 = mesVal41.includes("mai") || mesVal40.includes("mai") || (dateVal.includes("/05/2026") || dateVal.includes("/05/26"));
+      // Column L (index 11) - Tipo/Status
+      const typeVal = String(i.COL_11 || "").toUpperCase().trim();
       
-      // Let's check for any mention of the current month and year in the whole row if explicit filters fail
-      const isExplicitMai26 = isMai26;
+      // Regra: Coluna L seja Autuação
+      const isAutuacao = typeVal === "AUTUAÇÃO" || typeVal === "AUTUACAO";
       
-      const typeVal = String(i.COL_11 || i.COL_10 || "").toUpperCase();
-      // Relaxing Autuação check - many items might be Autuações but with different text
-      const isInfraction = typeVal.includes("AUTUAÇÃO") || typeVal.includes("AUTUACAO") || typeVal.includes("NOTIFICAÇÃO") || typeVal.includes("INFRAÇÃO");
-      
-      return isExplicitMai26 && isInfraction;
+      return isMai26 && isAutuacao;
     });
   }, [infractionsData]);
 
   const currentMonthInfractionsValue = useMemo(() => {
     return currentMonthInfractionsData.reduce((acc, curr) => {
-      // Column H (index 7) - contains "R$ 3.521,64" or similar
-      const valText = String(curr.COL_7 || curr["VALOR MULTA"] || curr["VALOR"] || 0);
+      // Column H (index 7) - Valor da multa
+      const valText = String(curr.COL_7 || 0);
+      // Limpeza robusta: remove R$, remove pontos (milhar), troca vírgula por ponto (decimal)
       const cleanVal = valText.replace(/R\$/g, '').replace(/\s/g, '').replace(/\./g, '').replace(',', '.');
       const val = parseFloat(cleanVal);
       return acc + (isNaN(val) ? 0 : val);
@@ -806,15 +804,15 @@ export default function CCODashboard({ setView }: { setView?: (view: string) => 
                 <div key={i} className="p-3 bg-slate-950/50 rounded-xl border border-white/5 hover:border-rose-500/30 transition-all group">
                    <div className="flex justify-between items-start mb-2">
                      <span className="text-[10px] font-black text-white group-hover:text-rose-400 transition-colors uppercase">
-                       {inf["AUTO INFRAÇÃO"] || inf["AUTO"] || inf.COL_5 || "AUTO N/A"}
+                       {inf.COL_5 || inf["AUTO INFRAÇÃO"] || inf["AUTO"] || "AUTO N/A"}
                      </span>
                      <span className="text-[11px] font-black text-rose-500">
                        R$ {String(inf.COL_7 || inf["VALOR MULTA"] || inf["VALOR"] || "0").replace('R$', '').trim()}
                      </span>
                    </div>
                    <div className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase tracking-widest">
-                     <span className="truncate max-w-[120px]">{inf.PLACA || inf.COL_0 || "PLACA N/A"}</span>
-                     <span>{inf.DATA || inf.COL_2 || "DATA N/A"}</span>
+                     <span className="truncate max-w-[120px]">{inf.COL_3 || inf.PLACA || "PLACA N/A"}</span>
+                     <span>{inf.COL_8 || inf.DATA || "DATA N/A"}</span>
                    </div>
                 </div>
               )) : (
