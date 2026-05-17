@@ -83,7 +83,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 
   const alerts = useMemo(() => {
     if (!isOpen) return [];
-    const mntAlers = processMaintenanceAlerts(maintenance, controle);
+    const mntAlers = processMaintenanceAlerts(maintenance, controle, assets);
     const taxAlerts = processTaxAlerts(taxData, assets);
     return [...mntAlers, ...taxAlerts].sort((a, b) => {
       if (a.tipo === b.tipo) return a.dias - b.dias;
@@ -92,9 +92,11 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   }, [maintenance, controle, assets, taxData, isOpen]);
 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
+  const [activeTab, setActiveTab] = useState('proprios');
 
   const handleShareWhatsApp = () => {
-    const message = formatWhatsAppMessage(alerts);
+    const alertsToShare = activeTab === 'proprios' ? proprios : locados;
+    const message = formatWhatsAppMessage(alertsToShare);
     navigator.clipboard.writeText(message);
     toast.success("Resumo copiado para a área de transferência!");
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
@@ -102,20 +104,30 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 
   const handleSendEmail = async () => {
     setIsSendingEmail(true);
+    const alertsToSend = activeTab === 'proprios' ? proprios : locados;
+    const vehicleType = activeTab === 'proprios' ? 'Próprio' : 'Locado';
+    const targetEmail = activeTab === 'proprios' ? 'gadveiculos@compesa.com.br' : 'gadlocados@compesa.com.br';
+
     try {
       const response = await fetch('/api/send-management-report', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alerts })
+        body: JSON.stringify({ 
+          alerts: alertsToSend, 
+          vehicleType,
+          targetEmail
+        })
       });
       
-      if (response.ok) {
-        toast.success("Relatório enviado com sucesso para gadveiculos@compesa.com.br");
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        toast.success(data.message || "Relatório enviado com sucesso!");
       } else {
-        toast.error("Erro ao enviar o relatório por e-mail.");
+        toast.error(data.error || "Erro ao enviar o relatório por e-mail.");
       }
     } catch (error) {
-      toast.error("Falha na conexão com o servidor.");
+      toast.error("Falha na conexão com o servidor de e-mail.");
     } finally {
       setIsSendingEmail(false);
     }
@@ -123,71 +135,84 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 
   if (alerts.length === 0 && !isOpen) return null;
 
-  const vencidos = alerts.filter(a => a.tipo === 'Vencido');
-  const aVencer = alerts.filter(a => a.tipo === 'A Vencer');
+  const proprios = alerts.filter(a => a.propriedade === 'Próprio');
+  const locados = alerts.filter(a => a.propriedade === 'Locado');
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10">
-        <DialogHeader className="p-6 pb-2">
-          <div className="flex items-center space-x-3 mb-2">
-            <div className="p-2 bg-rose-500/10 rounded-xl">
-              <AlertTriangle className="w-6 h-6 text-rose-500" />
+      <DialogContent className="sm:max-w-[800px] h-[85vh] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10">
+        <DialogHeader className="p-6 pb-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-3">
+              <div className="p-2 bg-rose-500/10 rounded-xl">
+                <AlertTriangle className="w-6 h-6 text-rose-500" />
+              </div>
+              <div>
+                <DialogTitle className="text-xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none">
+                  Alertas de Gestão
+                </DialogTitle>
+                <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">
+                  Resumo de Pendências Próprias e Locadas
+                </DialogDescription>
+              </div>
             </div>
-            <div>
-              <DialogTitle className="text-xl font-black uppercase tracking-tighter text-slate-800 dark:text-white leading-none">
-                Alertas de Gestão
-              </DialogTitle>
-              <DialogDescription className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mt-1">
-                Manutenções e Taxas Pendentes
-              </DialogDescription>
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="flex-1 overflow-hidden px-6 pb-6">
-          <Tabs defaultValue="all" className="h-full flex flex-col">
-            <TabsList className="justify-start bg-slate-200/50 dark:bg-slate-900/50 p-1 mb-4">
-              <TabsTrigger value="all" className="text-[10px] uppercase font-black px-4">Todos ({alerts.length})</TabsTrigger>
-              <TabsTrigger value="vencidos" className="text-[10px] uppercase font-black px-4 text-rose-500">Vencidos ({vencidos.length})</TabsTrigger>
-              <TabsTrigger value="avencer" className="text-[10px] uppercase font-black px-4 text-amber-500">A Vencer ({aVencer.length})</TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="all" className="flex-1 overflow-hidden mt-0">
-              <AlertList alerts={alerts} />
-            </TabsContent>
-            <TabsContent value="vencidos" className="flex-1 overflow-hidden mt-0">
-              <AlertList alerts={vencidos} />
-            </TabsContent>
-            <TabsContent value="avencer" className="flex-1 overflow-hidden mt-0">
-              <AlertList alerts={aVencer} />
-            </TabsContent>
-          </Tabs>
-        </div>
-
-        <DialogFooter className="p-6 pt-2 border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-900/30">
-          <div className="flex w-full items-center justify-between">
+            
             <div className="flex space-x-2">
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleShareWhatsApp}
-                className="text-[10px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500 hover:text-white"
+                className="h-8 text-[9px] font-black uppercase tracking-widest bg-emerald-500/10 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500 hover:text-white transition-all"
               >
-                <Share2 className="w-3 h-3 mr-2" /> Copiar WhatsApp
+                <Share2 className="w-3 h-3 mr-2" /> WhatsApp
               </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
                 onClick={handleSendEmail}
                 disabled={isSendingEmail}
-                className="text-[10px] font-black uppercase tracking-widest bg-indigo-500/10 text-indigo-600 border-indigo-500/20 hover:bg-indigo-50"
+                className="h-8 text-[9px] font-black uppercase tracking-widest bg-indigo-500/10 text-indigo-600 border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all"
               >
-                <Mail className="w-3 h-3 mr-2" /> {isSendingEmail ? "Enviando..." : "Enviar E-mail"}
+                <Mail className="w-3 h-3 mr-2" /> {isSendingEmail ? "Enviando..." : "E-mail"}
               </Button>
             </div>
-            <Button onClick={onClose} variant="ghost" className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-              Ignorar por enquanto
+          </div>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden px-6 pb-4">
+          <Tabs defaultValue="proprios" onValueChange={setActiveTab} className="h-full flex flex-col">
+            <div className="flex items-center justify-between mb-4 mt-2 shrink-0">
+              <TabsList className="bg-slate-200/50 dark:bg-slate-900/50 p-1">
+                <TabsTrigger value="proprios" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
+                  Próprios ({proprios.length})
+                </TabsTrigger>
+                <TabsTrigger value="locados" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
+                  Locados ({locados.length})
+                </TabsTrigger>
+              </TabsList>
+              
+              <div className="flex items-center space-x-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
+                <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-rose-500 mr-1.5" /> Vencidos</div>
+                <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-amber-500 mr-1.5" /> Próximos</div>
+              </div>
+            </div>
+
+            <TabsContent value="proprios" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
+              <AlertList alerts={proprios} />
+            </TabsContent>
+            <TabsContent value="locados" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col">
+              <AlertList alerts={locados} />
+            </TabsContent>
+          </Tabs>
+        </div>
+
+        <DialogFooter className="p-4 shrink-0 border-t border-slate-200 dark:border-white/5 bg-white dark:bg-slate-950">
+          <div className="flex w-full items-center justify-between">
+            <div className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">
+              Relatório automatizado: 09h e 14h
+            </div>
+            <Button onClick={onClose} variant="ghost" className="h-8 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-slate-600 transition-colors">
+              Fechar Alertas
             </Button>
           </div>
         </DialogFooter>
@@ -199,46 +224,67 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 function AlertList({ alerts }: { alerts: AlertItem[] }) {
   if (alerts.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-12 text-center">
+      <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-slate-100/30 dark:bg-slate-900/10 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
         <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mb-4" />
         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Tudo em dia!</p>
-        <p className="text-slate-500 text-xs mt-1">Não há alertas pendentes nesta categoria.</p>
+        <p className="text-slate-500 text-[11px] mt-1">Não há alertas pendentes nesta categoria.</p>
       </div>
     );
   }
 
+  // Sort: Vencidos first, then by days
+  const sorted = [...alerts].sort((a, b) => {
+    if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
+    return a.dias - b.dias;
+  });
+
   return (
-    <ScrollArea className="h-full pr-4">
-      <div className="space-y-2">
-        {alerts.map((alert) => (
+    <ScrollArea className="flex-1 pr-4">
+      <div className="space-y-3 pb-4">
+        {sorted.map((alert) => (
           <div 
             key={alert.id}
-            className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-white/5 rounded-xl hover:border-slate-300 dark:hover:border-white/20 transition-all group"
+            className={`p-4 bg-white dark:bg-slate-900 border ${alert.tipo === 'Vencido' ? 'border-rose-500/20 shadow-sm shadow-rose-500/5' : 'border-slate-200 dark:border-white/5'} rounded-2xl hover:border-slate-300 dark:hover:border-white/20 transition-all group`}
           >
-            <div className="flex justify-between items-start mb-1">
-              <div className="flex items-center space-x-2">
-                <span className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-                  {alert.placa}
-                </span>
-                <span className="text-[8px] font-black bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded text-slate-500 uppercase tracking-widest">
-                  {alert.categoria}
-                </span>
-              </div>
-              <Badge variant={alert.tipo === 'Vencido' ? "destructive" : "warning" as any} className="text-[9px] uppercase font-black px-2 py-0">
-                {alert.tipo === 'Vencido' ? `Vencido (${alert.dias} dias)` : `${alert.dias} dias`}
-              </Badge>
-            </div>
-            <p className="text-[11px] font-medium text-slate-600 dark:text-slate-400 line-clamp-1">
-              {alert.descricao}
-            </p>
-            <div className="flex items-center mt-2 space-x-3 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-              <div className="flex items-center">
-                <Clock className="w-2.5 h-2.5 mr-1" /> {alert.vencimento}
-              </div>
-              {alert.infoAdicional && (
-                <div className="truncate max-w-[200px]">
-                  {alert.infoAdicional}
+            <div className="flex justify-between items-start mb-2">
+              <div className="flex flex-col">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                    {alert.placa}
+                  </span>
+                  <Badge variant="outline" className="text-[8px] font-black bg-slate-50 dark:bg-slate-800 border-none px-1.5 py-0.5 text-slate-500 uppercase tracking-widest">
+                    {alert.categoria}
+                  </Badge>
+                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${
+                    alert.criticidade === 'ALTA' ? 'bg-rose-500 text-white' : 
+                    alert.criticidade === 'MÉDIA' || alert.criticidade === 'MEDIA' ? 'bg-amber-500 text-white' : 
+                    'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                  }`}>
+                    {alert.criticidade}
+                  </span>
                 </div>
+                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-0.5">
+                  {alert.gerencia}
+                </span>
+              </div>
+              <div className="text-right">
+                <div className={`text-[10px] font-black uppercase tracking-widest ${alert.tipo === 'Vencido' ? 'text-rose-500' : 'text-amber-500'}`}>
+                  {alert.tipo === 'Vencido' ? `Vencido há ${alert.dias} dias` : `Vence em ${alert.dias} dias`}
+                </div>
+                <div className="flex items-center justify-end mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                  <Clock className="w-2.5 h-2.5 mr-1" /> {alert.vencimento}
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-white/5">
+              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed capitalize">
+                {alert.descricao.toLowerCase()}
+              </p>
+              {alert.infoAdicional && (
+                <p className="text-[9px] font-medium text-slate-400 mt-1 uppercase tracking-widest truncate">
+                  Obs: {alert.infoAdicional}
+                </p>
               )}
             </div>
           </div>
@@ -247,3 +293,4 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
     </ScrollArea>
   );
 }
+

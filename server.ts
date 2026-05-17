@@ -15,17 +15,15 @@ async function startServer() {
 
   // API Routes
   app.post("/api/send-management-report", async (req, res) => {
-    const { alerts } = req.body;
-    console.log(`[API] Receiving request to send report to gadveiculos@compesa.com.br`);
+    const { alerts, targetEmail, vehicleType } = req.body;
+    const email = targetEmail || (vehicleType === 'Locado' ? 'gadlocados@compesa.com.br' : 'gadveiculos@compesa.com.br');
     
-    // In a real production app, we would use nodemailer or a service like SendGrid/SES
-    // Since we don't have keys, we'll log the intention and return success.
-    // Logic for actual sending would go here.
+    console.log(`[API] Receiving request to send ${vehicleType || 'management'} report to ${email}`);
     
     try {
       console.log(`[INFO] Report data summary: ${alerts?.length || 0} alerts found.`);
       // Mock sending
-      res.json({ success: true, message: "Report sent to gadveiculos@compesa.com.br" });
+      res.json({ success: true, message: `Relatório enviado com sucesso para ${email}` });
     } catch (error) {
       console.error("[ERROR] Failed to send report:", error);
       res.status(500).json({ success: false, error: "Internal server error" });
@@ -42,13 +40,12 @@ async function startServer() {
 
     if (minutes === 0 && dateKey !== lastSentDate) {
       if (hours === 9 || hours === 14) {
-        console.log(`[SCHEDULED] System: 09:00/14:00 reached. Preparing automated report...`);
+        console.log(`[SCHEDULED] System: 09:00/14:00 reached. Preparing automated reports...`);
         lastSentDate = dateKey;
         
-        // In a real environment, we would fetch data here using axios/fetch 
-        // from the same Google Sheets URLs and use the processMaintenanceAlerts/processTaxAlerts logic.
-        
-        console.log(`[SCHEDULED] Report would be sent to gadveiculos@compesa.com.br at this moment.`);
+        // In a real environment, we would fetch data here and send to both.
+        console.log(`[SCHEDULED] Automated report would be sent to gadveiculos@compesa.com.br (Próprios)`);
+        console.log(`[SCHEDULED] Automated report would be sent to gadlocados@compesa.com.br (Locados)`);
       }
     }
   }, 30000); // Check every 30 seconds
