@@ -20,48 +20,57 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
 
   const getAssetInfo = (placa: string) => {
     const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa.toUpperCase().trim());
-    const prop = String(asset?.PROPRIEDADE || "").toUpperCase();
-    const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
-    
+    if (asset) {
+      const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
+      const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
+      
+      return {
+        gerencia: asset.GERENCIA || asset.UNIDADE || "N/A",
+        criticidade: asset.CRITICIDADE || "N/A",
+        propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
+      };
+    }
+    // Default for unknown assets -> Locado
     return {
-      gerencia: asset?.GERENCIA || asset?.UNIDADE || "N/A",
-      criticidade: asset?.CRITICIDADE || "N/A",
-      propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
+      gerencia: "N/A",
+      criticidade: "N/A",
+      propriedade: 'Locado' as 'Próprio' | 'Locado'
     };
   };
 
   maintenanceData.forEach((item, idx) => {
-    const placa = String(item.PLACA || item.placa || "").toUpperCase().trim();
-    if (!placa) return;
+    const placa = String(item.PLACA || item.placa || item.COL_1 || "").toUpperCase().trim();
+    if (!placa || placa.length < 5) return;
 
     const info = getAssetInfo(placa);
-    const nextDateRaw = item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["DATA VALIDADE"] || item.COL_10;
+    // Keys often observed in the google sheets for preventive
+    const nextDateRaw = item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || item["DATA VALIDADE"] || item.COL_10 || item.COL_11;
     const date = parseBrazilianDate(nextDateRaw);
     const diff = daysDiffFromToday(date);
 
     if (diff !== null) {
-      if (diff < 0 || diff <= 15) {
+      if (diff < 0 || diff <= 30) {
         alerts.push({
           id: `mnt-prev-${idx}-${placa}`,
           placa,
-          descricao: `Manutenção Preventiva ${diff < 0 ? 'Vencida' : 'a Vencer'}: ${item["SERVIÇO"] || "Geral"}`,
+          descricao: `Manutenção Preventiva ${diff < 0 ? 'Vencida' : 'a Vencer'}: ${item["SERVIÇO"] || item["SERVICO"] || "Geral"}`,
           vencimento: String(nextDateRaw),
           dias: Math.abs(diff),
           tipo: diff < 0 ? 'Vencido' : 'A Vencer',
           categoria: 'Manutenção',
           ...info,
-          infoAdicional: item["GERÊNCIA"] || item.COL_4
+          infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item.COL_4
         });
       }
     }
   });
 
   controleData.forEach((item, idx) => {
-    const placa = String(item.placa || "").toUpperCase().trim();
-    if (!placa) return;
+    const placa = String(item.placa || item.PLACA || "").toUpperCase().trim();
+    if (!placa || placa.length < 5) return;
 
     const info = getAssetInfo(placa);
-    const entregaRaw = item.__raw?.[20];
+    const entregaRaw = item.expectativaEntrega || item.__raw?.[20];
     const dateEntrega = parseBrazilianDate(entregaRaw);
     const diffEntrega = daysDiffFromToday(dateEntrega);
 
@@ -88,23 +97,31 @@ export function processTaxAlerts(taxasData: any[], assets: any[]): AlertItem[] {
   
   const getAssetInfo = (placa: string) => {
     const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa.toUpperCase().trim());
-    const prop = String(asset?.PROPRIEDADE || "").toUpperCase();
-    const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
-    
+    if (asset) {
+      const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
+      const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
+      
+      return {
+        gerencia: asset.GERENCIA || asset.UNIDADE || "N/A",
+        criticidade: asset.CRITICIDADE || "N/A",
+        propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
+      };
+    }
     return {
-      gerencia: asset?.GERENCIA || asset?.UNIDADE || "N/A",
-      criticidade: asset?.CRITICIDADE || "N/A",
-      propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
+      gerencia: "N/A",
+      criticidade: "N/A",
+      propriedade: 'Locado' as 'Próprio' | 'Locado'
     };
   };
 
   taxasData.forEach((item, idx) => {
-    const placa = String(item.Placa || item.placa || "").toUpperCase().trim();
+    const placa = String(item.Placa || item.placa || item.PLACA || "").toUpperCase().trim();
+    if (!placa || placa.length < 5) return;
+    
     const info = getAssetInfo(placa);
-    if (info.gerencia === "N/A" && !assets.some(a => String(a.PLACA || "").toUpperCase().trim() === placa)) return;
 
     const type = item.__tipo || "Taxa/Inspeção";
-    const validadeRaw = item[item.__validadeKey] || item["DATA VALIDADE"];
+    const validadeRaw = item[item.__validadeKey] || item["DATA VALIDADE"] || item["VALIDADE"];
     const date = parseBrazilianDate(validadeRaw);
     const diff = daysDiffFromToday(date);
 

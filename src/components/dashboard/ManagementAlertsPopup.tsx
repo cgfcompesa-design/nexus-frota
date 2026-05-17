@@ -91,32 +91,57 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     });
   }, [maintenance, controle, assets, taxData, isOpen]);
 
+  const proprios = useMemo(() => alerts.filter(a => a.propriedade === 'Próprio'), [alerts]);
+  const locados = useMemo(() => alerts.filter(a => a.propriedade === 'Locado'), [alerts]);
+
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [activeTab, setActiveTab] = useState('proprios');
 
   const handleCopyWhatsApp = () => {
-    const alertsToShare = activeTab === 'proprios' ? proprios : locados;
-    const message = formatWhatsAppMessage(alertsToShare);
-    navigator.clipboard.writeText(message);
-    toast.success("Resumo copiado com sucesso!");
+    try {
+      const alertsToShare = activeTab === 'proprios' ? proprios : locados;
+      if (alertsToShare.length === 0) {
+        toast.error("Nenhum alerta para copiar.");
+        return;
+      }
+      const message = formatWhatsAppMessage(alertsToShare);
+      navigator.clipboard.writeText(message);
+      toast.success("Resumo copiado com sucesso!");
+    } catch (err) {
+      toast.error("Erro ao copiar para área de transferência.");
+    }
   };
 
   const handleShareWhatsApp = () => {
-    const alertsToShare = activeTab === 'proprios' ? proprios : locados;
-    const message = formatWhatsAppMessage(alertsToShare);
-    navigator.clipboard.writeText(message);
-    window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    try {
+      const alertsToShare = activeTab === 'proprios' ? proprios : locados;
+      if (alertsToShare.length === 0) {
+        toast.error("Nenhum alerta para compartilhar.");
+        return;
+      }
+      const message = formatWhatsAppMessage(alertsToShare);
+      navigator.clipboard.writeText(message);
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+    } catch (err) {
+      toast.error("Erro ao iniciar compartilhamento.");
+    }
   };
 
   const handleSendEmail = async () => {
-    setIsSendingEmail(true);
+    if (isSendingEmail) return;
+    
     const alertsToSend = activeTab === 'proprios' ? proprios : locados;
+    if (alertsToSend.length === 0) {
+      toast.error("Não há alertas para enviar nesta categoria.");
+      return;
+    }
+
+    setIsSendingEmail(true);
     const vehicleType = activeTab === 'proprios' ? 'Próprio' : 'Locado';
     const targetEmail = activeTab === 'proprios' ? 'gadveiculos@compesa.com.br' : 'gadlocados@compesa.com.br';
 
     try {
-      const apiUrl = `${window.location.origin}/api/send-management-report`;
-      const response = await fetch(apiUrl, {
+      const response = await fetch('/api/send-management-report', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -129,25 +154,27 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
         })
       });
       
-      const data = await response.json().catch(() => ({ success: false, error: "Resposta inválida do servidor" }));
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        throw new Error("Servidor retornou uma resposta inválida (não JSON).");
+      }
       
       if (response.ok && data.success) {
         toast.success(data.message || "Relatório enviado com sucesso!");
       } else {
         toast.error(data.error || "Erro no servidor ao processar envio.");
       }
-    } catch (error) {
-      console.error("Email fetch error:", error);
-      toast.error("Não foi possível conectar ao servidor de e-mail.");
+    } catch (error: any) {
+      console.error("Email fetch error details:", error);
+      toast.error(error.message || "Não foi possível conectar ao servidor de e-mail.");
     } finally {
       setIsSendingEmail(false);
     }
   };
 
-  if (alerts.length === 0 && !isOpen) return null;
-
-  const proprios = alerts.filter(a => a.propriedade === 'Próprio');
-  const locados = alerts.filter(a => a.propriedade === 'Locado');
+  if (!isOpen && alerts.length === 0) return null;
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -258,9 +285,9 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
   });
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col relative px-2">
-      <ScrollArea className="flex-1 w-full rounded-2xl">
-        <div className="space-y-3 pb-8 pr-4">
+    <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-2">
+      <div className="flex-1 overflow-y-auto pr-2 pb-8 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+        <div className="space-y-3 mt-1">
           {sorted.map((alert) => (
           <div 
             key={alert.id}
@@ -310,7 +337,7 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
           </div>
         ))}
       </div>
-    </ScrollArea>
+    </div>
   </div>
   );
 }
