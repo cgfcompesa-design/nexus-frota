@@ -26,12 +26,32 @@ export function parseCurrency(value: string | number | undefined): number {
 export function parseBrazilianDate(value: string | number | undefined): Date | null {
   if (!value) return null;
   const str = String(value).trim();
-  const parts = str.split("/");
-  if (parts.length !== 3) return null;
-  const [day, month, year] = parts.map((p) => parseInt(p, 10));
-  if (!day || !month || !year) return null;
-  const fullYear = year < 100 ? 2000 + year : year;
-  return new Date(fullYear, month - 1, day);
+  
+  // Handle Excel serial numbers (e.g., 45429)
+  if (/^\d{5,}(\.\d+)?$/.test(str)) {
+    const excelDate = parseFloat(str);
+    return new Date(Math.round((excelDate - 25569) * 86400 * 1000));
+  }
+
+  // Handle DD/MM/YYYY or DD-MM-YYYY
+  const parts = str.split(/[\/-]/);
+  if (parts.length === 3) {
+    const day = parseInt(parts[0], 10);
+    const month = parseInt(parts[1], 10);
+    let year = parseInt(parts[2], 10);
+    
+    if (day && month && year) {
+      if (year < 100) year += 2000;
+      // Basic validation
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        return new Date(year, month - 1, day);
+      }
+    }
+  }
+
+  // Fallback to native Date for other formats (YYYY-MM-DD etc)
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
 }
 
 export function daysDiffFromToday(date: Date | null): number | null {

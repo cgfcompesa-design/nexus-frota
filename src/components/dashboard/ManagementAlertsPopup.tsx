@@ -130,8 +130,8 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   const handleSendEmail = async () => {
     if (isSendingEmail) return;
     
-    const alertsToSend = activeTab === 'proprios' ? proprios : locados;
-    if (alertsToSend.length === 0) {
+    const alertsToReport = activeTab === 'proprios' ? proprios : locados;
+    if (!alertsToReport || alertsToReport.length === 0) {
       toast.error("Não há alertas para enviar nesta categoria.");
       return;
     }
@@ -148,27 +148,28 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
           'Accept': 'application/json'
         },
         body: JSON.stringify({ 
-          alerts: alertsToSend, 
+          alerts: alertsToReport, 
           vehicleType,
           targetEmail
         })
       });
       
+      const responseText = await response.text();
       let data;
       try {
-        data = await response.json();
-      } catch (parseError) {
-        throw new Error("Servidor retornou uma resposta inválida (não JSON).");
+        data = JSON.parse(responseText);
+      } catch (e) {
+        throw new Error("O servidor enviou um formato inválido. Tente novamente mais tarde.");
       }
       
       if (response.ok && data.success) {
         toast.success(data.message || "Relatório enviado com sucesso!");
       } else {
-        toast.error(data.error || "Erro no servidor ao processar envio.");
+        toast.error(data.error || "Erro ao processar envio no servidor.");
       }
     } catch (error: any) {
-      console.error("Email fetch error details:", error);
-      toast.error(error.message || "Não foi possível conectar ao servidor de e-mail.");
+      console.error("Email send fatal error:", error);
+      toast.error(error.message || "Falha na conexão com o servidor de e-mail.");
     } finally {
       setIsSendingEmail(false);
     }
@@ -225,9 +226,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-6">
-          <Tabs defaultValue="proprios" onValueChange={setActiveTab} className="h-full flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between mb-4 mt-4 shrink-0">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-6 bg-slate-50 dark:bg-slate-950/50">
+          <Tabs defaultValue="proprios" onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between py-4 shrink-0">
               <TabsList className="bg-slate-200/50 dark:bg-slate-900/50 p-1">
                 <TabsTrigger value="proprios" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
                   Próprios ({proprios.length})
@@ -242,13 +243,15 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                 <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-amber-500 mr-1.5" /> Próximos</div>
               </div>
             </div>
-
-            <TabsContent value="proprios" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col min-h-0">
-              <AlertList alerts={proprios} />
-            </TabsContent>
-            <TabsContent value="locados" className="flex-1 overflow-hidden mt-0 data-[state=active]:flex flex-col min-h-0">
-              <AlertList alerts={locados} />
-            </TabsContent>
+            
+            <div className="flex-1 min-h-0 overflow-hidden relative">
+              <TabsContent value="proprios" className="absolute inset-0 m-0 data-[state=active]:flex flex-col">
+                <AlertList alerts={proprios} />
+              </TabsContent>
+              <TabsContent value="locados" className="absolute inset-0 m-0 data-[state=active]:flex flex-col">
+                <AlertList alerts={locados} />
+              </TabsContent>
+            </div>
           </Tabs>
         </div>
 
@@ -270,7 +273,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 function AlertList({ alerts }: { alerts: AlertItem[] }) {
   if (alerts.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-slate-100/30 dark:bg-slate-900/10 rounded-2xl border border-dashed border-slate-200 dark:border-white/5 mx-2">
+      <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
         <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mb-4" />
         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Tudo em dia!</p>
         <p className="text-slate-500 text-[11px] mt-1">Não há alertas pendentes nesta categoria.</p>
@@ -285,60 +288,60 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
   });
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col overflow-hidden px-2">
-      <div className="flex-1 overflow-y-auto pr-2 pb-8 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-        <div className="space-y-3 mt-1">
+    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+      <ScrollArea className="flex-1 w-full h-full pr-4">
+        <div className="space-y-3 pb-20">
           {sorted.map((alert) => (
-          <div 
-            key={alert.id}
-            className={`p-4 bg-white dark:bg-slate-900 border ${alert.tipo === 'Vencido' ? 'border-rose-500/20 shadow-sm shadow-rose-500/5' : 'border-slate-200 dark:border-white/5'} rounded-2xl hover:border-slate-300 dark:hover:border-white/20 transition-all group`}
-          >
-            <div className="flex justify-between items-start mb-2">
-              <div className="flex flex-col">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-                    {alert.placa}
+            <div 
+              key={alert.id}
+              className={`p-4 bg-white dark:bg-slate-900 border ${alert.tipo === 'Vencido' ? 'border-rose-500/20 shadow-sm shadow-rose-500/5' : 'border-slate-200 dark:border-white/5'} rounded-2xl hover:border-slate-300 dark:hover:border-white/20 transition-all group`}
+            >
+              <div className="flex justify-between items-start mb-2">
+                <div className="flex flex-col">
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                      {alert.placa}
+                    </span>
+                    <Badge variant="outline" className="text-[8px] font-black bg-slate-50 dark:bg-slate-800 border-none px-1.5 py-0.5 text-slate-500 uppercase tracking-widest">
+                      {alert.categoria}
+                    </Badge>
+                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${
+                      alert.criticidade === 'ALTA' ? 'bg-rose-500 text-white' : 
+                      alert.criticidade === 'MÉDIA' || alert.criticidade === 'MEDIA' ? 'bg-amber-500 text-white' : 
+                      'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                    }`}>
+                      {alert.criticidade}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-0.5">
+                    {alert.gerencia}
                   </span>
-                  <Badge variant="outline" className="text-[8px] font-black bg-slate-50 dark:bg-slate-800 border-none px-1.5 py-0.5 text-slate-500 uppercase tracking-widest">
-                    {alert.categoria}
-                  </Badge>
-                  <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-widest ${
-                    alert.criticidade === 'ALTA' ? 'bg-rose-500 text-white' : 
-                    alert.criticidade === 'MÉDIA' || alert.criticidade === 'MEDIA' ? 'bg-amber-500 text-white' : 
-                    'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
-                  }`}>
-                    {alert.criticidade}
-                  </span>
                 </div>
-                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-0.5">
-                  {alert.gerencia}
-                </span>
-              </div>
-              <div className="text-right">
-                <div className={`text-[10px] font-black uppercase tracking-widest ${alert.tipo === 'Vencido' ? 'text-rose-500' : 'text-amber-500'}`}>
-                  {alert.tipo === 'Vencido' ? `Vencido há ${alert.dias} dias` : `Vence em ${alert.dias} dias`}
-                </div>
-                <div className="flex items-center justify-end mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
-                  <Clock className="w-2.5 h-2.5 mr-1" /> {alert.vencimento}
+                <div className="text-right">
+                  <div className={`text-[10px] font-black uppercase tracking-widest ${alert.tipo === 'Vencido' ? 'text-rose-500' : 'text-amber-500'}`}>
+                    {alert.tipo === 'Vencido' ? `Vencido há ${alert.dias} dias` : `Vence em ${alert.dias} dias`}
+                  </div>
+                  <div className="flex items-center justify-end mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
+                    <Clock className="w-2.5 h-2.5 mr-1" /> {alert.vencimento}
+                  </div>
                 </div>
               </div>
-            </div>
-            
-            <div className="p-2.5 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-white/5">
-              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed capitalize">
-                {alert.descricao.toLowerCase()}
-              </p>
-              {alert.infoAdicional && (
-                <p className="text-[9px] font-medium text-slate-400 mt-1 uppercase tracking-widest truncate">
-                  Obs: {alert.infoAdicional}
+              
+              <div className="p-2.5 bg-slate-50 dark:bg-slate-950/50 rounded-xl border border-slate-100 dark:border-white/5">
+                <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 leading-relaxed capitalize">
+                  {alert.descricao.toLowerCase()}
                 </p>
-              )}
+                {alert.infoAdicional && (
+                  <p className="text-[9px] font-medium text-slate-400 mt-1 uppercase tracking-widest truncate">
+                    Obs: {alert.infoAdicional}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </ScrollArea>
     </div>
-  </div>
   );
 }
 

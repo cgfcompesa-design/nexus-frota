@@ -44,7 +44,10 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
 
     const info = getAssetInfo(placa);
     // Keys often observed in the google sheets for preventive
-    const nextDateRaw = item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || item["DATA VALIDADE"] || item.COL_10 || item.COL_11;
+    const nextDateRaw = item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || 
+                        item["DATA VALIDADE"] || item["VALIDADE"] || item["DATA"] || 
+                        item["VENCIMENTO"] || item.COL_10 || item.COL_11 || item.COL_5 || item.COL_6;
+    
     const date = parseBrazilianDate(nextDateRaw);
     const diff = daysDiffFromToday(date);
 
@@ -53,13 +56,13 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
         alerts.push({
           id: `mnt-prev-${idx}-${placa}`,
           placa,
-          descricao: `Manutenção Preventiva ${diff < 0 ? 'Vencida' : 'a Vencer'}: ${item["SERVIÇO"] || item["SERVICO"] || "Geral"}`,
+          descricao: `Manutenção Preventiva ${diff < 0 ? 'Vencida' : 'a Vencer'}: ${item["SERVIÇO"] || item["SERVICO"] || item["ATIVIDADE"] || item.COL_2 || "Geral"}`,
           vencimento: String(nextDateRaw),
           dias: Math.abs(diff),
           tipo: diff < 0 ? 'Vencido' : 'A Vencer',
           categoria: 'Manutenção',
           ...info,
-          infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item.COL_4
+          infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item["OBS"] || item["OBSERVAÇÃO"] || item.COL_4
         });
       }
     }
