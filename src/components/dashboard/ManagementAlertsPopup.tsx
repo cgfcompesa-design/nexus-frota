@@ -155,10 +155,15 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       });
       
       const responseText = await response.text();
+      if (!responseText) {
+        throw new Error("O servidor retornou uma resposta vazia.");
+      }
+      
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (e) {
+        console.error("JSON Parse Error. Server response:", responseText);
         throw new Error("O servidor enviou um formato inválido. Tente novamente mais tarde.");
       }
       
@@ -244,11 +249,11 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
               </div>
             </div>
             
-            <div className="flex-1 min-h-0 overflow-hidden relative">
-              <TabsContent value="proprios" className="absolute inset-0 m-0 data-[state=active]:flex flex-col">
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <TabsContent value="proprios" className="flex-1 flex flex-col m-0 overflow-hidden data-[state=active]:flex">
                 <AlertList alerts={proprios} />
               </TabsContent>
-              <TabsContent value="locados" className="absolute inset-0 m-0 data-[state=active]:flex flex-col">
+              <TabsContent value="locados" className="flex-1 flex flex-col m-0 overflow-hidden data-[state=active]:flex">
                 <AlertList alerts={locados} />
               </TabsContent>
             </div>
@@ -281,16 +286,26 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
     );
   }
 
-  // Sort: Vencidos first, then by days
+  // Sort: Criticality first, then Vencidos, then by days
   const sorted = [...alerts].sort((a, b) => {
+    const getScore = (c?: string) => {
+      const crit = String(c || "").toUpperCase().trim();
+      if (crit === 'ALTA' || crit === 'A') return 0;
+      if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
+      if (crit === 'BAIXA' || crit === 'C') return 2;
+      return 3;
+    };
+    const scoreA = getScore(a.criticidade);
+    const scoreB = getScore(b.criticidade);
+    if (scoreA !== scoreB) return scoreA - scoreB;
     if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
     return a.dias - b.dias;
   });
 
   return (
-    <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-      <ScrollArea className="flex-1 w-full h-full pr-4">
-        <div className="space-y-3 pb-20">
+    <div className="flex-1 min-h-0 flex flex-col">
+      <ScrollArea className="flex-1 w-full h-[calc(90vh-220px)]">
+        <div className="space-y-3 pr-4 pb-20">
           {sorted.map((alert) => (
             <div 
               key={alert.id}

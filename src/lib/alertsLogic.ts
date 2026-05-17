@@ -158,20 +158,40 @@ export function formatWhatsAppMessage(alerts: AlertItem[]): string {
     return { proprios, locados };
   };
 
+  const getCriticalityScore = (c?: string) => {
+    const critical = String(c || "").toUpperCase().trim();
+    if (critical === 'ALTA' || critical === 'A') return 0;
+    if (critical === 'MÉDIA' || critical === 'MEDIA' || critical === 'B') return 1;
+    if (critical === 'BAIXA' || critical === 'C') return 2;
+    return 3;
+  };
+
   const renderSection = (title: string, items: AlertItem[]) => {
     if (items.length === 0) return "";
     let section = `*${title.toUpperCase()}*\n`;
     
+    // Sort all items in this section primarily by criticality
+    const sortedItems = [...items].sort((a, b) => {
+      const scoreA = getCriticalityScore(a.criticidade);
+      const scoreB = getCriticalityScore(b.criticidade);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
+      return a.dias - b.dias;
+    });
+
     const cats = ['Manutenção', 'Taxas', 'Disponibilidade'];
     cats.forEach(cat => {
-      const catItems = items.filter(i => i.categoria === cat);
+      const catItems = sortedItems.filter(i => i.categoria === cat);
       if (catItems.length === 0) return;
       
       section += `\n*${cat.toUpperCase()}*\n`;
       catItems.forEach(v => {
         const icon = v.tipo === 'Vencido' ? '🚩' : '⏳';
-        section += `${icon} ${v.placa}: ${v.descricao}\n`;
-        section += `   └ Gerência: ${v.gerencia} | Criticidade: ${v.criticidade}\n`;
+        const critIcon = v.criticidade === 'ALTA' || v.criticidade === 'A' ? '🔴' : 
+                         v.criticidade === 'MÉDIA' || v.criticidade === 'MEDIA' || v.criticidade === 'B' ? '🟡' : '⚪';
+        
+        section += `${icon} ${critIcon} ${v.placa}: ${v.descricao}\n`;
+        section += `   └ Gerência: ${v.gerencia} | Crit: ${v.criticidade}\n`;
         section += `   └ Vcto: ${v.vencimento} (${v.tipo === 'Vencido' ? 'Atraso' : 'Faltam'} ${v.dias}d)\n`;
       });
     });
