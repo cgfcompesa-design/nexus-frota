@@ -72,6 +72,7 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
   const [currentPageTime, setCurrentPageTime] = useState(1);
   const [currentPageInconsistency, setCurrentPageInconsistency] = useState(1);
   const [isGroupedByUnit, setIsGroupedByUnit] = useState(false);
+  const [isInconsistencyGroupedByUnit, setIsInconsistencyGroupedByUnit] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
   const itemsPerPage = 20;
@@ -90,6 +91,8 @@ const rangeLabels: Record<string, string> = {
   const [emailGerencia, setEmailGerencia] = useState("");
   const [justifyGerencia, setJustifyGerencia] = useState("");
   const [isInconsistencyEmailDialogOpen, setIsInconsistencyEmailDialogOpen] = useState(false);
+  const [isGroupedInconsistencyEmailDialogOpen, setIsGroupedInconsistencyEmailDialogOpen] = useState(false);
+  const [groupedInconsistencyGerencia, setGroupedInconsistencyGerencia] = useState("");
   const [inconsistencyGerencia, setInconsistencyGerencia] = useState("");
   const [selectedInconsistency, setSelectedInconsistency] = useState<any>(null);
 
@@ -403,6 +406,17 @@ const rangeLabels: Record<string, string> = {
   // Filtros de busca e Paginação
   const paginatedInconsistency = inconsistencyAnalysis.slice((currentPageInconsistency - 1) * itemsPerPage, currentPageInconsistency * itemsPerPage);
 
+  const groupedInconsistencies = useMemo(() => {
+    if (!isInconsistencyGroupedByUnit) return [];
+    const grouped: Record<string, any[]> = {};
+    inconsistencyAnalysis.forEach(inc => {
+      const unidade = inc.unidade || "N/A";
+      if (!grouped[unidade]) grouped[unidade] = [];
+      grouped[unidade].push(inc);
+    });
+    return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [inconsistencyAnalysis, isInconsistencyGroupedByUnit]);
+
   const filteredIrregular = irregularTransactions.filter(t => 
     t.placa.includes(searchTermUnknown.toUpperCase()) || 
     t.motorista.toUpperCase().includes(searchTermUnknown.toUpperCase())
@@ -583,6 +597,52 @@ Coordenação de Gestão de Frotas - CGF`;
     window.location.href = mailto;
     setIsInconsistencyEmailDialogOpen(false);
     toast.success("E-mail de divergência preparado!");
+  };
+
+  const handleSendGroupedInconsistencyEmail = () => {
+    if (!groupedInconsistencyGerencia) {
+      toast.error("Por favor, selecione uma gerência");
+      return;
+    }
+
+    const currentInconsistencies = inconsistencyAnalysis.filter(inc => {
+      const unidade = inc.unidade || "N/A";
+      return unidade === groupedInconsistencyGerencia;
+    });
+
+    if (currentInconsistencies.length === 0) {
+      toast.error("Nenhuma divergência encontrada para esta gerência.");
+      return;
+    }
+
+    const detailText = currentInconsistencies.map(inc => 
+      `- Placa: ${inc.placa}\n  Data: ${inc.data} ${inc.time}\n  Cód. Transação: ${inc.transacao}\n  Valor Informado: ${inc.odometer}\n  KM Rodados: ${inc.kmRodados}\n  Motivo: ${inc.motivo}`
+    ).join("\n\n");
+
+    const subject = `Resumo de Divergências de KM/Horímetro - ${groupedInconsistencyGerencia}`;
+    const body = `Prezado Gestor (${groupedInconsistencyGerencia}),
+
+Identificamos as seguintes inconsistências no KM/Horímetro informados nos abastecimentos dos veículos vinculados à sua unidade:
+
+${detailText}
+
+Solicitamos, por gentileza, analisar as ocorrências acima e informar os valores corretos. Caso necessário, envie a papeleta ou foto do painel para fins de ajuste.
+
+O prazo para retorno é de 01 (um) dia útil a contar deste e-mail. Ressaltamos que a falta de retorno poderá implicar no bloqueio dos cartões de abastecimento dos veículos envolvidos.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas - CGF`;
+
+    const cc = getCCEmails();
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toRaw = getEmailsByGerencia(groupedInconsistencyGerencia);
+    const toFiltered = toRaw.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    const to = toFiltered.join(";");
+
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
+    window.location.href = mailto;
+    setIsGroupedInconsistencyEmailDialogOpen(false);
+    toast.success("E-mail de resumo de divergências preparado!");
   };
 
   const handleExportInconsistency = (item: any) => {
@@ -806,74 +866,141 @@ Coordenação de Gestão de Frotas - CGF`;
                    <CardDescription className="text-[9px] uppercase font-bold text-slate-400">Detecção de saltos de Hodômetro {">"}30% ou KM Rodados negativos</CardDescription>
                  </div>
                </div>
+               <div className="flex items-center gap-2">
+                 <Button 
+                    variant={isInconsistencyGroupedByUnit ? "default" : "outline"}
+                    onClick={() => setIsInconsistencyGroupedByUnit(!isInconsistencyGroupedByUnit)}
+                    className={`h-7 text-[9px] font-black uppercase transition-all ${isInconsistencyGroupedByUnit ? 'bg-amber-100 text-amber-700 border-amber-200 shadow-sm' : 'border-slate-200 dark:border-slate-800 text-slate-500'}`}
+                  >
+                    Unificar por Unidade
+                  </Button>
+                  <Button 
+                    onClick={() => setIsGroupedInconsistencyEmailDialogOpen(true)} 
+                    disabled={inconsistencyAnalysis.length === 0}
+                    className="h-7 text-[9px] font-black uppercase bg-amber-600 hover:bg-amber-700 gap-1 text-white"
+                  >
+                    <Mail className="h-3 w-3" /> Solicitar Justificativa
+                  </Button>
+               </div>
             </div>
           </CardHeader>
-          <ScrollArea className="h-[400px] w-full">
-            <div className="relative w-full overflow-x-auto">
-              <Table className="min-w-[1000px]">
-                <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10 sticky top-0 z-10">
-                  <TableRow className="hover:bg-transparent border-none">
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Placa</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Data / Hora</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Cód. Transação</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Motorista</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10 text-right">Hodômetro</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10 text-right">KM Rodados</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10">Motivo</TableHead>
-                    <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 bg-amber-50/30 dark:bg-amber-900/10 text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paginatedInconsistency.map((t, i) => (
-                    <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
-                      <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
-                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
-                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
-                      <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
-                      <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
-                      <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
-                        <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
-                      </TableCell>
-                      <TableCell className="py-2">
-                         <Badge variant="outline" className="text-[8px] h-4 font-bold border-amber-200 text-amber-600 uppercase">{t.motivo}</Badge>
-                      </TableCell>
-                      <TableCell className="py-2 text-right">
-                         <div className="flex justify-end gap-1">
-                           <Button 
-                             variant="ghost" 
-                             size="icon" 
-                             className="h-7 w-7 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50"
-                             onClick={() => handleExportInconsistency(t)}
-                             title="Baixar histórico da divergência"
-                           >
-                             <Download className="h-4 w-4" />
-                           </Button>
-                           <Button 
-                             variant="ghost" 
-                             size="icon" 
-                             className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                             onClick={() => {
-                               setSelectedInconsistency(t);
-                               setInconsistencyGerencia(t.unidade !== "N/A" ? t.unidade : "");
-                               setIsInconsistencyEmailDialogOpen(true);
-                             }}
-                             title="Notificar Gestor"
-                           >
-                             <Mail className="h-4 w-4" />
-                           </Button>
-                         </div>
-                      </TableCell>
+          <ScrollArea className="h-[450px] w-full">
+            <div className="relative w-full overflow-x-auto p-4">
+              {!isInconsistencyGroupedByUnit ? (
+                <Table className="min-w-[1000px]">
+                  <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10 sticky top-0 z-10">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Placa</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Data / Hora</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Cód. Transação</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motorista</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Hodômetro</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">KM Rodados</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motivo</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Ações</TableHead>
                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {paginatedInconsistency.map((t, i) => (
+                      <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
+                        <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
+                        <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
+                        <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
+                        <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
+                        <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
+                        <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
+                          <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
+                        </TableCell>
+                        <TableCell className="py-2">
+                           <Badge variant="outline" className="text-[8px] h-4 font-bold border-amber-200 text-amber-600 uppercase">{t.motivo}</Badge>
+                        </TableCell>
+                        <TableCell className="py-2 text-right">
+                           <div className="flex justify-end gap-1">
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="h-7 w-7 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50"
+                               onClick={() => handleExportInconsistency(t)}
+                               title="Baixar histórico da divergência"
+                             >
+                               <Download className="h-4 w-4" />
+                             </Button>
+                             <Button 
+                               variant="ghost" 
+                               size="icon" 
+                               className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                               onClick={() => {
+                                 setSelectedInconsistency(t);
+                                 setInconsistencyGerencia(t.unidade !== "N/A" ? t.unidade : "");
+                                 setIsInconsistencyEmailDialogOpen(true);
+                               }}
+                               title="Notificar Gestor"
+                             >
+                               <Mail className="h-4 w-4" />
+                             </Button>
+                           </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {paginatedInconsistency.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
+                          Nenhuma divergência de hodômetro detectada
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="space-y-4">
+                  {groupedInconsistencies.map(([unidade, items]) => (
+                    <div key={unidade} className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
+                      <div className="bg-slate-50 dark:bg-slate-800/50 p-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="h-4 w-4 text-amber-500" />
+                          <span className="text-[10px] font-black uppercase text-slate-700 dark:text-slate-200 tracking-widest">{unidade}</span>
+                          <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 text-[9px] font-black">{items.length} {items.length === 1 ? 'Divergência' : 'Divergências'}</Badge>
+                        </div>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          className="h-7 text-[9px] font-black uppercase text-amber-600 hover:bg-amber-50 gap-2"
+                          onClick={() => {
+                            setGroupedInconsistencyGerencia(unidade);
+                            setIsGroupedInconsistencyEmailDialogOpen(true);
+                          }}
+                        >
+                          <Mail className="h-3 w-3" /> Notificar Unidade
+                        </Button>
+                      </div>
+                      <Table>
+                         <TableHeader className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+                           <TableRow className="hover:bg-transparent">
+                             <TableHead className="text-[8px] font-black uppercase h-7">Placa</TableHead>
+                             <TableHead className="text-[8px] font-black uppercase h-7">Data</TableHead>
+                             <TableHead className="text-[8px] font-black uppercase h-7">Motivo</TableHead>
+                             <TableHead className="text-[8px] font-black uppercase h-7 text-right">Hodômetro</TableHead>
+                             <TableHead className="text-[8px] font-black uppercase h-7 text-right">Diff/KM</TableHead>
+                           </TableRow>
+                         </TableHeader>
+                         <TableBody>
+                           {items.map((it, idx) => (
+                             <TableRow key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                               <TableCell className="py-1.5 text-[9px] font-black text-amber-600">{it.placa}</TableCell>
+                               <TableCell className="py-1.5 text-[8px] font-bold text-slate-500 uppercase">{it.data} {it.time}</TableCell>
+                               <TableCell className="py-1.5">
+                                 <span className="text-[8px] font-bold text-slate-400 truncate max-w-[120px] block" title={it.motivo}>{it.motivo}</span>
+                               </TableCell>
+                               <TableCell className="py-1.5 text-right text-[9px] font-black text-slate-600 dark:text-slate-400">{it.odometer.toLocaleString()}</TableCell>
+                               <TableCell className={`py-1.5 text-right text-[9px] font-black ${it.kmRodados < 0 ? 'text-rose-500' : 'text-slate-600 dark:text-slate-400'}`}>{it.kmRodados.toLocaleString()}</TableCell>
+                             </TableRow>
+                           ))}
+                         </TableBody>
+                      </Table>
+                    </div>
                   ))}
-                  {paginatedInconsistency.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={8} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
-                        Nenhuma divergência de hodômetro detectada
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
+                </div>
+              )}
             </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
@@ -1282,6 +1409,55 @@ Coordenação de Gestão de Frotas - CGF`;
             <Button variant="ghost" onClick={() => setIsInconsistencyEmailDialogOpen(false)} className="text-[10px] font-black uppercase">Cancelar</Button>
             <Button onClick={handleSendInconsistencyEmail} className="bg-amber-600 hover:bg-amber-700 text-[10px] font-black uppercase shadow-lg h-10 px-6">
               Enviar E-mail
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* GROUPED INCONSISTENCY EMAIL DIALOG */}
+      <Dialog open={isGroupedInconsistencyEmailDialogOpen} onOpenChange={setIsGroupedInconsistencyEmailDialogOpen}>
+        <DialogContent className="max-w-md bg-white dark:bg-slate-900 border-none shadow-2xl rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600 uppercase font-black tracking-tighter">
+              <Building2 className="h-5 w-5" /> Resumo de Divergências por Unidade
+            </DialogTitle>
+            <DialogDescription className="text-[10px] font-bold uppercase text-slate-400">
+              Solicite justificativas para todas as divergências de uma unidade específica.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Unidade Responsável</label>
+              <Select value={groupedInconsistencyGerencia} onValueChange={setGroupedInconsistencyGerencia}>
+                <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
+                  <SelectValue placeholder="Selecione a Unidade..." />
+                </SelectTrigger>
+                <SelectContent className="max-h-[200px]">
+                  {[...new Set(assets.map(a => a.GERENCIA || a["GERÊNCIA"]).filter(Boolean))].sort().map(g => (
+                    <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-800/30">
+              <div className="flex items-start gap-3">
+                <Mail className="h-5 w-5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-amber-700 dark:text-amber-400 uppercase">E-mail Unificado</p>
+                  <p className="text-[11px] font-bold text-amber-600/80 leading-relaxed italic">
+                    Este e-mail agrupará todas as inconsistências de KM/Horímetro detectadas para a unidade selecionada no período atual.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="ghost" onClick={() => setIsGroupedInconsistencyEmailDialogOpen(false)} className="text-[10px] font-black uppercase">Cancelar</Button>
+            <Button onClick={handleSendGroupedInconsistencyEmail} className="bg-amber-600 hover:bg-amber-700 text-[10px] font-black text-white uppercase shadow-lg h-10 px-6">
+              Gerar Resumo Unificado
             </Button>
           </DialogFooter>
         </DialogContent>
