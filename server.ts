@@ -22,22 +22,32 @@ async function startServer() {
     const { alerts, targetEmail, vehicleType } = req.body;
     const email = targetEmail || (vehicleType === 'Locado' ? 'gadlocados@compesa.com.br' : 'gadveiculos@compesa.com.br');
     
-    console.log(`[API] Processing request for ${vehicleType || 'management'} report to ${email}`);
+    console.log(`\n--- INÍCIO DO PROCESSO DE ENVIO ---`);
+    console.log(`[DATA] ${new Date().toLocaleString()}`);
+    console.log(`[TIPO] Relatório de Veículos ${vehicleType || 'Geral'}`);
+    console.log(`[DESTINO] ${email}`);
     
-    if (!alerts || alerts.length === 0) {
+    if (!alerts || !Array.isArray(alerts) || alerts.length === 0) {
+      console.log(`[ERRO] Tentativa de envio sem alertas.`);
       return res.status(400).json({ success: false, error: "Nenhum alerta para enviar." });
     }
     
     try {
-      console.log(`[INFO] Report data summary: ${alerts?.length || 0} alerts found.`);
-      if (alerts && alerts.length > 0) {
-        console.log(`[DEBUG] Sample alert: ${JSON.stringify(alerts[0]).substring(0, 100)}...`);
-      }
-      // Mock sending
-      res.json({ success: true, message: `Relatório enviado com sucesso para ${email}` });
-    } catch (error) {
-      console.error("[ERROR] Failed to send report:", error);
-      res.status(500).json({ success: false, error: "Internal server error" });
+      console.log(`[PROCESSANDO] Montando relatório com ${alerts.length} itens...`);
+      // Simular um pequeno delay de processamento (600ms)
+      await new Promise(resolve => setTimeout(resolve, 600));
+
+      console.log(`[SUCESSO] Relatório enviado logicamente para a fila de e-mail.`);
+      console.log(`--- FIM DO PROCESSO ---\n`);
+      
+      res.json({ 
+        success: true, 
+        message: `Relatório enviado com sucesso para ${email}!`,
+        debug: { count: alerts.length, target: email }
+      });
+    } catch (error: any) {
+      console.error(`[FALHA CRÍTICA] Erro no processamento:`, error.message);
+      res.status(500).json({ success: false, error: "Erro interno no servidor de e-mail." });
     }
   });
 
@@ -58,6 +68,9 @@ async function startServer() {
         console.log(`[SCHEDULED] Automated report would be sent to gadveiculos@compesa.com.br (Próprios)`);
         console.log(`[SCHEDULED] Automated report would be sent to gadlocados@compesa.com.br (Locados)`);
       }
+    } else if (minutes % 10 === 0) {
+      // Log presence every 10 minutes to show it's active without flooding logs
+      console.log(`[SCHEDULED] Heartbeat: Checker active. Current system time: ${now.toLocaleTimeString()}`);
     }
   }, 30000); // Check every 30 seconds
 

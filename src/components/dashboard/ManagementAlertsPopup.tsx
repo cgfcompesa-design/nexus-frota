@@ -154,7 +154,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     const targetEmail = activeTab === 'proprios' ? 'gadveiculos@compesa.com.br' : 'gadlocados@compesa.com.br';
 
     try {
-      console.log(`[CLIENT] Sending ${vehicleType} report to ${targetEmail}`);
+      console.log(`[MANAGEMENT] Attempting to send ${vehicleType} report...`);
       
       const response = await fetch('/api/send-management-report', {
         method: 'POST',
@@ -171,25 +171,25 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       
       const responseText = await response.text();
       if (!responseText) {
-        throw new Error("Servidor retornou uma resposta vazia.");
+        throw new Error("Servidor não retornou conteúdo.");
       }
       
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {
-        console.error("[ERROR] JSON Parse failed:", responseText);
-        throw new Error("Formato de resposta inválido.");
+        console.error("[CRITICAL] Server returned non-JSON:", responseText);
+        throw new Error("Falha na comunicação com o servidor.");
       }
       
       if (response.ok && data.success) {
-        toast.success(data.message || "Relatório enviado com sucesso!");
+        toast.success(data.message || "E-mail enviado com sucesso!");
       } else {
-        toast.error(data.error || "Erro ao processar envio no servidor.");
+        toast.error(data.error || "O servidor não pôde processar o relatório.");
       }
     } catch (error: any) {
-      console.error("Email send fatal error:", error);
-      toast.error(error?.message || "Erro desconhecido ao enviar e-mail.");
+      console.error("[FATAL] Management report error:", error);
+      toast.error(error?.message || "Não foi possível completar o envio.");
     } finally {
       setIsSendingEmail(false);
     }
@@ -199,7 +199,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[850px] h-[90vh] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10">
+      <DialogContent className="sm:max-w-[850px] max-h-[95vh] h-[800px] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10 shadow-2xl">
         <DialogHeader className="p-6 pb-2 shrink-0 border-b border-slate-200 dark:border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -246,8 +246,8 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-6 bg-slate-50 dark:bg-slate-950/50">
-          <Tabs defaultValue="proprios" onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-6 bg-slate-50 dark:bg-slate-950/20">
+          <Tabs defaultValue="proprios" onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <div className="flex items-center justify-between py-4 shrink-0">
               <TabsList className="bg-slate-200/50 dark:bg-slate-900/50 p-1">
                 <TabsTrigger value="proprios" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
@@ -293,7 +293,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 function AlertList({ alerts }: { alerts: AlertItem[] }) {
   if (alerts.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-12 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
+      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
         <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mb-4" />
         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Tudo em dia!</p>
         <p className="text-slate-500 text-[11px] mt-1">Não há alertas pendentes nesta categoria.</p>
@@ -302,26 +302,26 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
   }
 
   // Sort: Criticality first, then Vencidos, then by days
-  const sorted = [...alerts].sort((a, b) => {
-    const getScore = (c?: string) => {
-      const crit = String(c || "").toUpperCase().trim();
-      if (crit === 'ALTA' || crit === 'A') return 0;
-      if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
-      if (crit === 'BAIXA' || crit === 'C') return 2;
-      return 3;
-    };
-    const scoreA = getScore(a.criticidade);
-    const scoreB = getScore(b.criticidade);
-    if (scoreA !== scoreB) return scoreA - scoreB;
-    if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
-    return a.dias - b.dias;
-  });
+  const sorted = useMemo(() => {
+    return [...alerts].sort((a, b) => {
+      const getScore = (c?: string) => {
+        const crit = String(c || "").toUpperCase().trim();
+        if (crit === 'ALTA' || crit === 'A') return 0;
+        if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
+        if (crit === 'BAIXA' || crit === 'C') return 2;
+        return 3;
+      };
+      const scoreA = getScore(a.criticidade);
+      const scoreB = getScore(b.criticidade);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
+      return a.dias - b.dias;
+    });
+  }, [alerts]);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col p-2 overflow-hidden bg-slate-50/50 dark:bg-transparent">
-      <ScrollArea className="flex-1 w-full rounded-xl" type="always">
-        <div className="space-y-3 pr-4 pb-12">
-          {sorted.map((alert) => (
+    <div className="flex-1 min-h-0 w-full overflow-y-auto px-1 pr-2 mt-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+      {sorted.map((alert) => (
             <div 
               key={alert.id}
               className={`p-4 bg-white dark:bg-slate-900 border ${alert.tipo === 'Vencido' ? 'border-rose-500/20 shadow-sm shadow-rose-500/5' : 'border-slate-200 dark:border-white/5'} rounded-2xl hover:border-slate-300 dark:hover:border-white/20 transition-all group`}
@@ -369,8 +369,7 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
               </div>
             </div>
           ))}
-        </div>
-      </ScrollArea>
+          <div className="h-24" /> {/* Spacer for end of scroll */}
     </div>
   );
 }
