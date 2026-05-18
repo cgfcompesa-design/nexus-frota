@@ -599,16 +599,16 @@ export async function fetchRegularizacaoData(): Promise<any[]> {
     // Status Processo SEI (Coluna Z) = Index 25
     
     obj.autoInfracao = String(row[4] || "").trim();
-    obj.placa = String(row[3] || row[2] || "").trim().toUpperCase();
+    obj.placa = String(row[3] || row[2] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     obj.dataLimite = String(row[9] || "").trim();
     obj.status = String(row[21] || "").trim();
     obj.statusPrazoDefesa = String(row[24] || "").trim();
     obj.statusProcessoSEI = String(row[25] || "").trim();
     
     // Fallback search for Plate if index 3 is not it
-    if (!obj.placa || obj.placa.length < 5) {
+    if (!obj.placa || obj.placa.length < 7) {
       const foundPlaca = row.find(c => /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(String(c).toUpperCase().trim()));
-      if (foundPlaca) obj.placa = String(foundPlaca).toUpperCase();
+      if (foundPlaca) obj.placa = String(foundPlaca).toUpperCase().replace(/[^A-Z0-9]/g, "");
     }
 
     return obj;
@@ -685,22 +685,28 @@ export async function fetchContactsData(): Promise<any[]> {
 
 export async function fetchControleOperacional(): Promise<any[]> {
   const rows = await fetchCsv(CONTROLE_OPERACIONAL_URL);
-  if (rows.length < 110) return [];
+  if (rows.length < 50) return [];
   
-  // O cabeçalho está na linha 110 (index 109)
-  const rawData = rows.slice(109); 
-  const header = rawData[0];
+  // Try to find the header row dynamically
+  let headerIndex = rows.findIndex(row => 
+    row.some(cell => String(cell).toUpperCase().includes("N\u00BA ORDEM")) ||
+    row.some(cell => String(cell).toUpperCase().includes("PLACA"))
+  );
+
+  if (headerIndex === -1) {
+    // Fallback to row 110 if not found, as previously specified
+    headerIndex = Math.min(109, rows.length - 1);
+  }
+  
+  const rawData = rows.slice(headerIndex);
+  if (rawData.length <= 1) return [];
+  
+  const headers = rawData[0];
   
   return rawData.slice(1).map(row => {
     const obj: any = {};
-    // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9, K=10, L=11, M=12, N=13, O=14
-    // Diretor (C) = 2
-    // Gerência (D) = 3
-    // Nº ORDEM (H) = 7
-    // Nº ORÇAMENTO (I) = 8
-    // TAM (L) = 11
-    // PLACA (N) = 13
-    // CRITICIDADE (O) = 14
+    // Mapping following user description:
+    // C=2, D=3, H=7, I=8, L=11, M=12, N=13, O=14, P=15, Q=16, R=17, U=20, V=21
     
     obj.diretoria = String(row[2] || "").trim();
     obj.gerencia = String(row[3] || "").trim();
@@ -708,16 +714,22 @@ export async function fetchControleOperacional(): Promise<any[]> {
     obj.numOrcamento = String(row[8] || "").trim();
     obj.tam = String(row[11] || "").trim();
     obj.descricaoAtividade = String(row[12] || "").trim();
-    obj.placa = String(row[13] || "").trim();
+    obj.placa = String(row[13] || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     obj.criticidade = String(row[14] || "").trim();
     obj.tipo = String(row[15] || "").trim();
     obj.estabelecimento = String(row[16] || "").trim();
     obj.custo = String(row[17] || "").trim();
-    obj.diasEmAberto = String(row[21] || "").trim();
     obj.expectativaEntrega = String(row[20] || "").trim();
+    obj.diasEmAberto = String(row[21] || "").trim();
+    
+    // Add dynamic keys from headers just in case
+    headers.forEach((h, i) => {
+      if (h) obj[h.trim()] = row[i];
+    });
+
     obj.__raw = row;
     return obj;
-  });
+  }).filter(item => item.placa && item.placa.length >= 7);
 }
 
 export async function fetchDriversData(): Promise<any[]> {

@@ -167,12 +167,32 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     
     const ccEmail = 'gestaofrota@compesa.com.br';
     const subject = `Resumo de Alertas - ${typeLabel} - Nexus Frota`;
-    const body = formatEmailBody(currentAlerts);
-
-    const mailtoUrl = `mailto:${targetEmail}?cc=${ccEmail}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     
-    window.location.href = mailtoUrl;
-    toast.success("Cliente de e-mail solicitado.");
+    // Limit alerts to avoid extremely long URLs that some clients/browsers block
+    const limit = 25;
+    const itemsToShow = currentAlerts.slice(0, limit);
+    let body = formatEmailBody(itemsToShow);
+    
+    if (currentAlerts.length > limit) {
+      body += `\r\n\r\n... e mais ${currentAlerts.length - limit} alertas suprimidos por tamanho. Verifique o Nexus para o resumo completo.`;
+    }
+
+    try {
+      const mailtoUrl = `mailto:${targetEmail}?cc=${ccEmail}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
+      // Use a hidden anchor to trigger mailto - more reliable in some iframes
+      const link = document.createElement('a');
+      link.href = mailtoUrl;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success("Solicitado envio via Outlook/E-mail");
+    } catch (err) {
+      console.error("Email trigger error:", err);
+      toast.error("Erro ao abrir cliente de e-mail.");
+    }
   };
 
   if (!isOpen && alerts.length === 0) return null;

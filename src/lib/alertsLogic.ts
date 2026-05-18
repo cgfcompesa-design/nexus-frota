@@ -15,34 +15,38 @@ export interface AlertItem {
   infoAdicional?: string;
 }
 
+const getSharedAssetInfo = (placa: string, assets: any[]) => {
+  const normalizedTarget = placa.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const asset = assets.find(a => {
+    const p = String(a.PLACA || a.placa || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    return p === normalizedTarget;
+  });
+  
+  if (asset) {
+    const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
+    const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
+    
+    return {
+      gerencia: asset.GERENCIA || asset.UNIDADE || asset.GERÊNCIA || "N/A",
+      criticidade: asset.CRITICIDADE || "N/A",
+      propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
+    };
+  }
+  return {
+    gerencia: "N/A",
+    criticidade: "N/A",
+    propriedade: 'Locado' as 'Próprio' | 'Locado'
+  };
+};
+
 export function processMaintenanceAlerts(maintenanceData: any[], controleData: any[], assets: any[]): AlertItem[] {
   const alerts: AlertItem[] = [];
-
-  const getAssetInfo = (placa: string) => {
-    const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa.toUpperCase().trim());
-    if (asset) {
-      const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
-      const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
-      
-      return {
-        gerencia: asset.GERENCIA || asset.UNIDADE || "N/A",
-        criticidade: asset.CRITICIDADE || "N/A",
-        propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
-      };
-    }
-    // Default for unknown assets -> Locado
-    return {
-      gerencia: "N/A",
-      criticidade: "N/A",
-      propriedade: 'Locado' as 'Próprio' | 'Locado'
-    };
-  };
 
   maintenanceData.forEach((item, idx) => {
     const placa = String(item.PLACA || item.placa || item.COL_1 || "").toUpperCase().trim();
     if (!placa || placa.length < 5) return;
 
-    const info = getAssetInfo(placa);
+    const info = getSharedAssetInfo(placa, assets);
     // Keys often observed in the google sheets for preventive
     const nextDateRaw = item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || 
                         item["DATA VALIDADE"] || item["VALIDADE"] || item["DATA"] || 
@@ -72,7 +76,7 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
     const placa = String(item.placa || item.PLACA || "").toUpperCase().trim();
     if (!placa || placa.length < 5) return;
 
-    const info = getAssetInfo(placa);
+    const info = getSharedAssetInfo(placa, assets);
     const entregaRaw = item.expectativaEntrega || item.__raw?.[20];
     const dateEntrega = parseBrazilianDate(entregaRaw);
     const diffEntrega = daysDiffFromToday(dateEntrega);
@@ -100,30 +104,11 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
 export function processTaxAlerts(taxasData: any[], assets: any[]): AlertItem[] {
   const alerts: AlertItem[] = [];
   
-  const getAssetInfo = (placa: string) => {
-    const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa.toUpperCase().trim());
-    if (asset) {
-      const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
-      const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
-      
-      return {
-        gerencia: asset.GERENCIA || asset.UNIDADE || "N/A",
-        criticidade: asset.CRITICIDADE || "N/A",
-        propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
-      };
-    }
-    return {
-      gerencia: "N/A",
-      criticidade: "N/A",
-      propriedade: 'Locado' as 'Próprio' | 'Locado'
-    };
-  };
-
   taxasData.forEach((item, idx) => {
     const placa = String(item.Placa || item.placa || item.PLACA || "").toUpperCase().trim();
     if (!placa || placa.length < 5) return;
     
-    const info = getAssetInfo(placa);
+    const info = getSharedAssetInfo(placa, assets);
 
     const type = item.__tipo || "Taxa/Inspeção";
     const validadeRaw = item[item.__validadeKey] || item["DATA VALIDADE"] || item["VALIDADE"];
@@ -152,26 +137,11 @@ export function processTaxAlerts(taxasData: any[], assets: any[]): AlertItem[] {
 export function processInfractionAlerts(regularizacaoData: any[], assets: any[]): AlertItem[] {
   const alerts: AlertItem[] = [];
 
-  const getAssetInfo = (placa: string) => {
-    const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa.toUpperCase().trim());
-    if (asset) {
-      const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
-      const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
-      
-      return {
-        gerencia: asset.GERENCIA || asset.UNIDADE || "N/A",
-        criticidade: asset.CRITICIDADE || "N/A",
-        propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
-      };
-    }
-    return { gerencia: "N/A", criticidade: "N/A", propriedade: 'Locado' as 'Próprio' | 'Locado' };
-  };
-
   regularizacaoData.forEach((item, idx) => {
     const placa = String(item.placa || "").toUpperCase().trim();
     if (!placa || placa.length < 5) return;
     
-    const info = getAssetInfo(placa);
+    const info = getSharedAssetInfo(placa, assets);
     const status = String(item.status || "").trim();
     const statusPrazo = String(item.statusPrazoDefesa || "").trim();
     const statusSEI = String(item.statusProcessoSEI || "").trim();
