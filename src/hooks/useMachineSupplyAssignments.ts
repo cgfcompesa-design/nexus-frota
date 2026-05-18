@@ -17,12 +17,27 @@ export function useMachineSupplyAssignments() {
   return useQuery({
     queryKey: ["machine-supply-assignments"],
     queryFn: async () => {
-      const q = query(collection(db, "machine_supply_assignments"), orderBy("updatedAt", "desc"));
+      const q = query(collection(db, "machine_supply_assignments"));
       const snapshot = await getDocs(q);
-      return snapshot.docs.map(doc => ({
+      const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as MachineSupplyAssignment[];
+      
+      // Sort in-memory instead of requiring a Firestore index
+      return data.sort((a, b) => {
+        const getTime = (val: any) => {
+          if (!val) return 0;
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          if (val instanceof Date) return val.getTime();
+          if (typeof val === 'string' || typeof val === 'number') {
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? 0 : d.getTime();
+          }
+          return 0;
+        };
+        return getTime(b.updatedAt) - getTime(a.updatedAt);
+      });
     },
   });
 }

@@ -909,10 +909,10 @@ Coordenação de Gestão de Frotas - CGF`;
                </div>
             </div>
           </CardHeader>
-          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-x-auto">
             <ScrollArea className="h-[450px] w-full">
               {!isInconsistencyGroupedByUnit ? (
-                <div className="min-w-[1300px]">
+                <div className="min-w-[1200px]">
                   <Table>
                     <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10 sticky top-0 z-10">
                       <TableRow className="hover:bg-transparent border-none">
@@ -1117,8 +1117,9 @@ Coordenação de Gestão de Frotas - CGF`;
                </div>
              </div>
           </CardHeader>
-          <ScrollArea className="h-[450px] w-full border border-slate-100 dark:border-slate-800 rounded-xl">
-            <Table className="min-w-[1300px]">
+          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-x-auto">
+            <ScrollArea className="h-[450px] w-full">
+              <Table className="min-w-[1200px]">
               <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30 sticky top-0 z-10 transition-colors">
                 <TableRow className="hover:bg-transparent border-none text-[9px] font-black uppercase text-slate-400">
                   <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Placa</TableHead>
@@ -1189,6 +1190,7 @@ Coordenação de Gestão de Frotas - CGF`;
             </Table>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
+          </div>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
              <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageTime} de {Math.ceil(filteredTimeVehicles.length/itemsPerPage)}</span>
              <div className="flex gap-1">
@@ -1239,9 +1241,10 @@ Coordenação de Gestão de Frotas - CGF`;
                </div>
              </div>
           </CardHeader>
-          <ScrollArea className="h-[400px] w-full">
-            <div className="relative w-full overflow-x-auto">
-              <Table className="min-w-[800px]">
+          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-x-auto">
+            <ScrollArea className="h-[400px] w-full">
+              <div className="relative w-full">
+                <Table className="min-w-[1000px]">
                 <TableHeader className="bg-rose-50/30 dark:bg-rose-900/10 sticky top-0 z-10 transition-colors">
                   <TableRow className="hover:bg-transparent border-none uppercase text-[9px] font-black text-rose-800/60 dark:text-rose-400">
                     <TableHead className="h-8 bg-rose-50/30 dark:bg-rose-900/10 border-b border-rose-100/10">Placa</TableHead>
@@ -1276,6 +1279,7 @@ Coordenação de Gestão de Frotas - CGF`;
             </div>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
+          </div>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
              <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageUnknown} de {Math.ceil(filteredIrregular.length/itemsPerPage)}</span>
              <div className="flex gap-1">

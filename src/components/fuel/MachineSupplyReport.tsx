@@ -230,15 +230,22 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
   const handleSave = async (transactionId: string, data: any) => {
     try {
+      // Clean up the data to avoid undefined values which Firestore doesn't like
+      const sanitizedData = Object.entries(data).reduce((acc: any, [key, value]) => {
+        if (value !== undefined) acc[key] = value;
+        return acc;
+      }, {});
+
       await saveAssignment.mutateAsync({
         transactionId,
-        userName,
-        userUnit,
-        updatedBy: userName,
-        ...data
+        userName: userName || "Visitante",
+        userUnit: userUnit || "Unidade Não Informada",
+        updatedBy: userName || "Visitante",
+        ...sanitizedData
       });
       toast.success("Dados salvos!");
     } catch (error) {
+      console.error("Erro ao salvar atribuição:", error);
       toast.error("Erro ao salvar.");
     }
   };
@@ -397,14 +404,14 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
       {/* Main Table */}
       <main className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
-        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
+        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto">
           {loadingFuel || loadingAssignments ? (
             <div className="flex flex-col items-center justify-center p-20 gap-4">
               <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
               <p className="text-xs font-black uppercase tracking-widest text-slate-400">Carregando dados...</p>
             </div>
           ) : (
-            <Table>
+            <Table className="min-w-[1800px]">
               <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                 <TableRow>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest py-4 border-b border-r sticky left-0 z-20 bg-slate-50 dark:bg-slate-800">Cód. Transação</TableHead>

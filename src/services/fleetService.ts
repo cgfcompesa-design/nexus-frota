@@ -375,6 +375,11 @@ export async function fetchFuelData(): Promise<any[]> {
 
     return obj;
   }).filter(obj => {
+    // Check if it is a machine/equipment plate - if so, we allow all transactions as requested
+    const placa = String(obj._placa || "").toUpperCase();
+    const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+    if (isMaqOrGer) return true;
+
     // Nuclear option: Filter absolute outliers that represent total bill amounts or errors (> R$ 50/L)
     const p = obj._vlLitro || 0;
     if (p > 50) return false;
