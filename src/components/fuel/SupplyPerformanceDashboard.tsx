@@ -96,7 +96,7 @@ const rangeLabels: Record<string, string> = {
   const [inconsistencyGerencia, setInconsistencyGerencia] = useState("");
   const [selectedInconsistency, setSelectedInconsistency] = useState<any>(null);
 
-  const { getEmailsByGerencia } = useContactsData();
+  const { getEmailsByGerencia, contactsData } = useContactsData();
 
   const getCCEmails = () => "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
 
@@ -1092,7 +1092,7 @@ Coordenação de Gestão de Frotas - CGF`;
           </CardHeader>
           <ScrollArea className="h-[400px] w-full">
             <div className="relative w-full overflow-x-auto">
-              <Table className="min-w-[800px]">
+              <Table className="min-w-[1200px]">
                 <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30 sticky top-0 z-10 transition-colors">
                   <TableRow className="hover:bg-transparent border-none text-[9px] font-black uppercase text-slate-400">
                     <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Placa</TableHead>
@@ -1282,12 +1282,37 @@ Coordenação de Gestão de Frotas - CGF`;
                   <SelectValue placeholder="Selecione a Gerência..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {[...new Set(assets.map(a => a.GERENCIA || a["GERÊNCIA"]).filter(Boolean))].sort().map(g => (
+                  {Array.from(new Set([
+                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
+                    ...(contactsData as any[]).map(c => c.gerencia)
+                  ].filter(Boolean))).sort().map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {emailGerencia && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Contatos Encontrados</label>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                  {getEmailsByGerencia(emailGerencia).length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {getEmailsByGerencia(emailGerencia).map((email: string, idx: number) => (
+                        <Badge key={idx} variant="secondary" className="text-[9px] font-medium lowercase">
+                          {email}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-rose-500">
+                      <AlertCircle className="h-3 w-3" />
+                      <span className="text-[9px] font-bold uppercase">Nenhum e-mail cadastrado para esta unidade</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="p-4 bg-rose-50 dark:bg-rose-900/10 rounded-2xl border border-rose-100 dark:border-rose-800/30">
               <div className="flex items-start gap-3">
@@ -1331,12 +1356,37 @@ Coordenação de Gestão de Frotas - CGF`;
                   <SelectValue placeholder="Selecione a Unidade..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {[...new Set(assets.map(a => a.GERENCIA || a["GERÊNCIA"]).filter(Boolean))].sort().map(g => (
+                  {Array.from(new Set([
+                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
+                    ...(contactsData as any[]).map(c => c.gerencia)
+                  ].filter(Boolean))).sort().map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {justifyGerencia && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Contatos Encontrados</label>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                  {getEmailsByGerencia(justifyGerencia).length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {getEmailsByGerencia(justifyGerencia).map((email: string, idx: number) => (
+                        <Badge key={idx} variant="secondary" className="text-[9px] font-medium lowercase">
+                          {email}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-rose-500">
+                      <AlertCircle className="h-3 w-3" />
+                      <span className="text-[9px] font-bold uppercase">Nenhum e-mail cadastrado para esta unidade</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="p-4 bg-indigo-50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100 dark:border-indigo-800/30">
               <div className="flex items-start gap-3">
@@ -1382,12 +1432,37 @@ Coordenação de Gestão de Frotas - CGF`;
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {[...new Set(assets.map(a => a.GERENCIA || a["GERÊNCIA"]).filter(Boolean))].sort().map(g => (
+                  {Array.from(new Set([
+                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
+                    ...(contactsData as any[]).map(c => c.gerencia)
+                  ].filter(Boolean))).sort().map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {inconsistencyGerencia && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Contatos Encontrados</label>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                  {getEmailsByGerencia(inconsistencyGerencia).length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {getEmailsByGerencia(inconsistencyGerencia).map((email: string, idx: number) => (
+                        <Badge key={idx} variant="secondary" className="text-[9px] font-medium lowercase">
+                          {email}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-rose-500">
+                      <AlertCircle className="h-3 w-3" />
+                      <span className="text-[9px] font-bold uppercase">Nenhum e-mail cadastrado para esta unidade</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {selectedInconsistency && (
               <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-800/30">
@@ -1434,12 +1509,37 @@ Coordenação de Gestão de Frotas - CGF`;
                   <SelectValue placeholder="Selecione a Unidade..." />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {[...new Set(assets.map(a => a.GERENCIA || a["GERÊNCIA"]).filter(Boolean))].sort().map(g => (
+                  {Array.from(new Set([
+                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
+                    ...(contactsData as any[]).map(c => c.gerencia)
+                  ].filter(Boolean))).sort().map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+            {groupedInconsistencyGerencia && (
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Contatos Encontrados</label>
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800">
+                  {getEmailsByGerencia(groupedInconsistencyGerencia).length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {getEmailsByGerencia(groupedInconsistencyGerencia).map((email: string, idx: number) => (
+                        <Badge key={idx} variant="secondary" className="text-[9px] font-medium lowercase">
+                          {email}
+                        </Badge>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-rose-500">
+                      <AlertCircle className="h-3 w-3" />
+                      <span className="text-[9px] font-bold uppercase">Nenhum e-mail cadastrado para esta unidade</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="p-4 bg-amber-50 dark:bg-amber-900/10 rounded-2xl border border-amber-100 dark:border-amber-800/30">
               <div className="flex items-start gap-3">
