@@ -11,8 +11,12 @@ export function useContactsData() {
 
   const getEmailsByGerencia = useCallback((gerencia: string) => {
     if (!gerencia) return [];
+    
+    const normalize = (s: string) => String(s || "").toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "");
+    const target = normalize(gerencia);
+
     const contact = (contacts as any[]).find(
-      c => c.gerencia === gerencia.toUpperCase().trim()
+      c => normalize(c.gerencia) === target
     );
     if (!contact || !contact.emails) return [];
     return contact.emails.split(";").map((e: string) => e.trim()).filter(Boolean);

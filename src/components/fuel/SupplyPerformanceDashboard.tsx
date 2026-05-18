@@ -96,7 +96,32 @@ const rangeLabels: Record<string, string> = {
   const [inconsistencyGerencia, setInconsistencyGerencia] = useState("");
   const [selectedInconsistency, setSelectedInconsistency] = useState<any>(null);
 
-  const { getEmailsByGerencia, contactsData } = useContactsData();
+  const { getEmailsByGerencia, contactsData, isLoading: isContactsLoading } = useContactsData();
+
+  // Consolidação da lista de unidades (Ativos + Contatos) de forma normalizada
+  const unitList = useMemo(() => {
+    const normalize = (s: string) => String(s || "").toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "");
+    const map = new Map<string, string>();
+    
+    // Prioridade para nomes do cadastro de ativos
+    assets.forEach(a => {
+      const name = a.GERENCIA || a["GERÊNCIA"];
+      if (name) {
+        const key = normalize(name);
+        if (!map.has(key)) map.set(key, name);
+      }
+    });
+    
+    // Complementa com o que houver apenas nos contatos
+    (contactsData as any[]).forEach(c => {
+      if (c.gerencia) {
+        const key = normalize(c.gerencia);
+        if (!map.has(key)) map.set(key, c.gerencia);
+      }
+    });
+
+    return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
+  }, [assets, contactsData]);
 
   const getCCEmails = () => "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
 
@@ -877,82 +902,84 @@ Coordenação de Gestão de Frotas - CGF`;
                   <Button 
                     onClick={() => setIsGroupedInconsistencyEmailDialogOpen(true)} 
                     disabled={inconsistencyAnalysis.length === 0}
-                    className="h-7 text-[9px] font-black uppercase bg-amber-600 hover:bg-amber-700 gap-1 text-white"
+                    className="h-7 text-[9px] font-black uppercase bg-amber-600 hover:bg-amber-700 gap-1 text-white border-none"
                   >
                     <Mail className="h-3 w-3" /> Solicitar Justificativa
                   </Button>
                </div>
             </div>
           </CardHeader>
-          <ScrollArea className="h-[450px] w-full">
-            <div className="relative w-full overflow-x-auto p-4">
+          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+            <ScrollArea className="h-[450px] w-full">
               {!isInconsistencyGroupedByUnit ? (
-                <Table className="min-w-[1000px]">
-                  <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10 sticky top-0 z-10">
-                    <TableRow className="hover:bg-transparent border-none">
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Placa</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Data / Hora</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Cód. Transação</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motorista</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Hodômetro</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">KM Rodados</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motivo</TableHead>
-                      <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {paginatedInconsistency.map((t, i) => (
-                      <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
-                        <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
-                        <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
-                        <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
-                        <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
-                        <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
-                        <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
-                          <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
-                        </TableCell>
-                        <TableCell className="py-2">
-                           <Badge variant="outline" className="text-[8px] h-4 font-bold border-amber-200 text-amber-600 uppercase">{t.motivo}</Badge>
-                        </TableCell>
-                        <TableCell className="py-2 text-right">
-                           <div className="flex justify-end gap-1">
-                             <Button 
-                               variant="ghost" 
-                               size="icon" 
-                               className="h-7 w-7 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50"
-                               onClick={() => handleExportInconsistency(t)}
-                               title="Baixar histórico da divergência"
-                             >
-                               <Download className="h-4 w-4" />
-                             </Button>
-                             <Button 
-                               variant="ghost" 
-                               size="icon" 
-                               className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
-                               onClick={() => {
-                                 setSelectedInconsistency(t);
-                                 setInconsistencyGerencia(t.unidade !== "N/A" ? t.unidade : "");
-                                 setIsInconsistencyEmailDialogOpen(true);
-                               }}
-                               title="Notificar Gestor"
-                             >
-                               <Mail className="h-4 w-4" />
-                             </Button>
-                           </div>
-                        </TableCell>
+                <div className="min-w-[1300px]">
+                  <Table>
+                    <TableHeader className="bg-amber-50/30 dark:bg-amber-900/10 sticky top-0 z-10">
+                      <TableRow className="hover:bg-transparent border-none">
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Placa</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Data / Hora</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Cód. Transação</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motorista</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Hodômetro</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">KM Rodados</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8">Motivo</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase text-amber-800/60 dark:text-amber-400 h-8 text-right">Ações</TableHead>
                       </TableRow>
-                    ))}
-                    {paginatedInconsistency.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={8} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
-                          Nenhuma divergência de hodômetro detectada
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedInconsistency.map((t, i) => (
+                        <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-amber-50/10 transition-colors">
+                          <TableCell className="py-2 text-[10px] font-black text-amber-600">{t.placa}</TableCell>
+                          <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.data} <span className="text-slate-400 font-medium ml-1">{t.time}</span></TableCell>
+                          <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase">{t.transacao}</TableCell>
+                          <TableCell className="py-2 text-[9px] font-bold text-slate-500 uppercase truncate max-w-[100px]">{t.motorista}</TableCell>
+                          <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">{t.odometer.toLocaleString()}</TableCell>
+                          <TableCell className="py-2 text-[10px] font-black text-slate-700 dark:text-slate-300 text-right">
+                            <span className={t.kmRodados < 0 ? "text-rose-500" : ""}>{t.kmRodados.toLocaleString()}</span>
+                          </TableCell>
+                          <TableCell className="py-2">
+                             <Badge variant="outline" className="text-[8px] h-4 font-bold border-amber-200 text-amber-600 uppercase">{t.motivo}</Badge>
+                          </TableCell>
+                          <TableCell className="py-2 text-right">
+                             <div className="flex justify-end gap-1">
+                               <Button 
+                                 variant="ghost" 
+                                 size="icon" 
+                                 className="h-7 w-7 text-indigo-500 hover:text-indigo-600 hover:bg-indigo-50"
+                                 onClick={() => handleExportInconsistency(t)}
+                                 title="Baixar histórico da divergência"
+                               >
+                                 <Download className="h-4 w-4" />
+                               </Button>
+                               <Button 
+                                 variant="ghost" 
+                                 size="icon" 
+                                 className="h-7 w-7 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                                 onClick={() => {
+                                   setSelectedInconsistency(t);
+                                   setInconsistencyGerencia(t.unidade !== "N/A" ? t.unidade : "");
+                                   setIsInconsistencyEmailDialogOpen(true);
+                                 }}
+                                 title="Notificar Gestor"
+                               >
+                                 <Mail className="h-4 w-4" />
+                               </Button>
+                             </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {paginatedInconsistency.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={8} className="h-24 text-center text-[10px] font-bold uppercase text-slate-300 italic">
+                            Nenhuma divergência de hodômetro detectada
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
               ) : (
-                <div className="space-y-4">
+                <div className="space-y-4 p-4 text-left min-w-[800px]">
                   {groupedInconsistencies.map(([unidade, items]) => (
                     <div key={unidade} className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden shadow-sm">
                       <div className="bg-slate-50 dark:bg-slate-800/50 p-3 flex items-center justify-between border-b border-slate-100 dark:border-slate-800">
@@ -1001,9 +1028,9 @@ Coordenação de Gestão de Frotas - CGF`;
                   ))}
                 </div>
               )}
-            </div>
-            <ScrollBar orientation="horizontal" />
-          </ScrollArea>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
              <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageInconsistency} de {Math.ceil(inconsistencyAnalysis.length/itemsPerPage)}</span>
              <div className="flex gap-1">
@@ -1090,78 +1117,76 @@ Coordenação de Gestão de Frotas - CGF`;
                </div>
              </div>
           </CardHeader>
-          <ScrollArea className="h-[400px] w-full">
-            <div className="relative w-full overflow-x-auto">
-              <Table className="min-w-[1200px]">
-                <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30 sticky top-0 z-10 transition-colors">
-                  <TableRow className="hover:bg-transparent border-none text-[9px] font-black uppercase text-slate-400">
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Placa</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Data Transação</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Faixa Horária</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Hora</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Motorista</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 uppercase">Gerência/Unidade</TableHead>
-                    <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 text-right">Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {isGroupedByUnit ? (
-                    groupedTimeVehicles.map(([unit, vehicles]) => (
-                      <Fragment key={unit}>
-                        <TableRow className="bg-slate-50/50 dark:bg-slate-800/20">
-                          <TableCell colSpan={7} className="py-1.5 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800 sticky top-8 z-[5] bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-sm">
-                             {unit} ({vehicles.length})
-                          </TableCell>
-                        </TableRow>
-                        {vehicles.map((v, i) => (
-                          <TableRow key={`${unit}-${i}`} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
-                            <TableCell className="py-2 text-xs font-black text-slate-700 dark:text-slate-300 pl-6">{v.placa}</TableCell>
-                            <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.dataStr}</TableCell>
-                            <TableCell className="py-2">
-                               <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
-                                 {rangeLabels[v.range] || v.range}
-                               </Badge>
-                            </TableCell>
-                            <TableCell className="py-2 text-[10px] font-black text-indigo-600 whitespace-nowrap">{v.horaStr}</TableCell>
-                            <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
-                            <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.gerencia}</TableCell>
-                            <TableCell className="py-2 text-right">
-                              {v.outOfPattern && (
-                                <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
-                                  <AlertTriangle className="h-2 w-2" /> Fora Padrão
-                                </Badge>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </Fragment>
-                    ))
-                  ) : (
-                    paginatedTime.map((v, i) => (
-                      <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
-                        <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
-                        <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.dataStr}</TableCell>
-                        <TableCell className="py-2">
-                           <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
-                             {rangeLabels[v.range] || v.range}
-                           </Badge>
-                        </TableCell>
-                        <TableCell className="py-2 text-[10px] font-black text-indigo-600 whitespace-nowrap">{v.horaStr}</TableCell>
-                        <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
-                        <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.gerencia}</TableCell>
-                        <TableCell className="py-2 text-right">
-                          {v.outOfPattern && (
-                            <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
-                              <AlertTriangle className="h-2 w-2" /> Fora Padrão
-                            </Badge>
-                          )}
+          <ScrollArea className="h-[450px] w-full border border-slate-100 dark:border-slate-800 rounded-xl">
+            <Table className="min-w-[1300px]">
+              <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30 sticky top-0 z-10 transition-colors">
+                <TableRow className="hover:bg-transparent border-none text-[9px] font-black uppercase text-slate-400">
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Placa</TableHead>
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Data Transação</TableHead>
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Faixa Horária</TableHead>
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Hora</TableHead>
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">Motorista</TableHead>
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 uppercase">Gerência/Unidade</TableHead>
+                  <TableHead className="h-8 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800 text-right">Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isGroupedByUnit ? (
+                  groupedTimeVehicles.map(([unit, vehicles]) => (
+                    <Fragment key={unit}>
+                      <TableRow className="bg-slate-50/50 dark:bg-slate-800/20">
+                        <TableCell colSpan={7} className="py-1.5 px-4 text-[10px] font-black text-indigo-600 uppercase border-y border-slate-100 dark:border-slate-800 sticky top-8 z-[5] bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-sm">
+                           {unit} ({vehicles.length})
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                      {vehicles.map((v, i) => (
+                        <TableRow key={`${unit}-${i}`} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
+                          <TableCell className="py-2 text-xs font-black text-slate-700 dark:text-slate-300 pl-6">{v.placa}</TableCell>
+                          <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.dataStr}</TableCell>
+                          <TableCell className="py-2">
+                             <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
+                               {rangeLabels[v.range] || v.range}
+                             </Badge>
+                          </TableCell>
+                          <TableCell className="py-2 text-[10px] font-black text-indigo-600 whitespace-nowrap">{v.horaStr}</TableCell>
+                          <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                          <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.gerencia}</TableCell>
+                          <TableCell className="py-2 text-right">
+                            {v.outOfPattern && (
+                              <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
+                                <AlertTriangle className="h-2 w-2" /> Fora Padrão
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </Fragment>
+                  ))
+                ) : (
+                  paginatedTime.map((v, i) => (
+                    <TableRow key={i} className="border-slate-50 dark:border-slate-800 hover:bg-slate-50/30 transition-colors">
+                      <TableCell className="py-2 text-xs font-black text-indigo-600">{v.placa}</TableCell>
+                      <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.dataStr}</TableCell>
+                      <TableCell className="py-2">
+                         <Badge variant="outline" className="text-[8px] h-4 font-bold border-slate-200 text-slate-500 uppercase w-fit whitespace-nowrap">
+                           {rangeLabels[v.range] || v.range}
+                         </Badge>
+                      </TableCell>
+                      <TableCell className="py-2 text-[10px] font-black text-indigo-600 whitespace-nowrap">{v.horaStr}</TableCell>
+                      <TableCell className="py-2 text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase truncate max-w-[150px]">{v.motorista}</TableCell>
+                      <TableCell className="py-2 text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{v.gerencia}</TableCell>
+                      <TableCell className="py-2 text-right">
+                        {v.outOfPattern && (
+                          <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100 border-none text-[8px] font-black uppercase h-4 px-1.5 gap-1">
+                            <AlertTriangle className="h-2 w-2" /> Fora Padrão
+                          </Badge>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
@@ -1279,13 +1304,10 @@ Coordenação de Gestão de Frotas - CGF`;
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Gerência / Unidade</label>
               <Select value={emailGerencia} onValueChange={setEmailGerencia}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
-                  <SelectValue placeholder="Selecione a Gerência..." />
+                  <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Gerência..."} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {Array.from(new Set([
-                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
-                    ...(contactsData as any[]).map(c => c.gerencia)
-                  ].filter(Boolean))).sort().map(g => (
+                  {unitList.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1353,13 +1375,10 @@ Coordenação de Gestão de Frotas - CGF`;
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Unidade Responsável</label>
               <Select value={justifyGerencia} onValueChange={setJustifyGerencia}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
-                  <SelectValue placeholder="Selecione a Unidade..." />
+                  <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade..."} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {Array.from(new Set([
-                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
-                    ...(contactsData as any[]).map(c => c.gerencia)
-                  ].filter(Boolean))).sort().map(g => (
+                  {unitList.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1428,14 +1447,11 @@ Coordenação de Gestão de Frotas - CGF`;
               <Select value={inconsistencyGerencia} onValueChange={setInconsistencyGerencia}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase text-left">
                   <div className="truncate pr-4">
-                    <SelectValue placeholder="Selecione a Unidade..." />
+                    <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade..."} />
                   </div>
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {Array.from(new Set([
-                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
-                    ...(contactsData as any[]).map(c => c.gerencia)
-                  ].filter(Boolean))).sort().map(g => (
+                  {unitList.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1506,13 +1522,10 @@ Coordenação de Gestão de Frotas - CGF`;
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Unidade Responsável</label>
               <Select value={groupedInconsistencyGerencia} onValueChange={setGroupedInconsistencyGerencia}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
-                  <SelectValue placeholder="Selecione a Unidade..." />
+                  <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade..."} />
                 </SelectTrigger>
                 <SelectContent className="max-h-[200px]">
-                  {Array.from(new Set([
-                    ...assets.map(a => a.GERENCIA || a["GERÊNCIA"]),
-                    ...(contactsData as any[]).map(c => c.gerencia)
-                  ].filter(Boolean))).sort().map(g => (
+                  {unitList.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
                 </SelectContent>

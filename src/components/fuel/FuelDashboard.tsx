@@ -821,9 +821,13 @@ Coordenação de Gestão de Frotas - CGF`;
       if (preco <= 0.5) return;
 
       // Exclusão de postos específicos solicitados (Filtro mais abrangente)
-      const postoNomeNorm = String(f._posto || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const postoNomeNorm = String(f._posto || f._establishment || f["NOME POSTO"] || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const enderecoNorm = String(f._endereco || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      
+      // ECO POSTO VITÓRIA - Vitória de Santo Antão
       if (postoNomeNorm.includes("PICHILAU")) return;
       if (postoNomeNorm.includes("ECO POSTO") && (postoNomeNorm.includes("VITORIA") || postoNomeNorm.includes("SANTO ANTAO"))) return;
+      if (postoNomeNorm.includes("VIT") && postoNomeNorm.includes("VITORIA") && enderecoNorm.includes("BR-232")) return;
 
       // EXTREME OUTLIER FILTER:
       // Users report values like 99.000, 120.000. These are clearly total bill amounts.
@@ -973,7 +977,7 @@ Coordenação de Gestão de Frotas - CGF`;
       const preco = f._vlLitro || 0;
 
       // Exclusão de postos específicos solicitados dos benchmarks
-      const postoNomeNorm = String(f._posto || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const postoNomeNorm = String(f._posto || f._establishment || f["NOME POSTO"] || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       if (postoNomeNorm.includes("PICHILAU")) return;
       if (postoNomeNorm.includes("ECO POSTO") && (postoNomeNorm.includes("VITORIA") || postoNomeNorm.includes("SANTO ANTAO"))) return;
       
