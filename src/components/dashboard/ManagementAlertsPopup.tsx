@@ -17,12 +17,14 @@ import {
   useMaintenanceData, 
   useControleOperacional, 
   useAssets,
-  usePreventiveMaintenanceData
+  usePreventiveMaintenanceData,
+  useRegularizacaoData
 } from "@/hooks/useFleetData";
 import { useQuery } from "@tanstack/react-query";
 import { 
   processMaintenanceAlerts, 
   processTaxAlerts, 
+  processInfractionAlerts,
   formatWhatsAppMessage,
   AlertItem
 } from "@/lib/alertsLogic";
@@ -60,6 +62,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   const { data: maintenance = [] } = usePreventiveMaintenanceData();
   const { data: controle = [] } = useControleOperacional();
   const { data: assets = [] } = useAssets();
+  const { data: regularizacao = [] } = useRegularizacaoData();
 
   const { data: taxData = [] } = useQuery({
     queryKey: ['tax-alerts-data'],
@@ -83,19 +86,17 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 
   const alerts = useMemo(() => {
     if (!isOpen) return [];
-    const mntAlers = processMaintenanceAlerts(maintenance, controle, assets);
-    const taxAlerts = processTaxAlerts(taxData, assets);
-    
-    const getCriticalityScore = (c?: string) => {
-      const crit = String(c || "").toUpperCase().trim();
-      if (crit === 'ALTA' || crit === 'A') return 0;
-      if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
-      if (crit === 'BAIXA' || crit === 'C') return 2;
-      return 3;
-    };
-
-    return [...mntAlers, ...taxAlerts];
-  }, [maintenance, controle, assets, taxData, isOpen]);
+    try {
+      const mntAlers = processMaintenanceAlerts(maintenance || [], controle || [], assets || []);
+      const taxAlerts = processTaxAlerts(taxData || [], assets || []);
+      const infractionAlerts = processInfractionAlerts(regularizacao || [], assets || []);
+      
+      return [...mntAlers, ...taxAlerts, ...infractionAlerts];
+    } catch (err) {
+      console.error("[ERROR] Failed to process alerts logic:", err);
+      return [];
+    }
+  }, [maintenance, controle, assets, taxData, regularizacao, isOpen]);
 
   const getScore = (c?: string) => {
     const crit = String(c || "").toUpperCase().trim();
@@ -168,21 +169,29 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     try {
       console.log(`[MANAGEMENT] Attempting to send ${vehicleType} report...`);
       
+      const payload = { 
+        alerts: currentAlerts.slice(0, 500), // Limit payload size to avoid 413
+        vehicleType,
+        targetEmail
+      };
+
       const response = await fetch('/api/send-management-report', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({ 
-          alerts: currentAlerts, 
-          vehicleType,
-          targetEmail
-        })
+        body: JSON.stringify(payload)
+      }).catch(err => {
+        throw new Error("Falha na conexão de rede.");
       });
       
+      if (!response) {
+        throw new Error("Sem resposta do servidor.");
+      }
+
       const responseText = await response.text();
-      if (!responseText) {
+      if (!responseText || responseText.trim().length === 0) {
         throw new Error("Servidor não retornou conteúdo.");
       }
       
@@ -190,14 +199,14 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       try {
         data = JSON.parse(responseText);
       } catch (parseErr) {
-        console.error("[CRITICAL] Server returned non-JSON:", responseText);
-        throw new Error("Falha na comunicação com o servidor.");
+        console.error("[CRITICAL] Server returned non-JSON:", responseText.substring(0, 200));
+        throw new Error("Resposta do servidor em formato inválido.");
       }
       
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         toast.success(data.message || "E-mail enviado com sucesso!");
       } else {
-        toast.error(data.error || "O servidor não pôde processar o relatório.");
+        toast.error(data?.error || "O servidor não pôde processar o relatório.");
       }
     } catch (error: any) {
       console.error("[FATAL] Management report error:", error);

@@ -583,33 +583,36 @@ export async function fetchTelemetryRealtime(): Promise<any[]> {
 
 export async function fetchRegularizacaoData(): Promise<any[]> {
   const rows = await fetchCsv(REGULARIZACAO_URL);
-  if (rows.length <= 1) return [];
+  if (rows.length <= 2) return [];
 
-  // Find header row by looking for known columns
-  let headerRowIndex = rows.findIndex(row => 
-    row.some(cell => {
-      const c = String(cell).toUpperCase();
-      return c.includes("AUTO INFRAÇÃO") || c.includes("TIPO") || c.includes("VALOR") || c.includes("PLACA");
-    })
-  );
-
-  if (headerRowIndex === -1) headerRowIndex = 0;
-
-  const headers = rows[headerRowIndex];
-  const dataRows = rows.slice(headerRowIndex + 1);
+  // Data starts from line 3 (index 2)
+  const dataRows = rows.slice(2);
   
   return dataRows.map(row => {
     const obj: any = { __raw: row };
-    // Always add index-based keys
-    row.forEach((val, i) => {
-      obj[`COL_${i}`] = val;
-    });
-    headers.forEach((h, i) => {
-      const key = h ? h.trim() : `COL_${i}`;
-      obj[key] = row[i];
-    });
+    // Mapeamento específico conforme solicitação:
+    // Placa: Geralmente está na coluna D (3) ou próximo. Vamos procurar.
+    // Auto Infração (Coluna E) = Index 4
+    // Data Limite Identificação (Coluna J) = Index 9
+    // Status (Coluna V) = Index 21
+    // Status Prazo Defesa (Coluna Y) = Index 24
+    // Status Processo SEI (Coluna Z) = Index 25
+    
+    obj.autoInfracao = String(row[4] || "").trim();
+    obj.placa = String(row[3] || row[2] || "").trim().toUpperCase();
+    obj.dataLimite = String(row[9] || "").trim();
+    obj.status = String(row[21] || "").trim();
+    obj.statusPrazoDefesa = String(row[24] || "").trim();
+    obj.statusProcessoSEI = String(row[25] || "").trim();
+    
+    // Fallback search for Plate if index 3 is not it
+    if (!obj.placa || obj.placa.length < 5) {
+      const foundPlaca = row.find(c => /^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/.test(String(c).toUpperCase().trim()));
+      if (foundPlaca) obj.placa = String(foundPlaca).toUpperCase();
+    }
+
     return obj;
-  }).filter(item => item.__raw && item.__raw.length > 5);
+  }).filter(item => item.autoInfracao || item.placa);
 }
 
 export async function fetchTitulosDespesasData(): Promise<any[]> {
@@ -682,12 +685,9 @@ export async function fetchContactsData(): Promise<any[]> {
 
 export async function fetchControleOperacional(): Promise<any[]> {
   const rows = await fetchCsv(CONTROLE_OPERACIONAL_URL);
-  if (rows.length <= 110) return [];
+  if (rows.length < 110) return [];
   
   // O cabeçalho está na linha 110 (index 109)
-  // Mas como a leitura começa por B, o cabeçalho real pode estar deslocado
-  // O usuário disse: "comece a partir da linha 110 (cabeçalho), coluna B em diante"
-  
   const rawData = rows.slice(109); 
   const header = rawData[0];
   

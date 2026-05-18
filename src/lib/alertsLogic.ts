@@ -149,6 +149,74 @@ export function processTaxAlerts(taxasData: any[], assets: any[]): AlertItem[] {
   return alerts;
 }
 
+export function processInfractionAlerts(regularizacaoData: any[], assets: any[]): AlertItem[] {
+  const alerts: AlertItem[] = [];
+
+  const getAssetInfo = (placa: string) => {
+    const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa.toUpperCase().trim());
+    if (asset) {
+      const prop = String(asset.PROPRIEDADE || asset.PROPRIEDADE_TIPO || "").toUpperCase();
+      const isProprio = prop.includes("COMPESA") || prop.includes("IPA") || prop.includes("PRÓPRIO") || prop.includes("PROPRIO");
+      
+      return {
+        gerencia: asset.GERENCIA || asset.UNIDADE || "N/A",
+        criticidade: asset.CRITICIDADE || "N/A",
+        propriedade: (isProprio ? 'Próprio' : 'Locado') as 'Próprio' | 'Locado'
+      };
+    }
+    return { gerencia: "N/A", criticidade: "N/A", propriedade: 'Locado' as 'Próprio' | 'Locado' };
+  };
+
+  regularizacaoData.forEach((item, idx) => {
+    const placa = String(item.placa || "").toUpperCase().trim();
+    if (!placa || placa.length < 5) return;
+    
+    const info = getAssetInfo(placa);
+    const status = String(item.status || "").trim();
+    const statusPrazo = String(item.statusPrazoDefesa || "").trim();
+    const statusSEI = String(item.statusProcessoSEI || "").trim();
+    const dataLimiteRaw = item.dataLimite;
+    
+    // Alerta 1: Status pendente (não pago/não pago)
+    const isPaid = status.toUpperCase() === "PAGO" || status.toUpperCase() === "NÃO PAGO" || status.toUpperCase() === "NAO PAGO";
+    if (!status || !isPaid) {
+      alerts.push({
+        id: `infr-status-${idx}-${placa}`,
+        placa,
+        descricao: `Infração com Status Pendente (${status || 'Em branco'}): ${item.autoInfracao}`,
+        vencimento: "Pendente",
+        dias: 0,
+        tipo: 'Vencido',
+        categoria: 'Taxas',
+        ...info,
+        infoAdicional: `Auto: ${item.autoInfracao} | Status: ${status || 'N/A'}`
+      });
+    }
+
+    // Alerta 2: Prazo de Defesa + SEI não realizado
+    if (statusPrazo === "Prazo de Defesa" && statusSEI === "Processo Não Realizado") {
+      const dateLimit = parseBrazilianDate(dataLimiteRaw);
+      const diff = daysDiffFromToday(dateLimit);
+      
+      if (diff !== null) {
+        alerts.push({
+          id: `infr-defesa-${idx}-${placa}`,
+          placa,
+          descricao: `Prazo de Defesa Pendente (SEI Não Realizado): ${item.autoInfracao}`,
+          vencimento: String(dataLimiteRaw),
+          dias: Math.abs(diff),
+          tipo: diff < 0 ? 'Vencido' : 'A Vencer',
+          categoria: 'Taxas',
+          ...info,
+          infoAdicional: `Faltam ${diff} dias para o prazo limite (${dataLimiteRaw})`
+        });
+      }
+    }
+  });
+
+  return alerts;
+}
+
 export function formatWhatsAppMessage(alerts: AlertItem[]): string {
   if (alerts.length === 0) return "Nenhum alerta de manutenção ou taxas pendente no momento ✅";
 
