@@ -41,6 +41,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { auth, db } from "@/lib/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { exportToExcel } from "@/lib/exportToExcel";
 
 const MACHINERY_OPTIONS = [
   "GERADOR PEQUENO PORTE (ATÉ 15 KVA)",
@@ -132,8 +133,8 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
     }
     const units = new Set<string>();
     fuel.forEach(f => {
-      const u = String(f.COL_29 || "").trim();
-      if (u) units.add(u);
+      const u = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
+      if (u && u !== "N/A") units.add(u);
     });
     return Array.from(units).sort();
   }, [fuel, isAccessGranted, userUnit, userRole]);
@@ -156,14 +157,14 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
       // Filter by fixed User Unit (from login)
       if (isAccessGranted && userUnit) {
-        const lotacao = String(f.COL_29 || "").trim();
+        const lotacao = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
         if (lotacao !== userUnit) return false;
       }
 
       // Apply UI filters
       if (searchPlaca && !placa.includes(searchPlaca.toUpperCase())) return false;
       
-      const unit = String(f.COL_29 || "").trim();
+      const unit = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
       if (selectedUnits.length > 0 && !selectedUnits.includes(unit)) return false;
 
       const mesAno = String(f.COL_41 || "").trim();
@@ -201,7 +202,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
           'Endereço': f.COL_23,
           'Bairro': f.COL_24,
           'Cidade': f.COL_25,
-          'Lotação': f.COL_29,
+          'Lotação': f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || '',
           'Cartão': f.COL_35,
           'Mês/Ano': f.COL_41,
           'Destino Maquinário': a?.machineryDestination || '',
@@ -213,17 +214,11 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
         };
       });
 
-      const jsonStr = JSON.stringify(dataToExport, null, 2);
-      const blob = new Blob([jsonStr], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `relatorio_maquinas_${new Date().toISOString().split('T')[0]}.json`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const fileName = `Relatorio_Maquinas_${new Date().toISOString().split('T')[0]}`;
+      exportToExcel(dataToExport, fileName, "Maquinas_Equipamentos");
       toast.success("Relatório exportado com sucesso!");
     } catch (error) {
+      console.error("Erro ao exportar:", error);
       toast.error("Erro ao exportar relatório.");
     }
   };
@@ -286,14 +281,20 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Unidade / Lotação</label>
                 <div className="relative">
                   <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 z-10" />
-                  <Select value={userUnit} onValueChange={setUserUnit}>
+                  <Select value={userUnit} onValueChange={setUserUnit} disabled={loadingFuel}>
                     <SelectTrigger className="pl-10 h-12 rounded-xl bg-slate-50 border-slate-200 focus:ring-2 focus:ring-indigo-500 font-medium text-xs">
-                      <SelectValue placeholder="Selecione sua lotação" />
+                      <SelectValue placeholder={loadingFuel ? "Carregando unidades..." : "Selecione sua lotação"} />
                     </SelectTrigger>
                     <SelectContent>
-                      {unitOptions.map(u => (
-                        <SelectItem key={u} value={u}>{u}</SelectItem>
-                      ))}
+                      {unitOptions.length > 0 ? (
+                        unitOptions.map(u => (
+                          <SelectItem key={u} value={u}>{u}</SelectItem>
+                        ))
+                      ) : (
+                        <div className="p-4 text-center text-[10px] font-bold text-slate-400 uppercase italic">
+                          {loadingFuel ? "Buscando dados..." : "Nenhuma unidade encontrada"}
+                        </div>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
@@ -456,7 +457,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                       <TableCell className="text-[10px] truncate max-w-[250px]" title={`${f.COL_23 || ''} - ${f.COL_24 || ''} - ${f.COL_25 || ''}`}>
                         {f.COL_23} / {f.COL_24} / {f.COL_25}
                       </TableCell>
-                      <TableCell className="text-[10px] uppercase font-bold">{f.COL_29}</TableCell>
+                      <TableCell className="text-[10px] uppercase font-bold">{f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit}</TableCell>
                       <TableCell className="text-[10px] font-mono text-slate-400">{f.COL_35 || 'N/A'}</TableCell>
                       <TableCell className="text-[10px] font-bold text-slate-500">{f.COL_41}</TableCell>
 
