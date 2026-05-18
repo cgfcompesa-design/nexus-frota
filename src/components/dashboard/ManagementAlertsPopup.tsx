@@ -26,6 +26,7 @@ import {
   processTaxAlerts, 
   processInfractionAlerts,
   formatWhatsAppMessage,
+  formatEmailBody,
   AlertItem
 } from "@/lib/alertsLogic";
 import { toast } from "sonner";
@@ -116,104 +117,62 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     });
   }, [alerts]);
 
-  const proprios = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio'), [sortedAlerts]);
-  const locados = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Locado'), [sortedAlerts]);
+  const proprios = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio' && a.categoria !== 'Infrações'), [sortedAlerts]);
+  const locados = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Locado' && a.categoria !== 'Infrações'), [sortedAlerts]);
+  const infracoes = useMemo(() => sortedAlerts.filter(a => a.categoria === 'Infrações'), [sortedAlerts]);
 
-  const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [activeTab, setActiveTab] = useState('proprios');
 
   const handleCopyWhatsApp = () => {
     try {
-      const alertsToShare = activeTab === 'proprios' ? proprios : locados;
+      const alertsToShare = activeTab === 'proprios' ? proprios : (activeTab === 'locados' ? locados : infracoes);
       if (alertsToShare.length === 0) {
         toast.error("Nenhum alerta para copiar.");
         return;
       }
       const message = formatWhatsAppMessage(alertsToShare);
       navigator.clipboard.writeText(message);
-      toast.success("Resumo copiado com sucesso!");
+      toast.success("Resumo copiado!");
     } catch (err) {
-      toast.error("Erro ao copiar para área de transferência.");
+      toast.error("Erro ao copiar.");
     }
   };
 
   const handleShareWhatsApp = () => {
     try {
-      const alertsToShare = activeTab === 'proprios' ? proprios : locados;
+      const alertsToShare = activeTab === 'proprios' ? proprios : (activeTab === 'locados' ? locados : infracoes);
       if (alertsToShare.length === 0) {
         toast.error("Nenhum alerta para compartilhar.");
         return;
       }
       const message = formatWhatsAppMessage(alertsToShare);
-      navigator.clipboard.writeText(message);
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
     } catch (err) {
       toast.error("Erro ao iniciar compartilhamento.");
     }
   };
 
-  const handleSendEmail = async () => {
-    if (isSendingEmail) return;
+  const handleSendEmail = () => {
+    const currentAlerts = activeTab === 'proprios' ? proprios : (activeTab === 'locados' ? locados : infracoes);
     
-    // Safety check for alerts data
-    const currentAlerts = activeTab === 'proprios' ? proprios : locados;
     if (!currentAlerts || currentAlerts.length === 0) {
       toast.error("Não há alertas para enviar nesta categoria.");
       return;
     }
 
-    setIsSendingEmail(true);
-    const vehicleType = activeTab === 'proprios' ? 'Próprio' : 'Locado';
-    const targetEmail = activeTab === 'proprios' ? 'gadveiculos@compesa.com.br' : 'gadlocados@compesa.com.br';
+    const typeLabel = activeTab === 'proprios' ? 'Veículos Próprios' : (activeTab === 'locados' ? 'Veículos Locados' : 'Infrações de Trânsito');
+    let targetEmail = 'gadveiculos@compesa.com.br';
+    if (activeTab === 'locados') targetEmail = 'gadlocados@compesa.com.br';
+    if (activeTab === 'infracoes') targetEmail = 'gadinfracoes@compesa.com.br';
+    
+    const ccEmail = 'gestaofrota@compesa.com.br';
+    const subject = `Resumo de Alertas - ${typeLabel} - Nexus Frota`;
+    const body = formatEmailBody(currentAlerts);
 
-    try {
-      console.log(`[MANAGEMENT] Attempting to send ${vehicleType} report...`);
-      
-      const payload = { 
-        alerts: currentAlerts.slice(0, 500), // Limit payload size to avoid 413
-        vehicleType,
-        targetEmail
-      };
-
-      const response = await fetch('/api/send-management-report', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      }).catch(err => {
-        throw new Error("Falha na conexão de rede.");
-      });
-      
-      if (!response) {
-        throw new Error("Sem resposta do servidor.");
-      }
-
-      const responseText = await response.text();
-      if (!responseText || responseText.trim().length === 0) {
-        throw new Error("Servidor não retornou conteúdo.");
-      }
-      
-      let data;
-      try {
-        data = JSON.parse(responseText);
-      } catch (parseErr) {
-        console.error("[CRITICAL] Server returned non-JSON:", responseText.substring(0, 200));
-        throw new Error("Resposta do servidor em formato inválido.");
-      }
-      
-      if (response.ok && data?.success) {
-        toast.success(data.message || "E-mail enviado com sucesso!");
-      } else {
-        toast.error(data?.error || "O servidor não pôde processar o relatório.");
-      }
-    } catch (error: any) {
-      console.error("[FATAL] Management report error:", error);
-      toast.error(error?.message || "Não foi possível completar o envio.");
-    } finally {
-      setIsSendingEmail(false);
-    }
+    const mailtoUrl = `mailto:${targetEmail}?cc=${ccEmail}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    
+    window.location.href = mailtoUrl;
+    toast.success("Cliente de e-mail solicitado.");
   };
 
   if (!isOpen && alerts.length === 0) return null;
@@ -258,10 +217,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                 variant="outline" 
                 size="sm" 
                 onClick={handleSendEmail}
-                disabled={isSendingEmail}
                 className="h-8 text-[9px] font-black uppercase tracking-widest bg-indigo-500/10 text-indigo-600 border-indigo-500/20 hover:bg-indigo-500 hover:text-white transition-all font-sans"
               >
-                <Mail className="w-3 h-3 mr-2" /> {isSendingEmail ? "Enviando..." : "Email"}
+                <Mail className="w-3 h-3 mr-2" /> Email
               </Button>
             </div>
           </div>
@@ -277,6 +235,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                 <TabsTrigger value="locados" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
                   Locados ({locados.length})
                 </TabsTrigger>
+                <TabsTrigger value="infracoes" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
+                  Infrações ({infracoes.length})
+                </TabsTrigger>
               </TabsList>
               
               <div className="flex items-center space-x-3 text-[9px] font-black uppercase tracking-widest text-slate-400">
@@ -291,6 +252,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
               </TabsContent>
               <TabsContent value="locados" className="flex-1 flex flex-col m-0 overflow-hidden data-[state=active]:flex">
                 <AlertList alerts={locados} />
+              </TabsContent>
+              <TabsContent value="infracoes" className="flex-1 flex flex-col m-0 overflow-hidden data-[state=active]:flex">
+                <AlertList alerts={infracoes} />
               </TabsContent>
             </div>
           </Tabs>

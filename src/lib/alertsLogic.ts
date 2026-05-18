@@ -8,7 +8,7 @@ export interface AlertItem {
   vencimento: string;
   dias: number;
   tipo: 'Vencido' | 'A Vencer';
-  categoria: 'Manutenção' | 'Taxas' | 'Disponibilidade';
+  categoria: 'Manutenção' | 'Taxas' | 'Disponibilidade' | 'Infrações';
   gerencia: string;
   criticidade: string;
   propriedade: 'Próprio' | 'Locado';
@@ -187,7 +187,7 @@ export function processInfractionAlerts(regularizacaoData: any[], assets: any[])
         vencimento: "Pendente",
         dias: 0,
         tipo: 'Vencido',
-        categoria: 'Taxas',
+        categoria: 'Infrações',
         ...info,
         infoAdicional: `Auto: ${item.autoInfracao} | Status: ${status || 'N/A'}`
       });
@@ -206,7 +206,7 @@ export function processInfractionAlerts(regularizacaoData: any[], assets: any[])
           vencimento: String(dataLimiteRaw),
           dias: Math.abs(diff),
           tipo: diff < 0 ? 'Vencido' : 'A Vencer',
-          categoria: 'Taxas',
+          categoria: 'Infrações',
           ...info,
           infoAdicional: `Faltam ${diff} dias para o prazo limite (${dataLimiteRaw})`
         });
@@ -249,7 +249,7 @@ export function formatWhatsAppMessage(alerts: AlertItem[]): string {
       return a.dias - b.dias;
     });
 
-    const cats = ['Manutenção', 'Taxas', 'Disponibilidade'];
+    const cats = ['Manutenção', 'Taxas', 'Disponibilidade', 'Infrações'];
     cats.forEach(cat => {
       const catItems = sortedItems.filter(i => i.categoria === cat);
       if (catItems.length === 0) return;
@@ -275,4 +275,49 @@ export function formatWhatsAppMessage(alerts: AlertItem[]): string {
 
   message += `_Gerado por Nexus via CGF às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}_`;
   return message;
+}
+
+export function formatEmailBody(alerts: AlertItem[]): string {
+  if (alerts.length === 0) return "Nenhum alerta pendente no momento.";
+
+  let body = "RESUMO DE ALERTAS - NEXUS FROTA\r\n\r\n";
+
+  const getCriticalityScore = (c?: string) => {
+    const critical = String(c || "").toUpperCase().trim();
+    if (critical === 'ALTA' || critical === 'A') return 0;
+    if (critical === 'MÉDIA' || critical === 'MEDIA' || critical === 'B') return 1;
+    if (critical === 'BAIXA' || critical === 'C') return 2;
+    return 3;
+  };
+
+  const cats = ['Manutenção', 'Taxas', 'Disponibilidade', 'Infrações'];
+  
+  cats.forEach(cat => {
+    const catItems = alerts.filter(i => i.categoria === cat).sort((a, b) => {
+      const scoreA = getCriticalityScore(a.criticidade);
+      const scoreB = getCriticalityScore(b.criticidade);
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
+      return a.dias - b.dias;
+    });
+
+    if (catItems.length === 0) return;
+    
+    body += `${cat.toUpperCase()}\r\n`;
+    body += "----------------------------------------\r\n";
+    
+    catItems.forEach(v => {
+      const typeStr = v.tipo === 'Vencido' ? 'VENCIDO' : 'A VENCER';
+      body += `Placa: ${v.placa}\r\n`;
+      body += `Descrição: ${v.descricao}\r\n`;
+      body += `Gerência: ${v.gerencia} | Criticidade: ${v.criticidade}\r\n`;
+      body += `Vencimento: ${v.vencimento} (${typeStr} - ${v.dias} dias)\r\n`;
+      if (v.infoAdicional) body += `Obs: ${v.infoAdicional}\r\n`;
+      body += "\r\n";
+    });
+    body += "\r\n";
+  });
+
+  body += `Redirecionado via Nexus em ${new Date().toLocaleString('pt-BR')}`;
+  return body;
 }
