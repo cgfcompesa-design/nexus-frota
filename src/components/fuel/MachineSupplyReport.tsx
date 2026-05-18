@@ -244,9 +244,10 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
         ...sanitizedData
       });
       toast.success("Dados salvos!");
-    } catch (error) {
+    } catch (error: any) {
       console.error("Erro ao salvar atribuição:", error);
-      toast.error("Erro ao salvar.");
+      const errorMessage = error?.message || "Erro desconhecido";
+      toast.error(`Erro ao salvar: ${errorMessage.includes('permission-denied') ? 'Sem permissão no banco' : errorMessage}`);
     }
   };
 
