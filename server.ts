@@ -30,6 +30,9 @@ async function startServer() {
     
     try {
       console.log(`[INFO] Report data summary: ${alerts?.length || 0} alerts found.`);
+      if (alerts && alerts.length > 0) {
+        console.log(`[DEBUG] Sample alert: ${JSON.stringify(alerts[0]).substring(0, 100)}...`);
+      }
       // Mock sending
       res.json({ success: true, message: `Relatório enviado com sucesso para ${email}` });
     } catch (error) {

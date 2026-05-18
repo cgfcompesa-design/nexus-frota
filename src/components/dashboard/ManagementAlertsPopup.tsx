@@ -85,7 +85,19 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     if (!isOpen) return [];
     const mntAlers = processMaintenanceAlerts(maintenance, controle, assets);
     const taxAlerts = processTaxAlerts(taxData, assets);
+    
+    const getCriticalityScore = (c?: string) => {
+      const crit = String(c || "").toUpperCase().trim();
+      if (crit === 'ALTA' || crit === 'A') return 0;
+      if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
+      if (crit === 'BAIXA' || crit === 'C') return 2;
+      return 3;
+    };
+
     return [...mntAlers, ...taxAlerts].sort((a, b) => {
+      const scoreA = getCriticalityScore(a.criticidade);
+      const scoreB = getCriticalityScore(b.criticidade);
+      if (scoreA !== scoreB) return scoreA - scoreB;
       if (a.tipo === b.tipo) return a.dias - b.dias;
       return a.tipo === 'Vencido' ? -1 : 1;
     });
@@ -130,8 +142,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   const handleSendEmail = async () => {
     if (isSendingEmail) return;
     
-    const alertsToReport = activeTab === 'proprios' ? proprios : locados;
-    if (!alertsToReport || alertsToReport.length === 0) {
+    // Safety check for alerts data
+    const currentAlerts = activeTab === 'proprios' ? proprios : locados;
+    if (!currentAlerts || currentAlerts.length === 0) {
       toast.error("Não há alertas para enviar nesta categoria.");
       return;
     }
@@ -141,6 +154,8 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     const targetEmail = activeTab === 'proprios' ? 'gadveiculos@compesa.com.br' : 'gadlocados@compesa.com.br';
 
     try {
+      console.log(`[CLIENT] Sending ${vehicleType} report to ${targetEmail}`);
+      
       const response = await fetch('/api/send-management-report', {
         method: 'POST',
         headers: { 
@@ -148,7 +163,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
           'Accept': 'application/json'
         },
         body: JSON.stringify({ 
-          alerts: alertsToReport, 
+          alerts: currentAlerts, 
           vehicleType,
           targetEmail
         })
@@ -156,15 +171,15 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       
       const responseText = await response.text();
       if (!responseText) {
-        throw new Error("O servidor retornou uma resposta vazia.");
+        throw new Error("Servidor retornou uma resposta vazia.");
       }
       
       let data;
       try {
         data = JSON.parse(responseText);
-      } catch (e) {
-        console.error("JSON Parse Error. Server response:", responseText);
-        throw new Error("O servidor enviou um formato inválido. Tente novamente mais tarde.");
+      } catch (parseErr) {
+        console.error("[ERROR] JSON Parse failed:", responseText);
+        throw new Error("Formato de resposta inválido.");
       }
       
       if (response.ok && data.success) {
@@ -174,7 +189,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       }
     } catch (error: any) {
       console.error("Email send fatal error:", error);
-      toast.error(error.message || "Falha na conexão com o servidor de e-mail.");
+      toast.error(error?.message || "Erro desconhecido ao enviar e-mail.");
     } finally {
       setIsSendingEmail(false);
     }
@@ -303,9 +318,9 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
   });
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col">
-      <ScrollArea className="flex-1 w-full h-[calc(90vh-220px)]">
-        <div className="space-y-3 pr-4 pb-20">
+    <div className="flex-1 min-h-0 flex flex-col p-2 overflow-hidden bg-slate-50/50 dark:bg-transparent">
+      <ScrollArea className="flex-1 w-full rounded-xl" type="always">
+        <div className="space-y-3 pr-4 pb-12">
           {sorted.map((alert) => (
             <div 
               key={alert.id}
