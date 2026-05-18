@@ -77,18 +77,20 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
     const dateEntrega = parseBrazilianDate(entregaRaw);
     const diffEntrega = daysDiffFromToday(dateEntrega);
 
-    if (diffEntrega !== null && diffEntrega < 0) {
-      alerts.push({
-        id: `mnt-ctrl-venc-${idx}-${placa}`,
-        placa,
-        descricao: `Conclusão de Manutenção Vencida: ${item.descricaoAtividade || "Geral"}`,
-        vencimento: String(entregaRaw),
-        dias: Math.abs(diffEntrega),
-        tipo: 'Vencido',
-        categoria: 'Disponibilidade',
-        ...info,
-        infoAdicional: `Ordem: ${item.numOrdem}`
-      });
+    if (diffEntrega !== null) {
+      if (diffEntrega < 0 || diffEntrega <= 7) {
+        alerts.push({
+          id: `mnt-ctrl-${diffEntrega < 0 ? 'venc' : 'prox'}-${idx}-${placa}`,
+          placa,
+          descricao: `Conclusão de Manutenção ${diffEntrega < 0 ? 'Vencida' : 'a Vencer'}: ${item.descricaoAtividade || "Geral"}`,
+          vencimento: String(entregaRaw),
+          dias: Math.abs(diffEntrega),
+          tipo: diffEntrega < 0 ? 'Vencido' : 'A Vencer',
+          categoria: 'Disponibilidade',
+          ...info,
+          infoAdicional: `Ordem: ${item.numOrdem}${item.numOrcamento ? ` | Orç: ${item.numOrcamento}` : ''}`
+        });
+      }
     }
   });
 

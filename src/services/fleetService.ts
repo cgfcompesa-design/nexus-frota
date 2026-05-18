@@ -714,6 +714,7 @@ export async function fetchControleOperacional(): Promise<any[]> {
     obj.estabelecimento = String(row[16] || "").trim();
     obj.custo = String(row[17] || "").trim();
     obj.diasEmAberto = String(row[21] || "").trim();
+    obj.expectativaEntrega = String(row[20] || "").trim();
     obj.__raw = row;
     return obj;
   });

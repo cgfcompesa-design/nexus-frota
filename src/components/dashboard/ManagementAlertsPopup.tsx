@@ -94,17 +94,29 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       return 3;
     };
 
-    return [...mntAlers, ...taxAlerts].sort((a, b) => {
-      const scoreA = getCriticalityScore(a.criticidade);
-      const scoreB = getCriticalityScore(b.criticidade);
+    return [...mntAlers, ...taxAlerts];
+  }, [maintenance, controle, assets, taxData, isOpen]);
+
+  const getScore = (c?: string) => {
+    const crit = String(c || "").toUpperCase().trim();
+    if (crit === 'ALTA' || crit === 'A') return 0;
+    if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
+    if (crit === 'BAIXA' || crit === 'C') return 2;
+    return 3;
+  };
+
+  const sortedAlerts = useMemo(() => {
+    return [...alerts].sort((a, b) => {
+      const scoreA = getScore(a.criticidade);
+      const scoreB = getScore(b.criticidade);
       if (scoreA !== scoreB) return scoreA - scoreB;
       if (a.tipo === b.tipo) return a.dias - b.dias;
       return a.tipo === 'Vencido' ? -1 : 1;
     });
-  }, [maintenance, controle, assets, taxData, isOpen]);
+  }, [alerts]);
 
-  const proprios = useMemo(() => alerts.filter(a => a.propriedade === 'Próprio'), [alerts]);
-  const locados = useMemo(() => alerts.filter(a => a.propriedade === 'Locado'), [alerts]);
+  const proprios = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio'), [sortedAlerts]);
+  const locados = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Locado'), [sortedAlerts]);
 
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [activeTab, setActiveTab] = useState('proprios');
@@ -291,9 +303,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 }
 
 function AlertList({ alerts }: { alerts: AlertItem[] }) {
-  if (alerts.length === 0) {
+  if (!alerts || alerts.length === 0) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-white/5">
+      <div className="flex-1 flex flex-col items-center justify-center p-12 text-center bg-white/50 dark:bg-slate-900/50 rounded-2xl border border-dashed border-slate-200 dark:border-white/5 mt-4">
         <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mb-4" />
         <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Tudo em dia!</p>
         <p className="text-slate-500 text-[11px] mt-1">Não há alertas pendentes nesta categoria.</p>
@@ -301,27 +313,9 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
     );
   }
 
-  // Sort: Criticality first, then Vencidos, then by days
-  const sorted = useMemo(() => {
-    return [...alerts].sort((a, b) => {
-      const getScore = (c?: string) => {
-        const crit = String(c || "").toUpperCase().trim();
-        if (crit === 'ALTA' || crit === 'A') return 0;
-        if (crit === 'MÉDIA' || crit === 'MEDIA' || crit === 'B') return 1;
-        if (crit === 'BAIXA' || crit === 'C') return 2;
-        return 3;
-      };
-      const scoreA = getScore(a.criticidade);
-      const scoreB = getScore(b.criticidade);
-      if (scoreA !== scoreB) return scoreA - scoreB;
-      if (a.tipo !== b.tipo) return a.tipo === 'Vencido' ? -1 : 1;
-      return a.dias - b.dias;
-    });
-  }, [alerts]);
-
   return (
     <div className="flex-1 min-h-0 w-full overflow-y-auto px-1 pr-2 mt-4 space-y-3 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-      {sorted.map((alert) => (
+      {alerts.map((alert) => (
             <div 
               key={alert.id}
               className={`p-4 bg-white dark:bg-slate-900 border ${alert.tipo === 'Vencido' ? 'border-rose-500/20 shadow-sm shadow-rose-500/5' : 'border-slate-200 dark:border-white/5'} rounded-2xl hover:border-slate-300 dark:hover:border-white/20 transition-all group`}
