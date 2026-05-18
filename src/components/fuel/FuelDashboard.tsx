@@ -820,10 +820,10 @@ Coordenação de Gestão de Frotas - CGF`;
       const preco = f._vlLitro || 0;
       if (preco <= 0.5) return;
 
-      // Exclusão de postos específicos solicitados
-      const postoNome = String(f._posto || "").toUpperCase();
-      if (postoNome.includes("ECO POSTO VIT") && postoNome.includes("VITORIA")) return;
-      if (postoNome.includes("PICHILAU BR-232 CARUARU")) return;
+      // Exclusão de postos específicos solicitados (Filtro mais abrangente)
+      const postoNomeNorm = String(f._posto || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (postoNomeNorm.includes("PICHILAU")) return;
+      if (postoNomeNorm.includes("ECO POSTO") && (postoNomeNorm.includes("VITORIA") || postoNomeNorm.includes("SANTO ANTAO"))) return;
 
       // EXTREME OUTLIER FILTER:
       // Users report values like 99.000, 120.000. These are clearly total bill amounts.
@@ -971,6 +971,11 @@ Coordenação de Gestão de Frotas - CGF`;
     sourceFuel.forEach(f => {
       const tipo = f._fuelType || "";
       const preco = f._vlLitro || 0;
+
+      // Exclusão de postos específicos solicitados dos benchmarks
+      const postoNomeNorm = String(f._posto || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (postoNomeNorm.includes("PICHILAU")) return;
+      if (postoNomeNorm.includes("ECO POSTO") && (postoNomeNorm.includes("VITORIA") || postoNomeNorm.includes("SANTO ANTAO"))) return;
       
       if (preco > 0 && marketBenchmarks[tipo]) {
         if (!compesaAverages[tipo]) compesaAverages[tipo] = { sum: 0, count: 0 };
