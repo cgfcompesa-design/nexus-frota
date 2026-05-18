@@ -820,6 +820,11 @@ Coordenação de Gestão de Frotas - CGF`;
       const preco = f._vlLitro || 0;
       if (preco <= 0.5) return;
 
+      // Exclusão de postos específicos solicitados
+      const postoNome = String(f._posto || "").toUpperCase();
+      if (postoNome.includes("ECO POSTO VIT") && postoNome.includes("VITORIA")) return;
+      if (postoNome.includes("PICHILAU BR-232 CARUARU")) return;
+
       // EXTREME OUTLIER FILTER:
       // Users report values like 99.000, 120.000. These are clearly total bill amounts.
       // Maximum reasonable price for any fuel/ARLA is around 15.00/L.
@@ -939,6 +944,8 @@ Coordenação de Gestão de Frotas - CGF`;
           summary += `• ${item.tipo}: R$ ${item.preco.toFixed(3)} [${item.posto}]\n`;
         });
       });
+
+      summary += `\n*Ação Recomendada:* Propomos que o abastecimento da frota local seja priorizado neste posto indicado para otimização de custos.\n`;
     }
 
     summary += `\n_Gerado em tempo real via Nexus Frotas - Auditoria e Inteligência de Custos_`;
