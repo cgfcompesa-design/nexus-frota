@@ -89,7 +89,7 @@
       "type": "object",
       "properties": {
         "transactionId": { "type": "string", "description": "ID da transação/abastecimento (CÓD. TRANSAÇÃO)" },
-        "machineryDestination": { "type": "string", "enum": ["GERADOR PEQUENO PORTE (ATÉ 15 KVA)", "GERADOR MÉDIO PORTE (DE 15 ATÉ 75 KVA)", "GERADOR GRANDE PORTE (75 ATÉ 500 KVA)", "ROÇADEIRA(S)", "BOMBA SUBMERSA", "COMPRESSOR(ES)", "MOTOSERRA(S)", "COMPACTADOR(ES)", "CORTADOR(ES) DE GRAMA", "TORRE DE ILUMINAÇÃO"] },
+        "machineryDestination": { "type": "string", "enum": ["GERADOR PEQUENO PORTE (ATÉ 15 KVA)", "GERADOR MÉDIO PORTE (DE 15 ATÉ 75 KVA)", "GERADOR GRANDE PORTE (75 ATÉ 500 KVA)", "ROÇADEIRA(S)", "BOMBA SUBMERSA", "COMPRESSOR(ES)", "MOTOSERRA(S)", "COMPACTADOR(ES)", "CORTADOR(ES) DE GRAMA", "TORRE DE ILUMINAÇÃO", "SOPRADOR DE FOLHAS"] },
         "model": { "type": "string" },
         "property": { "type": "string", "enum": ["PRÓPRIO", "LOCADO"] },
         "tombamentoNumber": { "type": "string" },
