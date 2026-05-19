@@ -57,7 +57,7 @@ import { useContactsData } from "@/hooks/useContactsData";
 import { exportToExcel } from "@/lib/exportToExcel";
 import { LoadingState } from "@/components/dashboard/LoadingState";
 
-type StatusFilter = "all" | "vencida" | "30dias" | "60dias" | "90dias" | "regular";
+type StatusFilter = "all" | "vencida" | "aguardando" | "30dias" | "60dias" | "90dias" | "regular";
 
 export function DriversRelation() {
   const { data: cnhResult, isLoading } = useCNHData();
@@ -204,6 +204,7 @@ export function DriversRelation() {
   const getStatusLabel = (status: CNHRecord["status"]): string => {
     switch (status) {
       case "vencida": return "Vencida";
+      case "aguardando": return "Aguardando Atualização CNH";
       case "30dias": return "Vence em 30 dias";
       case "60dias": return "Vence em 60 dias";
       case "90dias": return "Vence em 90 dias";
@@ -243,8 +244,10 @@ export function DriversRelation() {
   const getStatusBadge = (status: CNHRecord["status"]) => {
     switch (status) {
       case "vencida":
-        return <Badge className="bg-rose-700 font-black text-[10px] uppercase text-white border border-rose-400 shadow-sm">Vencida</Badge>;
-      case "30dias":
+      return <Badge className="bg-rose-700 font-black text-[10px] uppercase text-white border border-rose-400 shadow-sm">Vencida</Badge>;
+    case "aguardando":
+      return <Badge className="bg-slate-600 font-black text-[10px] uppercase text-white border border-slate-400 shadow-sm">Aguardando</Badge>;
+    case "30dias":
         return <Badge className="bg-orange-500 hover:bg-orange-600 font-black text-[10px] uppercase text-white">30 dias</Badge>;
       case "60dias":
         return <Badge className="bg-amber-500 hover:bg-amber-600 font-black text-[10px] uppercase text-white">60 dias</Badge>;
@@ -260,8 +263,8 @@ export function DriversRelation() {
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 grid grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="md:col-span-3 grid grid-cols-2 lg:grid-cols-6 gap-4">
           <Card 
             className="cursor-pointer hover:shadow-lg transition-all border-none bg-rose-50 dark:bg-rose-950/20 shadow-sm"
             onClick={() => handleOpenDetail("vencida")}
@@ -270,6 +273,17 @@ export function DriversRelation() {
               <AlertTriangle className="h-6 w-6 text-rose-600 mb-2" />
               <p className="text-3xl font-black text-rose-700 leading-none">{stats.vencidas}</p>
               <p className="text-[10px] font-black uppercase text-rose-600 mt-2">Vencidas</p>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className="cursor-pointer hover:shadow-lg transition-all border-none bg-slate-50 dark:bg-slate-900/40 shadow-sm"
+            onClick={() => handleOpenDetail("aguardando")}
+          >
+            <CardContent className="p-4 flex flex-col items-center text-center">
+              <Clock className="h-6 w-6 text-slate-600 mb-2" />
+              <p className="text-3xl font-black text-slate-700 leading-none">{stats.aguardando}</p>
+              <p className="text-[9px] font-black uppercase text-slate-600 mt-2 leading-tight">Aguardando Atualização</p>
             </CardContent>
           </Card>
 
@@ -451,6 +465,7 @@ export function DriversRelation() {
                           <TableCell className="py-3">
                              <div className="flex justify-center gap-1">
                                 {stat.vencidas > 0 && <Badge className="h-5 px-1.5 font-black text-[9px] bg-rose-700 text-white border border-rose-400 shadow-sm">{stat.vencidas}</Badge>}
+                                {stat.aguardando > 0 && <Badge className="h-5 px-1.5 font-black text-[9px] bg-slate-600 text-white border border-slate-400 shadow-sm">{stat.aguardando}</Badge>}
                                 {stat.em30dias > 0 && <Badge className="h-5 px-1.5 font-black text-[9px] bg-orange-500 text-white">{stat.em30dias}</Badge>}
                                 {stat.em60dias > 0 && <Badge className="h-5 px-1.5 font-black text-[9px] bg-amber-500 text-white">{stat.em60dias}</Badge>}
                              </div>
@@ -520,6 +535,7 @@ export function DriversRelation() {
                       <SelectContent>
                         <SelectItem value="all" className="text-[10px] font-bold uppercase">TODOS STATUS</SelectItem>
                         <SelectItem value="vencida" className="text-[10px] font-bold uppercase">VENCIDA</SelectItem>
+                        <SelectItem value="aguardando" className="text-[10px] font-bold uppercase">AGUARDANDO ATUALIZAÇÃO</SelectItem>
                         <SelectItem value="30dias" className="text-[10px] font-bold uppercase">30 DIAS</SelectItem>
                         <SelectItem value="60dias" className="text-[10px] font-bold uppercase">60 DIAS</SelectItem>
                         <SelectItem value="regular" className="text-[10px] font-bold uppercase">REGULAR</SelectItem>
@@ -592,6 +608,7 @@ export function DriversRelation() {
           <DialogHeader className="p-6 bg-slate-900 text-white">
             <DialogTitle className="text-xl font-black uppercase tracking-tighter flex items-center gap-3">
                {detailStatus === "vencida" && <AlertTriangle size={24} className="text-rose-500" />}
+               {detailStatus === "aguardando" && <Clock size={24} className="text-slate-400" />}
                {detailStatus === "all" ? "Todos os Condutores" : getStatusLabel(detailStatus)}
                <span className="text-slate-400 ml-auto text-sm font-bold tracking-normal">{detailRecords.length} REGISTROS</span>
             </DialogTitle>

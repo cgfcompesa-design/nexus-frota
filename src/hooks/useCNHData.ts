@@ -9,7 +9,7 @@ export interface CNHRecord {
   validadeStr: string;
   categoria: string;
   matricula: string;
-  status: "vencida" | "30dias" | "60dias" | "90dias" | "regular";
+  status: "vencida" | "30dias" | "60dias" | "90dias" | "regular" | "aguardando";
   diasParaVencer: number | null;
   cnh: string; // Map to codMotorista or similar
   rawData: any;
@@ -19,6 +19,7 @@ export interface GestorStats {
   gestor: string;
   total: number;
   vencidas: number;
+  aguardando: number;
   em30dias: number;
   em60dias: number;
   em90dias: number;
@@ -47,7 +48,10 @@ export function useCNHData() {
         let status: CNHRecord["status"] = "regular";
         let diasParaVencer: number | null = null;
 
-        if (vDate && isValid(vDate)) {
+        // Logic requested by user: 01/01/1000 means "Awaiting CNH Update"
+        if (driver.validadeStr === "01/01/1000") {
+          status = "aguardando";
+        } else if (vDate && isValid(vDate)) {
           diasParaVencer = differenceInDays(vDate, now);
           if (isBefore(vDate, now)) {
             status = "vencida";
@@ -81,6 +85,7 @@ export function calculateCNHStats(data: CNHRecord[]) {
   const stats = {
     total: data.length,
     vencidas: 0,
+    aguardando: 0,
     em30dias: 0,
     em60dias: 0,
     em90dias: 0,
@@ -89,6 +94,7 @@ export function calculateCNHStats(data: CNHRecord[]) {
 
   data.forEach((r) => {
     if (r.status === "vencida") stats.vencidas++;
+    else if (r.status === "aguardando") stats.aguardando++;
     else if (r.status === "30dias") stats.em30dias++;
     else if (r.status === "60dias") stats.em60dias++;
     else if (r.status === "90dias") stats.em90dias++;
@@ -112,6 +118,7 @@ export function calculateStatsByGestor(data: CNHRecord[]): GestorStats[] {
       gestor,
       total: stats.total,
       vencidas: stats.vencidas,
+      aguardando: stats.aguardando,
       em30dias: stats.em30dias,
       em60dias: stats.em60dias,
       em90dias: stats.em90dias,
