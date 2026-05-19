@@ -20,6 +20,7 @@ export interface Indicator {
   unit: string;
   target: number;
   current_value: number;
+  chart_type?: "gauge" | "bar" | "pie" | "number" | "line";
   responsible_id?: string;
   order?: number;
 }

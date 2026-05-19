@@ -1,7 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Task, TaskStatus } from "@/hooks/useKanbanData";
-import { Plus, MoreVertical, Trash2, Pencil } from "lucide-react";
+import { Plus, MoreVertical, Trash2, Pencil, Calendar, Clock, MessageSquare } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,11 +25,11 @@ interface KanbanColumnProps {
 export const KanbanColumn = ({ status, title, tasks, onAddTask, onDeleteTask, onEditTask }: KanbanColumnProps) => {
   return (
     <div className={cn(
-      "flex flex-col h-full min-h-[500px] bg-slate-100/80 dark:bg-slate-900/40 backdrop-blur-sm border border-slate-200 dark:border-white/5 rounded-2xl p-4 transition-all",
-      status === 'todo' && "border-t-rose-500 border-t-4",
-      status === 'progress' && "border-t-amber-500 border-t-4",
-      status === 'review' && "border-t-blue-500 border-t-4",
-      status === 'done' && "border-t-emerald-500 border-t-4"
+      "flex flex-col h-full min-h-[500px] border rounded-2xl p-4 transition-all shadow-lg",
+      status === 'todo' && "bg-rose-50/50 dark:bg-rose-950/10 border-rose-200 dark:border-rose-900/30 border-t-rose-500 border-t-4",
+      status === 'progress' && "bg-amber-50/50 dark:bg-amber-950/10 border-amber-200 dark:border-amber-900/30 border-t-amber-500 border-t-4",
+      status === 'review' && "bg-blue-50/50 dark:bg-blue-950/10 border-blue-200 dark:border-blue-900/30 border-t-blue-500 border-t-4",
+      status === 'done' && "bg-emerald-50/50 dark:bg-emerald-950/10 border-emerald-200 dark:border-emerald-900/30 border-t-emerald-500 border-t-4"
     )}>
       <div className="flex items-center justify-between mb-4 px-2">
         <h3 className={cn(
@@ -99,7 +99,7 @@ export const TaskCard = ({ task, onDelete, onEdit }: TaskCardProps) => {
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group border-white/10 bg-slate-900/60 shadow-lg hover:border-indigo-500/50 transition-all duration-200",
+        "group border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 shadow-md hover:shadow-xl hover:border-indigo-500/50 transition-all duration-200",
         isDragging && "opacity-50 scale-95 border-indigo-500"
       )}
       {...attributes}
@@ -107,10 +107,10 @@ export const TaskCard = ({ task, onDelete, onEdit }: TaskCardProps) => {
     >
       <CardContent className="p-4 space-y-3">
         <div className="flex items-start justify-between gap-2">
-          <h4 className="text-sm font-bold text-white leading-tight">{task.title}</h4>
+          <h4 className="text-sm font-bold text-slate-800 dark:text-white leading-tight">{task.title}</h4>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-500 hover:text-white" onClick={(e) => e.stopPropagation()}>
+              <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-600 dark:hover:text-white" onClick={(e) => e.stopPropagation()}>
                 <MoreVertical className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -127,6 +127,20 @@ export const TaskCard = ({ task, onDelete, onEdit }: TaskCardProps) => {
 
         {task.description && (
           <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{task.description}</p>
+        )}
+
+        {task.deadline && (
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-500">
+            <Calendar className="h-3 w-3" />
+            Prazo: {new Date(task.deadline).toLocaleDateString('pt-BR')}
+          </div>
+        )}
+
+        {task.updates && task.updates.length > 0 && (
+          <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+            <MessageSquare className="h-3 w-3" />
+            {task.updates.length} atualização{task.updates.length > 1 ? 'ões' : ''}
+          </div>
         )}
 
         <div className="flex flex-wrap gap-1.5 mt-2">

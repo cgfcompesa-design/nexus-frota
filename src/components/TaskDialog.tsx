@@ -32,7 +32,11 @@ export const TaskDialog = ({ open, onOpenChange, onSubmit, defaultStatus, editin
   const [sector, setSector] = useState("");
   const [priorityColor, setPriorityColor] = useState("blue");
   const [activityType, setActivityType] = useState("operacional");
+  const [deadline, setDeadline] = useState("");
   const [selectedResponsibles, setSelectedResponsibles] = useState<Responsible[]>([]);
+  const [newsUpdateText, setNewUpdateText] = useState("");
+  const [updateResponsible, setUpdateResponsible] = useState<string>("");
+  const [updates, setUpdates] = useState<any[]>([]);
 
   useEffect(() => {
     if (editingTask) {
@@ -42,6 +46,8 @@ export const TaskDialog = ({ open, onOpenChange, onSubmit, defaultStatus, editin
       setSector(editingTask.sector || "");
       setPriorityColor(editingTask.priority_color || "blue");
       setActivityType(editingTask.activity_type || "operacional");
+      setDeadline(editingTask.deadline || "");
+      setUpdates(editingTask.updates || []);
       
       // Sync responsibles from task to our local selection
       if (editingTask.responsibles && responsibles.length > 0) {
@@ -59,9 +65,32 @@ export const TaskDialog = ({ open, onOpenChange, onSubmit, defaultStatus, editin
       setSector("");
       setPriorityColor("blue");
       setActivityType("operacional");
+      setDeadline("");
+      setUpdates([]);
       setSelectedResponsibles([]);
     }
   }, [editingTask, defaultStatus, open, responsibles]);
+
+  const handleAddUpdate = () => {
+    if (!newsUpdateText || !updateResponsible) return;
+    
+    const resp = responsibles.find(r => r.id === updateResponsible);
+    if (!resp) return;
+
+    const newUpdate = {
+      id: crypto.randomUUID(),
+      text: newsUpdateText,
+      responsible: { id: resp.id, name: resp.name },
+      date: new Date().toISOString()
+    };
+
+    setUpdates([newUpdate, ...updates]);
+    setNewUpdateText("");
+  };
+
+  const removeUpdate = (id: string) => {
+    setUpdates(updates.filter(u => u.id !== id));
+  };
 
   const handleSubmit = () => {
     if (!title) return;
@@ -74,6 +103,8 @@ export const TaskDialog = ({ open, onOpenChange, onSubmit, defaultStatus, editin
       sector,
       priority_color: priorityColor,
       activity_type: activityType,
+      deadline,
+      updates,
       responsibles: selectedResponsibles.map(r => ({ id: r.id, name: r.name }))
     });
     onOpenChange(false);
@@ -184,6 +215,16 @@ export const TaskDialog = ({ open, onOpenChange, onSubmit, defaultStatus, editin
           </div>
 
           <div className="space-y-2">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Prazo de Conclusão</Label>
+            <Input 
+              type="date"
+              value={deadline} 
+              onChange={(e) => setDeadline(e.target.value)} 
+              className="bg-slate-800 border-slate-700 focus:border-indigo-500"
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-500">Responsáveis</Label>
             <div className="flex flex-wrap gap-1.5 mb-2">
               {selectedResponsibles.map(r => (
@@ -206,6 +247,56 @@ export const TaskDialog = ({ open, onOpenChange, onSubmit, defaultStatus, editin
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <Label className="text-[10px] font-black uppercase tracking-widest text-indigo-400">Atualizações de Andamento</Label>
+            
+            <div className="space-y-2 bg-slate-800/50 p-3 rounded-xl border border-slate-800">
+              <div className="grid grid-cols-1 gap-2">
+                <Select value={updateResponsible} onValueChange={setUpdateResponsible}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 h-8 text-[10px] font-bold">
+                    <SelectValue placeholder="Responsável pela atualização" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-800 text-slate-300">
+                    {responsibles?.map(resp => (
+                      <SelectItem key={resp.id} value={resp.id} className="text-[10px]">{resp.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Textarea 
+                  value={newsUpdateText}
+                  onChange={(e) => setNewUpdateText(e.target.value)}
+                  placeholder="Descreva o andamento..."
+                  className="bg-slate-800 border-slate-700 min-h-[60px] text-xs"
+                />
+                <Button 
+                  onClick={handleAddUpdate}
+                  variant="outline"
+                  className="h-8 border-indigo-500/50 text-indigo-400 font-bold text-[10px] uppercase tracking-widest"
+                >
+                  Postar Atualização
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-3 max-h-[200px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-800">
+              {updates.map((update, idx) => (
+                <div key={update.id || idx} className="p-3 bg-slate-800/30 rounded-lg border border-slate-800 group">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="text-[9px] font-black text-indigo-400 uppercase">{update.responsible.name}</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] text-slate-500">{new Date(update.date).toLocaleString('pt-BR')}</span>
+                      <X className="h-3 w-3 text-slate-600 hover:text-rose-500 cursor-pointer opacity-0 group-hover:opacity-100" onClick={() => removeUpdate(update.id)} />
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-300 leading-relaxed font-medium">{update.text}</p>
+                </div>
+              ))}
+              {updates.length === 0 && (
+                <p className="text-center text-[10px] text-slate-500 uppercase font-bold italic py-4">Nenhuma atualização registrada</p>
+              )}
+            </div>
           </div>
         </div>
 

@@ -23,6 +23,8 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
   const [target, setTarget] = useState("");
   const [currentValue, setCurrentValue] = useState("");
   const [unit, setUnit] = useState("");
+  const [chartType, setChartType] = useState("bar");
+  const [month, setMonth] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -31,26 +33,36 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setTarget(indicator.target?.toString() || "");
       setCurrentValue(indicator.current_value?.toString() || "");
       setUnit(indicator.unit || "");
+      setChartType(indicator.chart_type || "bar");
+      setMonth(format(selectedMonth, "yyyy-MM"));
     } else {
       setName("");
       setTarget("");
       setCurrentValue("");
       setUnit("");
+      setChartType("bar");
+      setMonth(format(selectedMonth, "yyyy-MM"));
     }
-  }, [indicator, open]);
+  }, [indicator, open, selectedMonth]);
 
   const handleSubmit = async () => {
-    if (!name) return;
+    if (!name || !month) return;
 
-    const monthStr = format(selectedMonth, "yyyy-MM-01");
+    const monthStr = `${month}-01`;
     setIsSaving(true);
-    const data = {
+    
+    // Ensure section exists even for new indicators
+    const section = indicator?.section || "manutencao";
+    const subsection = indicator?.subsection || null;
+
+    const data: any = {
       name,
-      section: indicator.section,
-      subsection: indicator.subsection || null,
+      section,
+      subsection,
       unit,
       target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
       current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
+      chart_type: chartType,
       updatedAt: serverTimestamp()
     };
 
@@ -113,25 +125,47 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
         </DialogHeader>
         
         <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Mês de Referência</Label>
+              <Input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Tipo de Gráfico</Label>
+              <Select value={chartType} onValueChange={setChartType}>
+                <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                  <SelectItem value="bar">Barra</SelectItem>
+                  <SelectItem value="line">Linha</SelectItem>
+                  <SelectItem value="pie">Pizza</SelectItem>
+                  <SelectItem value="gauge">Medidor</SelectItem>
+                  <SelectItem value="number">Card (Número)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-slate-500">Nome do Indicador</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-slate-800 border-slate-700" />
+            <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Nome do Indicador</Label>
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-slate-800 border-slate-700 h-10" placeholder="Ex: Eficiência de Combustível" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-slate-500">Meta</Label>
-              <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} className="bg-slate-800 border-slate-700" />
+              <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Meta ({unit || "-"})</Label>
+              <Input type="number" value={target} onChange={(e) => setTarget(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-bold uppercase text-slate-500">Realizado</Label>
-              <Input type="number" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} className="bg-slate-800 border-slate-700" />
+              <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Realizado ({unit || "-"})</Label>
+              <Input type="number" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-slate-500">Unidade (ex: %, R$, Km)</Label>
-            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700" />
+            <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Unidade (ex: %, R$, Km, L)</Label>
+            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
           </div>
         </div>
 

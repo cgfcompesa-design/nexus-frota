@@ -24,6 +24,13 @@ export interface Task {
   priority_color?: string;
   activity_type?: string;
   responsibles?: { id: string; name: string }[];
+  deadline?: string;
+  updates?: {
+    id: string;
+    text: string;
+    responsible: { id: string; name: string };
+    date: any;
+  }[];
   createdAt: any;
   updatedAt: any;
 }

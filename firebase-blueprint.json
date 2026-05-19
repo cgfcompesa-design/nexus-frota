@@ -55,6 +55,19 @@
         "priority_color": { "type": "string" },
         "activity_type": { "type": "string" },
         "responsibles": { "type": "array" },
+        "deadline": { "type": "string", "description": "Prazo de conclusão (YYYY-MM-DD)" },
+        "updates": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "text": { "type": "string" },
+              "responsible": { "type": "object" },
+              "date": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       }
@@ -80,7 +93,8 @@
         "subsection": { "type": "string" },
         "unit": { "type": "string" },
         "target": { "type": "number" },
-        "current_value": { "type": "number" }
+        "current_value": { "type": "number" },
+        "chart_type": { "type": "string", "enum": ["gauge", "bar", "pie", "number", "line"] }
       }
     },
     "IndicatorValue": {
