@@ -52,11 +52,25 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       const monthValue = indicatorValues.find((v) => v.indicator_id === indicator.id);
       return {
         ...indicator,
-        current_value: monthValue?.current_value ?? indicator.current_value,
-        target: monthValue?.target ?? indicator.target,
+        current_value: monthValue ? monthValue.current_value : 0,
+        target: monthValue ? monthValue.target : indicator.target,
       };
     });
   }, [indicators, indicatorValues]);
+
+  const allEntries = useMemo(() => {
+    return allIndicatorValues.map(val => {
+      const indicator = indicators.find(i => i.id === val.indicator_id);
+      if (!indicator) return null;
+      return {
+        ...indicator,
+        ...val,
+        value_id: val.id,
+        id: indicator.id // When editing, we edit the indicator definition with the month context
+      };
+    }).filter(e => e !== null)
+    .sort((a, b) => b.month.localeCompare(a.month) || a.name.localeCompare(b.name));
+  }, [allIndicatorValues, indicators]);
 
   const getIndicatorsBySection = (sectionId: string, subsection?: string) => {
     return indicatorsWithMonthValues.filter(
@@ -199,9 +213,11 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
               {section.id === "dashboard" ? (
                 <PrintDashboard
                   indicators={indicatorsWithMonthValues}
+                  allIndicatorValues={allIndicatorValues}
                   tasks={tasks}
                   responsibles={responsibles}
                   selectedMonth={selectedMonth}
+                  onEditIndicator={handleEditIndicator}
                 />
               ) : section.id === "kanban" ? (
                 <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
@@ -247,6 +263,92 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                 </Card>
               ) : (
                 <div className="space-y-8">
+                  {viewMode === "table" ? (
+                    <div className="space-y-6">
+                      <div className="flex items-center justify-between px-2">
+                        <h2 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest flex items-center gap-3">
+                          <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                          Histórico de Lançamentos: {section.name}
+                        </h2>
+                        <Button
+                          onClick={() => handleAddIndicator(section.id)}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 font-black uppercase text-[10px] tracking-widest h-10 shadow-lg"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Novo Indicador
+                        </Button>
+                      </div>
+
+                      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                        <Table>
+                          <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
+                            <TableRow className="border-slate-100 dark:border-white/5">
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Mês/Ano</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
+                              {section.subsections && (
+                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Subseção</TableHead>
+                              )}
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-indigo-600">Realizado</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Gráfico</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {allEntries
+                              .filter(e => e.section === section.id)
+                              .map((entry) => (
+                                <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
+                                  <TableCell className="py-4">
+                                    <Badge variant="outline" className="bg-slate-500/10 text-slate-500 border-slate-500/20 font-black text-[9px] uppercase">
+                                      {format(new Date(entry.month + "T12:00:00Z"), "MMM / yyyy", { locale: ptBR })}
+                                    </Badge>
+                                  </TableCell>
+                                  <TableCell className="py-4">
+                                    <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{entry.name}</div>
+                                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{entry.unit}</div>
+                                  </TableCell>
+                                  {section.subsections && (
+                                    <TableCell className="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                      {entry.subsection || "-"}
+                                    </TableCell>
+                                  )}
+                                  <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">{entry.target}{entry.unit}</TableCell>
+                                  <TableCell className="py-4 font-black text-indigo-600 dark:text-indigo-400 italic">
+                                    {entry.current_value}{entry.unit}
+                                  </TableCell>
+                                  <TableCell className="py-4 text-center capitalize text-[10px] font-bold text-slate-500">
+                                    {entry.chart_type || "bar"}
+                                  </TableCell>
+                                  <TableCell className="py-4 text-right">
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      onClick={() => {
+                                        // Set the editing month to the entry month
+                                        setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
+                                        handleEditIndicator(entry);
+                                      }}
+                                      className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
+                                    >
+                                      Editar
+                                    </Button>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            {allEntries.filter(e => e.section === section.id).length === 0 && (
+                              <TableRow>
+                                <TableCell colSpan={7} className="text-center py-12">
+                                  <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nenhum lançamento encontrado para esta seção</div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </TableBody>
+                        </Table>
+                      </Card>
+                    </div>
+                  ) : (
+                    <>
                   {section.subsections ? (
                     section.subsections.map((subsection) => (
                       <div key={subsection} className="space-y-6">
@@ -263,79 +365,22 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                             Novo Indicador
                           </Button>
                         </div>
-                  {viewMode === "table" ? (
-                    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-                      <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <CalendarIcon className="h-5 w-5 text-indigo-600" />
-                          <div>
-                            <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none">Mês de Referência</div>
-                            <div className="text-sm font-black uppercase text-indigo-600 dark:text-indigo-400 italic mt-1">
-                              {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
-                            </div>
-                          </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {getIndicatorsBySection(section.id, subsection).map(
+                            (indicator) => (
+                              <IndicatorChart
+                                key={indicator.id}
+                                indicator={indicator}
+                                onEdit={handleEditIndicator}
+                                responsibles={responsibles}
+                                selectedMonth={selectedMonth}
+                                historyValues={allIndicatorValues.filter(
+                                  (v) => v.indicator_id === indicator.id
+                                )}
+                              />
+                            )
+                          )}
                         </div>
-                        <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-black uppercase text-[9px] px-3">
-                          Modo Gerencial
-                        </Badge>
-                      </div>
-                      <Table>
-                        <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
-                          <TableRow className="border-slate-100 dark:border-white/5">
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Realizado</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Tipo</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getIndicatorsBySection(section.id, subsection).map((indicator) => (
-                            <TableRow key={indicator.id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
-                              <TableCell className="py-4">
-                                <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{indicator.name}</div>
-                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{indicator.unit}</div>
-                              </TableCell>
-                              <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">{indicator.target}{indicator.unit}</TableCell>
-                              <TableCell className="py-4 font-black text-indigo-600 dark:text-indigo-400 italic">
-                                {indicator.current_value}{indicator.unit}
-                              </TableCell>
-                              <TableCell className="py-4 text-center capitalize text-[10px] font-bold text-slate-500">
-                                {indicator.chart_type || "bar"}
-                              </TableCell>
-                              <TableCell className="py-4 text-right">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleEditIndicator(indicator)}
-                                  className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
-                                >
-                                  Editar
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Card>
-                  ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                            {getIndicatorsBySection(section.id, subsection).map(
-                              (indicator) => (
-                                <IndicatorChart
-                                  key={indicator.id}
-                                  indicator={indicator}
-                                  onEdit={handleEditIndicator}
-                                  responsibles={responsibles}
-                                  selectedMonth={selectedMonth}
-                                  historyValues={allIndicatorValues.filter(
-                                    (v) => v.indicator_id === indicator.id
-                                  )}
-                                />
-                              )
-                            )}
-                          </div>
-                        )}
                       </div>
                     ))
                   ) : (
@@ -353,85 +398,23 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                           Novo Indicador
                         </Button>
                       </div>
-                  {viewMode === "table" ? (
-                    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-                      <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <CalendarIcon className="h-5 w-5 text-indigo-600" />
-                          <div>
-                            <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none">Mês de Referência</div>
-                            <div className="text-sm font-black uppercase text-indigo-600 dark:text-indigo-400 italic mt-1">
-                              {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
-                            </div>
-                          </div>
-                        </div>
-                        <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-black uppercase text-[9px] px-3">
-                          Modo Gerencial
-                        </Badge>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {getIndicatorsBySection(section.id).map((indicator) => (
+                          <IndicatorChart
+                            key={indicator.id}
+                            indicator={indicator}
+                            onEdit={handleEditIndicator}
+                            responsibles={responsibles}
+                            selectedMonth={selectedMonth}
+                            historyValues={allIndicatorValues.filter(
+                              (v) => v.indicator_id === indicator.id
+                            )}
+                          />
+                        ))}
                       </div>
-                      <Table>
-                        <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
-                          <TableRow className="border-slate-100 dark:border-white/5">
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Seção / Subseção</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Realizado</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Tipo</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {getIndicatorsBySection(section.id).map((indicator) => (
-                            <TableRow key={indicator.id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
-                              <TableCell className="py-4">
-                                <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{indicator.name}</div>
-                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{indicator.unit}</div>
-                              </TableCell>
-                              <TableCell className="py-4">
-                                <div className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">{section.name}</div>
-                                {indicator.subsection && (
-                                  <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{indicator.subsection}</div>
-                                )}
-                              </TableCell>
-                              <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">{indicator.target}{indicator.unit}</TableCell>
-                              <TableCell className="py-4 font-black text-indigo-600 dark:text-indigo-400 italic">
-                                {indicator.current_value}{indicator.unit}
-                              </TableCell>
-                              <TableCell className="py-4 text-center capitalize text-[10px] font-bold text-slate-500">
-                                {indicator.chart_type || "bar"}
-                              </TableCell>
-                              <TableCell className="py-4 text-right">
-                                <Button 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={() => handleEditIndicator(indicator)}
-                                  className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
-                                >
-                                  Editar
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </Card>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                      {getIndicatorsBySection(section.id).map((indicator) => (
-                        <IndicatorChart
-                          key={indicator.id}
-                          indicator={indicator}
-                          onEdit={handleEditIndicator}
-                          responsibles={responsibles}
-                          selectedMonth={selectedMonth}
-                          historyValues={allIndicatorValues.filter(
-                            (v) => v.indicator_id === indicator.id
-                          )}
-                        />
-                      ))}
                     </div>
                   )}
-                    </div>
+                  </>
                   )}
                 </div>
               )}
