@@ -1,4 +1,5 @@
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { Asset } from '../types';
 
 const SHEET_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSFg3m2gRlhFtmKMTDcVQW3YmIZXOhlWCN6693HLNHH9kR7GJ7mMayr2U35OOSze6VfJTGOB0GCJsYP/pub?gid=1689333411&single=true&output=csv';
@@ -786,4 +787,76 @@ export async function fetchSpecialHoursData(): Promise<any[]> {
     placa: String(row[1] || "").toUpperCase().replace(/[^A-Z0-9]/gi, ""), // Col B = index 1
     operacaoEspecial: String(row[2] || "").toUpperCase().trim() === "SIM" // Col C = index 2
   })).filter(item => item.placa.length >= 7 && item.operacaoEspecial);
+}
+
+export async function fetchMachineOperatorsData(): Promise<any[]> {
+  try {
+    const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vR3sp6A_16gY59ODjKsyhZuOOl1nYAzk94OT_cqcJY1o9098ZeDpn6yPYPmObwiI3D9XOzbI8_rgLFL/pub?output=xlsx';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch spreadsheet: ${res.statusText}`);
+    
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    
+    // Check if the sheet 'Relação condutores equipamento ' exists, otherwise fallback to first sheet
+    const sheetName = wb.SheetNames.includes('Relação condutores equipamento ')
+      ? 'Relação condutores equipamento '
+      : wb.SheetNames[0];
+      
+    const sheet = wb.Sheets[sheetName];
+    // Convert to JSON array of arrays
+    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+    if (rows.length <= 1) return [];
+
+    const headers = (rows[0] || []).map(h => String(h || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    const dataRows = rows.slice(1);
+
+    return dataRows.map(row => {
+      const obj: any = { __raw: row };
+      
+      // Defaults based on columns order:
+      // Index 0: CONDUTOR (nome)
+      // Index 1: PLACA / TIPO VEÍCULO (maquina)
+      // Index 2: EMPRESA CONDUTOR
+      // Index 3: CATEGORIA
+      // Index 4: NUMERAÇÃO CNH (matricula or CNH number)
+      // Index 5: UNIDADE (gerencia, like GAL, GPM)
+      // Index 6: POSSUI CURSO
+      // Index 7: NOME CURSO (curso)
+      
+      obj.nome = String(row[0] || "").trim();
+      obj.maquina = String(row[1] || "").trim();
+      obj.matricula = String(row[4] || "").trim(); // NUMERAÇÃO CNH
+      obj.gerencia = String(row[5] || "").trim(); // UNIDADE
+      obj.curso = String(row[7] || "").trim(); // NOME CURSO
+      
+      headers.forEach((h, i) => {
+        if (h) {
+          const val = row[i] !== undefined && row[i] !== null ? String(row[i]).trim() : "";
+          obj[h] = val;
+          
+          if (h === "CONDUTOR") {
+            obj.nome = val;
+          }
+          if (h.includes("PLACA") || h.includes("VEICULO") || h.includes("MAQUINA") || h.includes("EQUIPAMENTO")) {
+            obj.maquina = val;
+          }
+          if (h.includes("CNH") || h === "NUMERACAO CNH") {
+            obj.matricula = val;
+          }
+          if (h === "UNIDADE" || h === "GERENCIA") {
+            obj.gerencia = val;
+          }
+          if (h.includes("NOME CURSO") || h === "NOME CURSO " || h.startsWith("NOME CURSO")) {
+            obj.curso = val;
+          }
+        }
+      });
+
+      return obj;
+    }).filter(o => o.nome && o.nome !== "CONDUTOR" && o.nome !== "N/A" && o.nome.trim() !== "");
+  } catch (error) {
+    console.error("Error fetching machine operators data:", error);
+    return [];
+  }
 }

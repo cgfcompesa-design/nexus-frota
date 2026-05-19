@@ -29,6 +29,16 @@ import { TelemetryWorkshopMap } from "./TelemetryWorkshopMap";
 import { fetchTelemetryRealtime, fetchNotificacoes, fetchTelemetryHistory, fetchFleetData } from "../../services/fleetService";
 import { useTelemetryRealtime, useNotificacoes, useTelemetryHistory } from "../../hooks/useTelemetryData";
 import { useAssets } from "../../hooks/useFleetData";
+import { useMachineOperators } from "../../hooks/useMachineOperators";
+import { useContactsData } from "../../hooks/useContactsData";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Mail, HardHat, AlertCircle, Sparkles } from "lucide-react";
+import { toast } from "sonner";
 import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { DriversRelation } from "./DriversRelation";
@@ -59,6 +69,37 @@ export default function TelemetryDashboard() {
   const [currentPage, setCurrentPage] = useState(1);
   const [groupingMode, setGroupingMode] = useState<"flat" | "type" | "severity">("flat");
   const itemsPerPage = 30;
+
+  // Real data for Machine Operators
+  const { data: operators = [], isLoading: loadingOperators } = useMachineOperators();
+  const { getEmailsByGerencia } = useContactsData();
+  const [operatorSearch, setOperatorSearch] = useState("");
+  const [operatorStatusFilter, setOperatorStatusFilter] = useState<"all" | "pendente" | "regular">("all");
+
+  const filteredOperators = useMemo(() => {
+    return operators.filter(o => {
+      const isPendente = !o.curso || String(o.curso).trim() === "" || String(o.curso).trim().toUpperCase() === "N/A" || String(o.curso).trim() === "-";
+      const matchesStatus = operatorStatusFilter === "all" ||
+        (operatorStatusFilter === "pendente" && isPendente) ||
+        (operatorStatusFilter === "regular" && !isPendente);
+      
+      const term = operatorSearch.toLowerCase();
+      const matchesSearch = !term ||
+        o.nome.toLowerCase().includes(term) ||
+        o.gerencia.toLowerCase().includes(term) ||
+        o.maquina.toLowerCase().includes(term) ||
+        o.matricula.toLowerCase().includes(term);
+      
+      return matchesStatus && matchesSearch;
+    });
+  }, [operators, operatorSearch, operatorStatusFilter]);
+
+  const operatorStats = useMemo(() => {
+    const total = operators.length;
+    const pendentes = operators.filter(o => !o.curso || String(o.curso).trim() === "" || String(o.curso).trim().toUpperCase() === "N/A" || String(o.curso).trim() === "-").length;
+    const regulares = total - pendentes;
+    return { total, pendentes, regulares };
+  }, [operators]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -475,6 +516,142 @@ export default function TelemetryDashboard() {
               </div>
             </ChartCard>
           </div>
+
+          {/* Card/Painel de Operadores de Máquinas */}
+          <Card className="border-none shadow-sm overflow-hidden border border-slate-100 dark:border-slate-800">
+            <CardHeader className="pb-4 bg-slate-900 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 px-2 rounded-md bg-yellow-500 text-slate-950 font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
+                    <Sparkles size={10} className="animate-pulse" /> NOVO
+                  </span>
+                  <CardTitle className="text-base font-black uppercase tracking-tighter flex items-center gap-2">
+                    <HardHat size={18} className="text-yellow-400" /> Operadores de Máquina & Equipamentos
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-[10px] text-slate-300 font-bold uppercase">
+                  Controle, Alertas de Cursos Obrigatórios e Envio de E-mails ({operatorStats.pendentes} Pendentes de Curso)
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2 text-slate-900">
+                <div className="bg-slate-800/80 p-2 rounded-xl border border-slate-700/50 flex gap-4 text-white">
+                  <div className="text-center px-1">
+                    <p className="text-[9px] text-slate-400 font-bold uppercase">Total</p>
+                    <p className="text-sm font-black">{operatorStats.total}</p>
+                  </div>
+                  <div className="text-center px-1 border-l border-slate-700">
+                    <p className="text-[9px] text-emerald-400 font-bold uppercase">Regular</p>
+                    <p className="text-sm font-black text-emerald-400">{operatorStats.regulares}</p>
+                  </div>
+                  <div className="text-center px-1 border-l border-slate-700">
+                    <p className="text-[9px] text-rose-400 font-bold uppercase">Pendente</p>
+                    <p className="text-sm font-black text-rose-400">{operatorStats.pendentes}</p>
+                  </div>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input
+                    placeholder="Filtrar operador, máquina, matrícula ou gerência..."
+                    value={operatorSearch}
+                    onChange={(e) => setOperatorSearch(e.target.value)}
+                    className="pl-9 h-9 text-[10px] font-bold uppercase bg-slate-50 border-none placeholder:text-slate-400"
+                  />
+                </div>
+                <div>
+                  <Select value={operatorStatusFilter} onValueChange={(v) => setOperatorStatusFilter(v as any)}>
+                    <SelectTrigger className="h-9 text-[10px] font-bold uppercase bg-slate-50 border-none">
+                      <SelectValue placeholder="Situação do Curso" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all" className="text-[10px] font-bold uppercase">TODAS AS SITUAÇÕES</SelectItem>
+                      <SelectItem value="pendente" className="text-[10px] font-bold uppercase text-rose-600">PENDENTE (NOME CURSO VAZIO)</SelectItem>
+                      <SelectItem value="regular" className="text-[10px] font-bold uppercase text-emerald-600">REGULAR (CURSO CADASTRADO)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <ScrollArea className="h-[300px]">
+                {loadingOperators ? (
+                  <div className="flex flex-col items-center justify-center p-8 space-y-2">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase">Sincronizando Banco de Dados...</p>
+                  </div>
+                ) : filteredOperators.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
+                    <AlertCircle className="text-slate-300" size={32} />
+                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Nenhum operador encontrado com os filtros atuais</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader className="bg-slate-50 sticky top-0 z-10">
+                      <TableRow>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Operador</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Gerência</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Máquina/Equipamento</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Curso Obrigatório (Col H)</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-center w-[80px]">Notificar</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredOperators.map((op, idx) => {
+                        const isPendente = !op.curso || String(op.curso).trim() === "" || String(op.curso).trim().toUpperCase() === "N/A" || String(op.curso).trim() === "-";
+                        return (
+                          <TableRow key={idx} className={isPendente ? "bg-rose-50/10 hover:bg-rose-50/20" : ""}>
+                            <TableCell className="py-2.5">
+                              <p className="text-[11px] font-black uppercase leading-tight text-slate-800 dark:text-slate-100">{op.nome}</p>
+                              <p className="text-[9px] font-bold text-slate-400">MAT: {op.matricula || "N/A"}</p>
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              <span className="text-[10px] font-bold text-slate-500 uppercase">{op.gerencia}</span>
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              <span className="text-[10px] font-bold text-slate-600 uppercase">{op.maquina || "N/A"}</span>
+                            </TableCell>
+                            <TableCell className="py-2.5">
+                              {isPendente ? (
+                                <Badge variant="outline" className="bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900 text-[8px] font-black uppercase">
+                                  PENDENTE • HISTÓRICO VAZIO
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900 text-[8px] font-black uppercase max-w-[220px] truncate" title={op.curso}>
+                                  {op.curso}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="py-2.5 text-center">
+                              {isPendente ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 w-8 p-0 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-600 rounded-xl"
+                                  onClick={() => {
+                                    const emails = getEmailsByGerencia(op.gerencia);
+                                    const recipient = emails[0] || "";
+                                    const subject = `Alerta: Pendência de Curso - ${op.nome}`;
+                                    const body = `Prezado(a) Gestor(a),\n\nIdentificamos no nosso painel de controle que o operador ${op.nome} (Matrícula: ${op.matricula}) da gerência ${op.gerencia}, que opera a máquina/equipamento "${op.maquina}", não possui cadastrado nenhum curso de formação obrigatória (campo H - NOME CURSO está vazio).\n\nFavor providenciar a regularização informando a conclusão do curso.\n\nAtt,\nNexus BI Frota`;
+                                    window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
+                                  }}
+                                >
+                                  <Mail size={14} className="text-rose-500 hover:text-rose-700" />
+                                </Button>
+                              ) : (
+                                <span className="text-[9px] font-bold text-slate-300">—</span>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </ScrollArea>
+            </CardContent>
+          </Card>
 
           <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center space-x-2 mb-6">

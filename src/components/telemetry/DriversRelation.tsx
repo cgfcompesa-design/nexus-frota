@@ -75,6 +75,7 @@ export function DriversRelation() {
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailTargetGerencia, setEmailTargetGerencia] = useState<string | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState("");
+  const [driverGroupingMode, setDriverGroupingMode] = useState<"individual" | "gerencia">("individual");
 
   const COLORS_CHART = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#6366f1"];
 
@@ -146,6 +147,19 @@ export function DriversRelation() {
       return matchGerencia && matchStatus && matchSearch;
     });
   }, [cnhRecords, selectedGerencia, selectedStatus, searchTerm]);
+
+  // Grouped filtered data by gerencia
+  const groupedFilteredData = useMemo(() => {
+    const groups: Record<string, CNHRecord[]> = {};
+    filteredData.forEach((record: CNHRecord) => {
+      const g = record.gerencia || "Sem Gerência";
+      if (!groups[g]) {
+        groups[g] = [];
+      }
+      groups[g].push(record);
+    });
+    return Object.entries(groups).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredData]);
 
   // Get records for detail modal
   const detailRecords = useMemo(() => {
@@ -239,6 +253,36 @@ export function DriversRelation() {
     
     window.location.href = `mailto:${selectedRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
     setEmailModalOpen(false);
+  };
+
+  const handleSendGroupedEmail = (gerenciaName: string, records: CNHRecord[]) => {
+    const alertDrivers = records.filter(r => r.status !== "regular");
+    
+    if (alertDrivers.length === 0) {
+      toast.error("Nenhum condutor com alerta de CNH nesta gerência.");
+      return;
+    }
+    
+    const emails = getEmailsByGerencia(gerenciaName);
+    const recipient = emails[0] || "";
+    const totalVencidas = alertDrivers.filter(r => r.status === 'vencida').length;
+    const subject = `Alerta de CNH - ${gerenciaName} - ${alertDrivers.length} Pendentes (${totalVencidas} Vencidas)`;
+    
+    const recordsList = alertDrivers.map((r: CNHRecord, i: number) => {
+      let diasStr = "";
+      if (r.diasParaVencer !== null) {
+        if (r.diasParaVencer < 0) {
+          diasStr = `${Math.abs(r.diasParaVencer)} dias atrás`;
+        } else {
+          diasStr = `${r.diasParaVencer} dias`;
+        }
+      }
+      return `${i + 1}. ${r.nome.toUpperCase()}\nCNH: ${r.codMotorista}\nValidade: ${r.validadeStr}\nStatus: ${getStatusLabel(r.status).toUpperCase()}\nDias: ${diasStr}\n`;
+    }).join("\n");
+
+    const body = `Prezado(a) Gestor(a),\n\nSolicitamos que envie a imagem das CNHs atualizadas.\n\nCaso não sejam enviados no prazo de dois dias úteis a permissão de condução do motorista será suspensa.\n\nDetalhamento:\n\n${recordsList}\n\nAtt,\nNexus BI Frota`;
+    
+    window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
   };
 
   const getStatusBadge = (status: CNHRecord["status"]) => {
@@ -491,21 +535,37 @@ export function DriversRelation() {
                   </TableBody>
                 </Table>
               </div>
-             </ScrollArea>
-          </CardContent>
+                           </ScrollArea>
+           </CardContent>
         </Card>
       </div>
 
       {/* Detalhamento Completo */}
       <Card className="border-none shadow-sm min-h-[600px]">
-           <CardHeader className="pb-2 flex flex-row items-center justify-between">
+           <CardHeader className="pb-2 flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
                  <CardTitle className="text-sm font-black uppercase tracking-tighter">Detalhamento de Condutores</CardTitle>
                  <CardDescription className="text-[10px] font-black uppercase text-slate-400">Lista completa e filtros de controle</CardDescription>
               </div>
-              <Button onClick={handleExportExcel} variant="ghost" className="h-8 px-2 font-black uppercase text-[10px] gap-2">
-                 <FileSpreadsheet size={16} className="text-emerald-600" /> Exportar
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                    <button
+                      onClick={() => setDriverGroupingMode("individual")}
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${driverGroupingMode === "individual" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      Por Condutor
+                    </button>
+                    <button
+                      onClick={() => setDriverGroupingMode("gerencia")}
+                      className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${driverGroupingMode === "gerencia" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      Por Gerência
+                    </button>
+                 </div>
+                 <Button onClick={handleExportExcel} variant="ghost" className="h-8 px-2 font-black uppercase text-[10px] gap-2">
+                    <FileSpreadsheet size={16} className="text-emerald-600" /> Exportar
+                 </Button>
+              </div>
            </CardHeader>
            <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
@@ -545,63 +605,140 @@ export function DriversRelation() {
               </div>
 
               <ScrollArea className="h-[480px]">
-                <Table>
-                   <TableHeader className="bg-slate-50/50 sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead className="w-[30px] px-2"><Checkbox checked={allVisibleSelected} onCheckedChange={handleSelectAll} /></TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Nome</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Gerência</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Ação</TableHead>
-                      </TableRow>
-                   </TableHeader>
-                   <TableBody>
-                      {filteredData.map((record: CNHRecord, idx: number) => (
-                        <TableRow key={idx} className={selectedRecords.has(record.codMotorista) ? "bg-indigo-50/50" : ""}>
-                           <TableCell className="px-2">
-                              <Checkbox 
-                                checked={selectedRecords.has(record.codMotorista)} 
-                                onCheckedChange={() => handleSelectRecord(record.codMotorista)} 
-                              />
-                           </TableCell>
-                           <TableCell className="py-2">
-                              <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
-                              <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
-                           </TableCell>
-                           <TableCell className="text-[9px] font-black uppercase text-slate-500 py-2">
-                              {record.gerencia}
-                           </TableCell>
-                           <TableCell className="text-center text-[10px] font-black py-2">
-                              {record.validadeStr}
-                           </TableCell>
-                           <TableCell className="text-center py-2">
-                              {getStatusBadge(record.status)}
-                           </TableCell>
-                           <TableCell className="text-center py-2">
-                              {record.status !== "regular" && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-8 w-8 p-0"
-                                  onClick={() => {
-                                    const emails = getEmailsByGerencia(record.gerencia);
-                                    const subject = `Alerta de CNH - ${record.nome}`;
-                                    const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nNexus BI Frota`;
-                                    window.location.href = `mailto:${emails.join(";")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br`;
-                                  }}
-                                >
-                                  <Mail size={14} className="text-slate-400 group-hover:text-indigo-600" />
-                                </Button>
-                              )}
-                           </TableCell>
+                {driverGroupingMode === "individual" ? (
+                  <Table>
+                     <TableHeader className="bg-slate-50/50 sticky top-0 z-10">
+                        <TableRow>
+                          <TableHead className="w-[30px] px-2"><Checkbox checked={allVisibleSelected} onCheckedChange={handleSelectAll} /></TableHead>
+                          <TableHead className="text-[9px] font-black uppercase tracking-widest">Nome</TableHead>
+                          <TableHead className="text-[9px] font-black uppercase tracking-widest">Gerência</TableHead>
+                          <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
+                          <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
+                          <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Ação</TableHead>
                         </TableRow>
-                      ))}
-                   </TableBody>
-                </Table>
+                     </TableHeader>
+                     <TableBody>
+                        {filteredData.map((record: CNHRecord, idx: number) => (
+                          <TableRow key={idx} className={selectedRecords.has(record.codMotorista) ? "bg-indigo-50/50" : ""}>
+                             <TableCell className="px-2">
+                                <Checkbox 
+                                  checked={selectedRecords.has(record.codMotorista)} 
+                                  onCheckedChange={() => handleSelectRecord(record.codMotorista)} 
+                                />
+                             </TableCell>
+                             <TableCell className="py-2">
+                                <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
+                                <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
+                             </TableCell>
+                             <TableCell className="text-[9px] font-black uppercase text-slate-500 py-2">
+                                {record.gerencia}
+                             </TableCell>
+                             <TableCell className="text-center text-[10px] font-black py-2">
+                                {record.validadeStr}
+                             </TableCell>
+                             <TableCell className="text-center py-2">
+                                {getStatusBadge(record.status)}
+                             </TableCell>
+                             <TableCell className="text-center py-2">
+                                {record.status !== "regular" && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => {
+                                      const emails = getEmailsByGerencia(record.gerencia);
+                                      const subject = `Alerta de CNH - ${record.nome}`;
+                                      const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nNexus BI Frota`;
+                                      window.location.href = `mailto:${emails.join(";")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br`;
+                                    }}
+                                  >
+                                    <Mail size={14} className="text-slate-400 group-hover:text-indigo-600" />
+                                  </Button>
+                                )}
+                             </TableCell>
+                          </TableRow>
+                        ))}
+                     </TableBody>
+                  </Table>
+                ) : (
+                  <div className="space-y-4 pr-3">
+                    {groupedFilteredData.map(([gerenciaName, records]) => {
+                      const alertDrivers = records.filter(r => r.status !== "regular");
+                      const totalAlerts = alertDrivers.length;
+
+                      return (
+                        <div key={gerenciaName} className="border border-slate-100 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/20 dark:bg-slate-900/10 space-y-3">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-2 border-b border-dashed border-slate-200 dark:border-slate-800">
+                            <div>
+                              <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                                {gerenciaName}
+                              </h4>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase">
+                                {records.length} CONDUTORES • {totalAlerts} COM ALERTA
+                              </p>
+                            </div>
+                            {totalAlerts > 0 && (
+                              <Button
+                                size="sm"
+                                className="h-8 px-3 font-black uppercase text-[9px] bg-rose-600 hover:bg-rose-700 text-white gap-1.5 shadow-sm rounded-xl"
+                                onClick={() => handleSendGroupedEmail(gerenciaName, records)}
+                              >
+                                <Mail size={12} /> Alerta de CNH ({totalAlerts})
+                              </Button>
+                            )}
+                          </div>
+
+                          <Table>
+                            <TableHeader className="bg-slate-50/50">
+                              <TableRow>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest pl-2">Nome</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Ação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {records.map((record, rIdx) => (
+                                <TableRow key={rIdx}>
+                                  <TableCell className="py-2 pl-2">
+                                    <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
+                                    <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
+                                  </TableCell>
+                                  <TableCell className="text-center text-[10px] font-black py-2">
+                                    {record.validadeStr}
+                                  </TableCell>
+                                  <TableCell className="text-center py-2">
+                                    {getStatusBadge(record.status)}
+                                  </TableCell>
+                                  <TableCell className="text-center py-2">
+                                    {record.status !== "regular" && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => {
+                                          const emails = getEmailsByGerencia(record.gerencia);
+                                          const subject = `Alerta de CNH - ${record.nome}`;
+                                          const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nNexus BI Frota`;
+                                          window.location.href = `mailto:${emails.join(";")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br`;
+                                        }}
+                                      >
+                                        <Mail size={14} className="text-slate-400 group-hover:text-indigo-600" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </ScrollArea>
            </CardContent>
-        </Card>
+      </Card>
 
       <Dialog open={detailModalOpen} onOpenChange={setDetailModalOpen}>
         <DialogContent className="max-w-[95vw] md:max-w-7xl max-h-[85vh] p-0 overflow-hidden border-none shadow-2xl">

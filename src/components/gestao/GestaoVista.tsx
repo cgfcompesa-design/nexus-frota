@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useIndicators } from "@/hooks/useIndicators";
 import { useResponsibles } from "@/hooks/useResponsibles";
 import { IndicatorDialog } from "@/components/IndicatorDialog";
+import { GestaoMaintenanceDialog } from "./GestaoMaintenanceDialog";
 import { IndicatorChart } from "@/components/IndicatorChart";
 import { useKanbanData } from "@/hooks/useKanbanData";
 import { PrintDashboard } from "@/components/PrintDashboard";
@@ -16,6 +17,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface GestaoVistaProps {
@@ -27,6 +29,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   const { responsibles } = useResponsibles();
   const { tasks } = useKanbanData();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [maintenanceOpen, setMaintenanceOpen] = useState(false);
   const [editingIndicator, setEditingIndicator] = useState<any>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
@@ -179,6 +182,16 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                 Planilha (Gerenciar)
               </Button>
             </div>
+
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setMaintenanceOpen(true)}
+              className="h-10 w-10 rounded-xl bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-white/5 text-slate-500 hover:text-indigo-600 hover:border-indigo-600 dark:hover:text-indigo-400 transition-all shadow-sm"
+              title="Manutenção de Dados"
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
 
             <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
 
@@ -515,6 +528,13 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
             setDialogOpen(false);
             setEditingIndicator(null);
           }}
+        />
+
+        <GestaoMaintenanceDialog
+          open={maintenanceOpen}
+          onOpenChange={setMaintenanceOpen}
+          indicators={indicators}
+          responsibles={responsibles}
         />
       </div>
     </div>
