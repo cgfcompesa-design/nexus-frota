@@ -302,12 +302,9 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                           <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
                             <TableRow className="border-slate-100 dark:border-white/5">
                               <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
-                              {section.subsections && (
-                                <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Subseção</TableHead>
-                              )}
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Unidade</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta (Mês)</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-indigo-600 py-4">Realizado</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Responsável</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-indigo-600 py-4">Resultado Atual</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
                               <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Status</TableHead>
                               <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
                             </TableRow>
@@ -318,22 +315,20 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                               .map((indicator) => {
                                 const isFilled = !!indicator.value_id;
                                 const achieved = indicator.current_value >= indicator.target;
+                                const responsible = responsibles.find(r => r.id === indicator.responsible_id);
                                 
                                 return (
                                   <TableRow key={indicator.id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
                                     <TableCell className="py-4">
                                       <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{indicator.name}</div>
+                                      {indicator.subsection && (
+                                        <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5">{indicator.subsection}</div>
+                                      )}
                                     </TableCell>
-                                    {section.subsections && (
-                                      <TableCell className="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                        {indicator.subsection || "-"}
-                                      </TableCell>
-                                    )}
-                                    <TableCell className="py-4 text-[9px] font-bold text-slate-400 uppercase">
-                                      {indicator.unit}
-                                    </TableCell>
-                                    <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">
-                                      {indicator.target}{indicator.unit}
+                                    <TableCell className="py-4">
+                                      <div className="text-[10px] font-medium text-slate-500 uppercase">
+                                        {responsible?.name || "Não definido"}
+                                      </div>
                                     </TableCell>
                                     <TableCell className="py-4">
                                       <div className={cn(
@@ -343,30 +338,35 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                         {indicator.current_value}{indicator.unit}
                                       </div>
                                     </TableCell>
+                                    <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">
+                                      {indicator.target}{indicator.unit}
+                                    </TableCell>
                                     <TableCell className="py-4 text-center">
                                       {isFilled ? (
-                                        <Badge variant="outline" className={cn(
-                                          "font-black text-[8px] uppercase px-2",
-                                          achieved ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                        <div className={cn(
+                                          "flex items-center justify-center gap-1.5 font-black text-[9px] uppercase",
+                                          achieved ? "text-emerald-500" : "text-rose-500"
                                         )}>
-                                          {achieved ? "Atingida" : "Pendente"}
-                                        </Badge>
+                                          {achieved ? (
+                                            <><div className="w-1 h-1 rounded-full bg-emerald-500" /> ✓ Dentro da Meta</>
+                                          ) : (
+                                            <><div className="w-1 h-1 rounded-full bg-rose-500" /> ✗ Fora da Meta</>
+                                          )}
+                                        </div>
                                       ) : (
-                                        <Badge variant="outline" className="bg-slate-100 text-slate-400 border-slate-200 font-black text-[8px] uppercase">
-                                          Vazio
-                                        </Badge>
+                                        <span className="text-[9px] font-black uppercase text-slate-300">Pendente</span>
                                       )}
                                     </TableCell>
                                     <TableCell className="py-4 text-right">
                                       <Button 
-                                        variant="outline" 
+                                        variant="ghost" 
                                         size="sm" 
                                         onClick={() => handleEditIndicator(indicator)}
                                         className={cn(
-                                          "h-8 px-4 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
+                                          "h-8 px-3 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
                                           isFilled 
-                                            ? "text-indigo-600 border-indigo-200 hover:bg-indigo-50" 
-                                            : "text-white bg-indigo-600 border-transparent hover:bg-indigo-700 shadow-sm"
+                                            ? "text-indigo-600 hover:bg-indigo-50" 
+                                            : "text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
                                         )}
                                       >
                                         {isFilled ? "Alterar" : "Lançar"}
