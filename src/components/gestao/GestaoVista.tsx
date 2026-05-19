@@ -310,7 +310,8 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {getIndicatorsBySection(section.id)
+                            {indicatorsWithMonthValues
+                              .filter(ind => ind.section === section.id)
                               .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                               .map((indicator) => {
                                 const isFilled = !!indicator.value_id;
