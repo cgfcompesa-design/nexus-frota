@@ -152,24 +152,34 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
           </div>
           
           <div className="flex items-center gap-3">
-            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-white/5 mr-2">
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-inner">
               <Button 
                 variant={viewMode === "grid" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("grid")}
-                className={cn("h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest", viewMode === "grid" && "bg-indigo-600 shadow-md")}
+                className={cn(
+                  "h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 transition-all", 
+                  viewMode === "grid" ? "bg-indigo-600 shadow-lg text-white" : "text-slate-500 hover:text-indigo-600"
+                )}
               >
-                Dashboard
+                <LayoutGrid className="h-3.5 w-3.5" />
+                Painel Visual
               </Button>
               <Button 
                 variant={viewMode === "table" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setViewMode("table")}
-                className={cn("h-8 px-3 rounded-lg text-[10px] font-black uppercase tracking-widest", viewMode === "table" && "bg-indigo-600 shadow-md")}
+                className={cn(
+                  "h-9 px-4 rounded-xl text-[10px] font-black uppercase tracking-widest gap-2 transition-all", 
+                  viewMode === "table" ? "bg-indigo-600 shadow-lg text-white" : "text-slate-500 hover:text-indigo-600"
+                )}
               >
-                Gerenciar
+                <List className="h-3.5 w-3.5" />
+                Planilha (Gerenciar)
               </Button>
             </div>
+
+            <div className="h-8 w-px bg-slate-200 dark:bg-slate-800 mx-1"></div>
 
             <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Referência:</span>
             <Popover>
@@ -321,18 +331,34 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                     {entry.chart_type || "bar"}
                                   </TableCell>
                                   <TableCell className="py-4 text-right">
-                                    <Button 
-                                      variant="ghost" 
-                                      size="sm" 
-                                      onClick={() => {
-                                        // Set the editing month to the entry month
-                                        setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
-                                        handleEditIndicator(entry);
-                                      }}
-                                      className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
-                                    >
-                                      Editar
-                                    </Button>
+                                    <div className="flex justify-end gap-2">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={() => {
+                                          // Set the editing month to the entry month
+                                          setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
+                                          handleEditIndicator(entry);
+                                        }}
+                                        className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
+                                      >
+                                        Editar
+                                      </Button>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={async () => {
+                                          if (confirm("Deseja realmente excluir este lançamento?")) {
+                                            const { deleteDoc, doc } = await import("firebase/firestore");
+                                            const { db } = await import("@/lib/firebase");
+                                            await deleteDoc(doc(db, "indicator_values", entry.value_id));
+                                          }
+                                        }}
+                                        className="h-8 px-2 text-rose-600 hover:bg-rose-50 font-black text-[9px] uppercase tracking-widest"
+                                      >
+                                        Excluir
+                                      </Button>
+                                    </div>
                                   </TableCell>
                                 </TableRow>
                               ))}
