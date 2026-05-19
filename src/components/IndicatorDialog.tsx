@@ -25,16 +25,20 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
   const [unit, setUnit] = useState("");
   const [chartType, setChartType] = useState("bar");
   const [month, setMonth] = useState("");
+  const [section, setSection] = useState("manutencao");
+  const [subsection, setSubsection] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    if (indicator?.id) {
+    if (indicator) {
       setName(indicator.name || "");
       setTarget(indicator.target?.toString() || "");
       setCurrentValue(indicator.current_value?.toString() || "");
       setUnit(indicator.unit || "");
       setChartType(indicator.chart_type || "bar");
       setMonth(format(selectedMonth, "yyyy-MM"));
+      setSection(indicator.section || "manutencao");
+      setSubsection(indicator.subsection || "");
     } else {
       setName("");
       setTarget("");
@@ -42,6 +46,8 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setUnit("");
       setChartType("bar");
       setMonth(format(selectedMonth, "yyyy-MM"));
+      setSection("manutencao");
+      setSubsection("");
     }
   }, [indicator, open, selectedMonth]);
 
@@ -51,14 +57,10 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
     const monthStr = `${month}-01`;
     setIsSaving(true);
     
-    // Ensure section exists even for new indicators
-    const section = indicator?.section || "manutencao";
-    const subsection = indicator?.subsection || null;
-
     const data: any = {
       name,
       section,
-      subsection,
+      subsection: (subsection === "none" || !subsection) ? null : subsection,
       unit,
       target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
       current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
@@ -126,6 +128,39 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
         </DialogHeader>
         
         <div className="space-y-4 py-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Seção</Label>
+              <Select value={section} onValueChange={setSection}>
+                <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
+                  <SelectValue placeholder="Seção" />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                  <SelectItem value="manutencao">Manutenção</SelectItem>
+                  <SelectItem value="abastecimento">Abastecimento</SelectItem>
+                  <SelectItem value="regularizacao">Regularização</SelectItem>
+                  <SelectItem value="telemetria">Telemetria</SelectItem>
+                  <SelectItem value="pool">Pool</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {section === "manutencao" && (
+              <div className="space-y-2">
+                <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Subseção</Label>
+                <Select value={subsection} onValueChange={setSubsection}>
+                  <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
+                    <SelectValue placeholder="Opcional" />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                    <SelectItem value="none">Nenhuma</SelectItem>
+                    <SelectItem value="Próprios">Próprios</SelectItem>
+                    <SelectItem value="Locados">Locados</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Mês de Referência</Label>
