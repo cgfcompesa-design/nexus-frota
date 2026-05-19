@@ -50,10 +50,11 @@ export const useKanbanData = () => {
     return () => unsubscribe();
   }, []);
 
-  const createTask = async (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const createTask = async (task: any) => {
     try {
+      const { id, createdAt, updatedAt, ...data } = task;
       await addDoc(collection(db, 'kanban_tasks'), {
-        ...task,
+        ...data,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });

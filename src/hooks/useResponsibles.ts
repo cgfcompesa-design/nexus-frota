@@ -43,10 +43,11 @@ export const useResponsibles = () => {
     return () => unsubscribe();
   }, []);
 
-  const createResponsible = async (responsible: Omit<Responsible, 'id' | 'createdAt'>) => {
+  const createResponsible = async (responsible: any) => {
     try {
+      const { id, createdAt, ...data } = responsible;
       await addDoc(collection(db, 'kanban_responsibles'), {
-        ...responsible,
+        ...data,
         createdAt: serverTimestamp()
       });
       toast.success("Responsável adicionado!");
