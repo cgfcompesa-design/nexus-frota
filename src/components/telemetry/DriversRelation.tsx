@@ -75,7 +75,7 @@ export function DriversRelation() {
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailTargetGerencia, setEmailTargetGerencia] = useState<string | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState("");
-  const [driverGroupingMode, setDriverGroupingMode] = useState<"individual" | "gerencia">("gerencia");
+  const [driverGroupingMode, setDriverGroupingMode] = useState<"individual" | "gerencia">("individual");
 
   const COLORS_CHART = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#6366f1"];
 
@@ -264,7 +264,7 @@ export function DriversRelation() {
     }
     
     const emails = getEmailsByGerencia(gerenciaName);
-    const recipient = emails[0] || "";
+    const recipient = emails.join(",");
     const totalVencidas = alertDrivers.filter(r => r.status === 'vencida').length;
     const subject = `Alerta de CNH - ${gerenciaName} - ${alertDrivers.length} Pendentes (${totalVencidas} Vencidas)`;
     
@@ -603,7 +603,7 @@ export function DriversRelation() {
                     </Select>
                  </div>
               </div>
-               
+
               <ScrollArea className="h-[480px]">
                 {driverGroupingMode === "individual" ? (
                   <Table>
@@ -661,92 +661,89 @@ export function DriversRelation() {
                      </TableBody>
                   </Table>
                 ) : (
-                  <div className="space-y-6 pr-3">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 pr-3">
                     {groupedFilteredData.map(([gerenciaName, records]) => {
                       const alertDrivers = records.filter(r => r.status !== "regular");
                       const totalAlerts = alertDrivers.length;
 
                       return (
-                        <Card key={gerenciaName} className="border border-slate-100 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden bg-slate-50/10 dark:bg-slate-900/10">
-                          <CardHeader className="p-4 bg-slate-100/50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between gap-4">
-                            <div className="space-y-0.5">
-                              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">Gerência</p>
-                              <CardTitle className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-tight">
-                                {gerenciaName}
-                              </CardTitle>
-                              <CardDescription className="text-[10px] font-bold text-slate-500 uppercase">
-                                {records.length} CONDUTORES • {totalAlerts} COM ALERTA
-                              </CardDescription>
+                        <Card key={gerenciaName} className="border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md transition-all p-4 bg-white dark:bg-slate-900/50 space-y-3 flex flex-col justify-between overflow-hidden">
+                          <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 -m-4 p-4 mb-3 rounded-t-2xl">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <span className="p-0.5 px-1.5 rounded-md bg-indigo-500 text-white font-black text-[8px] uppercase tracking-wider leading-none block w-max">
+                                  GERÊNCIA
+                                </span>
+                                <CardTitle className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tighter shrink mt-1">
+                                  {gerenciaName}
+                                </CardTitle>
+                                <CardDescription className="text-[10px] text-slate-400 font-bold uppercase leading-none mt-1">
+                                  {records.length} CONDUTORES • {totalAlerts} COM ALERTA
+                                </CardDescription>
+                              </div>
+                              {totalAlerts > 0 && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 w-8 p-0 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/20 border-rose-200 hover:border-rose-300 hover:text-rose-600 shadow-sm relative shrink-0"
+                                  onClick={() => handleSendGroupedEmail(gerenciaName, records)}
+                                  title={`Notificar Gerência (${totalAlerts} alertas)`}
+                                >
+                                  <Mail size={16} className="text-rose-500" />
+                                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-600 text-[8px] font-black text-white">
+                                    {totalAlerts}
+                                  </span>
+                                </Button>
+                              )}
                             </div>
-                            {totalAlerts > 0 ? (
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 px-3 font-black uppercase text-[9px] bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 text-rose-600 hover:text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900 gap-1.5 shadow-sm rounded-xl"
-                                onClick={() => handleSendGroupedEmail(gerenciaName, records)}
-                                title="Notificar gerência sobre todas as CNHs pendentes"
-                              >
-                                <Mail size={12} className="text-rose-500" />
-                                Alerta ({totalAlerts})
-                              </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled
-                                className="h-8 px-3 font-black uppercase text-[9px] text-slate-400 gap-1.5 rounded-xl"
-                              >
-                                <CheckCircle size={12} className="text-emerald-500 animate-pulse" /> Regular
-                              </Button>
-                            )}
                           </CardHeader>
-                          <CardContent className="p-0">
+
+                          <ScrollArea className="h-[220px]">
                             <Table>
-                              <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
-                                <TableRow>
-                                  <TableHead className="text-[9px] font-black uppercase tracking-widest pl-4">Nome</TableHead>
-                                  <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
-                                  <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
-                                  <TableHead className="text-[9px] font-black uppercase tracking-widest text-center pr-4">Ação</TableHead>
+                            <TableHeader className="bg-slate-50/50">
+                              <TableRow>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest pl-2">Nome</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Ação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {records.map((record, rIdx) => (
+                                <TableRow key={rIdx}>
+                                  <TableCell className="py-2 pl-2">
+                                    <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
+                                    <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
+                                  </TableCell>
+                                  <TableCell className="text-center text-[10px] font-black py-2">
+                                    {record.validadeStr}
+                                  </TableCell>
+                                  <TableCell className="text-center py-2">
+                                    {getStatusBadge(record.status)}
+                                  </TableCell>
+                                  <TableCell className="text-center py-2">
+                                    {record.status !== "regular" && (
+                                      <Button
+                                        size="sm"
+                                        variant="ghost"
+                                        className="h-8 w-8 p-0"
+                                        onClick={() => {
+                                          const emails = getEmailsByGerencia(record.gerencia);
+                                          const subject = `Alerta de CNH - ${record.nome}`;
+                                          const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
+                                          window.location.href = `mailto:${emails.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br,gadmonitoramento@compesa.com.br`;
+                                        }}
+                                      >
+                                        <Mail size={14} className="text-slate-400 group-hover:text-indigo-600" />
+                                      </Button>
+                                    )}
+                                  </TableCell>
                                 </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {records.map((record, rIdx) => (
-                                  <TableRow key={rIdx}>
-                                    <TableCell className="py-2.5 pl-4">
-                                      <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
-                                      <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
-                                    </TableCell>
-                                    <TableCell className="text-center text-[10px] font-black py-2.5">
-                                      {record.validadeStr}
-                                    </TableCell>
-                                    <TableCell className="text-center py-2.5">
-                                      {getStatusBadge(record.status)}
-                                    </TableCell>
-                                    <TableCell className="text-center py-2.5 pr-4">
-                                      {record.status !== "regular" && (
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-indigo-950/20 hover:text-indigo-600 rounded-xl"
-                                          onClick={() => {
-                                            const emails = getEmailsByGerencia(record.gerencia);
-                                            const subject = `Alerta de CNH - ${record.nome}`;
-                                            const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
-                                            const toRecipients = emails.length > 0 ? emails.join(",") : "";
-                                            window.location.href = `mailto:${toRecipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br,gadmonitoramento@compesa.com.br`;
-                                          }}
-                                        >
-                                          <Mail size={14} className="text-slate-400 hover:text-indigo-600" />
-                                        </Button>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </CardContent>
-                        </Card>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </Card>
                       );
                     })}
                   </div>
