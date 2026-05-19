@@ -631,10 +631,10 @@ export default function TelemetryDashboard() {
                                   className="h-8 w-8 p-0 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-600 rounded-xl"
                                   onClick={() => {
                                     const emails = getEmailsByGerencia(op.gerencia);
-                                    const recipient = emails[0] || "";
+                                    const recipient = emails.length > 0 ? emails.join(",") : "";
                                     const subject = `Alerta: Pendência de Curso - ${op.nome}`;
-                                    const body = `Prezado(a) Gestor(a),\n\nIdentificamos no nosso painel de controle que o operador ${op.nome} (Matrícula: ${op.matricula}) da gerência ${op.gerencia}, que opera a máquina/equipamento "${op.maquina}", não possui cadastrado nenhum curso de formação obrigatória (campo H - NOME CURSO está vazio).\n\nFavor providenciar a regularização informando a conclusão do curso.\n\nAtt,\nNexus BI Frota`;
-                                    window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
+                                    const body = `Prezado(a) Gestor(a),\n\nIdentificamos no nosso painel de controle que o operador ${op.nome} (Matrícula: ${op.matricula}) da gerência ${op.gerencia}, que opera a máquina/equipamento "${op.maquina}", não possui cadastrado nenhum curso de formação obrigatória para operar máquina.\n\nFavor providenciar a regularização informando a conclusão do curso.\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
+                                    window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br,gadmonitoramento@compesa.com.br`;
                                   }}
                                 >
                                   <Mail size={14} className="text-rose-500 hover:text-rose-700" />

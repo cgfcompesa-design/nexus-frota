@@ -75,7 +75,7 @@ export function DriversRelation() {
   const [emailModalOpen, setEmailModalOpen] = useState(false);
   const [emailTargetGerencia, setEmailTargetGerencia] = useState<string | null>(null);
   const [selectedRecipient, setSelectedRecipient] = useState("");
-  const [driverGroupingMode, setDriverGroupingMode] = useState<"individual" | "gerencia">("individual");
+  const [driverGroupingMode, setDriverGroupingMode] = useState<"individual" | "gerencia">("gerencia");
 
   const COLORS_CHART = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#6366f1"];
 
@@ -249,7 +249,7 @@ export function DriversRelation() {
       return `${i + 1}. ${r.nome.toUpperCase()}\nCNH: ${r.codMotorista}\nValidade: ${r.validadeStr}\nStatus: ${getStatusLabel(r.status).toUpperCase()}\nDias: ${diasStr}\n`;
     }).join("\n");
 
-    const body = `Prezado(a) Gestor(a),\n\nSolicitamos que envie a imagem das CNHs atualizadas.\n\nCaso não sejam enviados no prazo de dois dias úteis a permissão de condução do motorista será suspensa.\n\nDetalhamento:\n\n${recordsList}\n\nAtt,\nNexus BI Frota`;
+    const body = `Prezado(a) Gestor(a),\n\nSolicitamos que envie a imagem das CNHs atualizadas.\n\nCaso não sejam enviados no prazo de dois dias úteis a permissão de condução do motorista será suspensa.\n\nDetalhamento:\n\n${recordsList}\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
     
     window.location.href = `mailto:${selectedRecipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
     setEmailModalOpen(false);
@@ -280,7 +280,7 @@ export function DriversRelation() {
       return `${i + 1}. ${r.nome.toUpperCase()}\nCNH: ${r.codMotorista}\nValidade: ${r.validadeStr}\nStatus: ${getStatusLabel(r.status).toUpperCase()}\nDias: ${diasStr}\n`;
     }).join("\n");
 
-    const body = `Prezado(a) Gestor(a),\n\nSolicitamos que envie a imagem das CNHs atualizadas.\n\nCaso não sejam enviados no prazo de dois dias úteis a permissão de condução do motorista será suspensa.\n\nDetalhamento:\n\n${recordsList}\n\nAtt,\nNexus BI Frota`;
+    const body = `Prezado(a) Gestor(a),\n\nSolicitamos que envie a imagem das CNHs atualizadas.\n\nCaso não sejam enviados no prazo de dois dias úteis a permissão de condução do motorista será suspensa.\n\nDetalhamento:\n\n${recordsList}\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
     
     window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
   };
@@ -603,7 +603,7 @@ export function DriversRelation() {
                     </Select>
                  </div>
               </div>
-
+               
               <ScrollArea className="h-[480px]">
                 {driverGroupingMode === "individual" ? (
                   <Table>
@@ -648,8 +648,8 @@ export function DriversRelation() {
                                     onClick={() => {
                                       const emails = getEmailsByGerencia(record.gerencia);
                                       const subject = `Alerta de CNH - ${record.nome}`;
-                                      const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nNexus BI Frota`;
-                                      window.location.href = `mailto:${emails.join(";")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br`;
+                                      const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
+                                      window.location.href = `mailto:${emails.join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br,gadmonitoramento@compesa.com.br`;
                                     }}
                                   >
                                     <Mail size={14} className="text-slate-400 group-hover:text-indigo-600" />
@@ -661,77 +661,92 @@ export function DriversRelation() {
                      </TableBody>
                   </Table>
                 ) : (
-                  <div className="space-y-4 pr-3">
+                  <div className="space-y-6 pr-3">
                     {groupedFilteredData.map(([gerenciaName, records]) => {
                       const alertDrivers = records.filter(r => r.status !== "regular");
                       const totalAlerts = alertDrivers.length;
 
                       return (
-                        <div key={gerenciaName} className="border border-slate-100 dark:border-slate-800 rounded-2xl p-4 bg-slate-50/20 dark:bg-slate-900/10 space-y-3">
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-2 border-b border-dashed border-slate-200 dark:border-slate-800">
-                            <div>
-                              <h4 className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                        <Card key={gerenciaName} className="border border-slate-100 dark:border-slate-800 shadow-sm rounded-2xl overflow-hidden bg-slate-50/10 dark:bg-slate-900/10">
+                          <CardHeader className="p-4 bg-slate-100/50 dark:bg-slate-800/30 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between gap-4">
+                            <div className="space-y-0.5">
+                              <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">Gerência</p>
+                              <CardTitle className="text-xs font-black text-slate-800 dark:text-white uppercase tracking-tighter leading-tight">
                                 {gerenciaName}
-                              </h4>
-                              <p className="text-[10px] font-bold text-slate-400 uppercase">
+                              </CardTitle>
+                              <CardDescription className="text-[10px] font-bold text-slate-500 uppercase">
                                 {records.length} CONDUTORES • {totalAlerts} COM ALERTA
-                              </p>
+                              </CardDescription>
                             </div>
-                            {totalAlerts > 0 && (
+                            {totalAlerts > 0 ? (
                               <Button
                                 size="sm"
-                                className="h-8 px-3 font-black uppercase text-[9px] bg-rose-600 hover:bg-rose-700 text-white gap-1.5 shadow-sm rounded-xl"
+                                variant="outline"
+                                className="h-8 px-3 font-black uppercase text-[9px] bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/20 text-rose-600 hover:text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900 gap-1.5 shadow-sm rounded-xl"
                                 onClick={() => handleSendGroupedEmail(gerenciaName, records)}
+                                title="Notificar gerência sobre todas as CNHs pendentes"
                               >
-                                <Mail size={12} /> Alerta de CNH ({totalAlerts})
+                                <Mail size={12} className="text-rose-500" />
+                                Alerta ({totalAlerts})
+                              </Button>
+                            ) : (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                disabled
+                                className="h-8 px-3 font-black uppercase text-[9px] text-slate-400 gap-1.5 rounded-xl"
+                              >
+                                <CheckCircle size={12} className="text-emerald-500 animate-pulse" /> Regular
                               </Button>
                             )}
-                          </div>
-
-                          <Table>
-                            <TableHeader className="bg-slate-50/50">
-                              <TableRow>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest pl-2">Nome</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
-                                <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Ação</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {records.map((record, rIdx) => (
-                                <TableRow key={rIdx}>
-                                  <TableCell className="py-2 pl-2">
-                                    <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
-                                    <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
-                                  </TableCell>
-                                  <TableCell className="text-center text-[10px] font-black py-2">
-                                    {record.validadeStr}
-                                  </TableCell>
-                                  <TableCell className="text-center py-2">
-                                    {getStatusBadge(record.status)}
-                                  </TableCell>
-                                  <TableCell className="text-center py-2">
-                                    {record.status !== "regular" && (
-                                      <Button
-                                        size="sm"
-                                        variant="ghost"
-                                        className="h-8 w-8 p-0"
-                                        onClick={() => {
-                                          const emails = getEmailsByGerencia(record.gerencia);
-                                          const subject = `Alerta de CNH - ${record.nome}`;
-                                          const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nNexus BI Frota`;
-                                          window.location.href = `mailto:${emails.join(";")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br`;
-                                        }}
-                                      >
-                                        <Mail size={14} className="text-slate-400 group-hover:text-indigo-600" />
-                                      </Button>
-                                    )}
-                                  </TableCell>
+                          </CardHeader>
+                          <CardContent className="p-0">
+                            <Table>
+                              <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50">
+                                <TableRow>
+                                  <TableHead className="text-[9px] font-black uppercase tracking-widest pl-4">Nome</TableHead>
+                                  <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Vencimento</TableHead>
+                                  <TableHead className="text-[9px] font-black uppercase tracking-widest text-center">Status</TableHead>
+                                  <TableHead className="text-[9px] font-black uppercase tracking-widest text-center pr-4">Ação</TableHead>
                                 </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
+                              </TableHeader>
+                              <TableBody>
+                                {records.map((record, rIdx) => (
+                                  <TableRow key={rIdx}>
+                                    <TableCell className="py-2.5 pl-4">
+                                      <p className="text-[11px] font-black uppercase leading-tight">{record.nome}</p>
+                                      <p className="text-[9px] font-bold text-slate-400">MAT: {record.matricula}</p>
+                                    </TableCell>
+                                    <TableCell className="text-center text-[10px] font-black py-2.5">
+                                      {record.validadeStr}
+                                    </TableCell>
+                                    <TableCell className="text-center py-2.5">
+                                      {getStatusBadge(record.status)}
+                                    </TableCell>
+                                    <TableCell className="text-center py-2.5 pr-4">
+                                      {record.status !== "regular" && (
+                                        <Button
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-8 w-8 p-0 hover:bg-slate-100 dark:hover:bg-indigo-950/20 hover:text-indigo-600 rounded-xl"
+                                          onClick={() => {
+                                            const emails = getEmailsByGerencia(record.gerencia);
+                                            const subject = `Alerta de CNH - ${record.nome}`;
+                                            const body = `Prezado(a) Gestor(a),\n\nIdentificamos que a CNH do condutor ${record.nome} está ${getStatusLabel(record.status).toUpperCase()}.\n\nValidade: ${record.validadeStr}\n\nFavor providenciar a regularização.\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
+                                            const toRecipients = emails.length > 0 ? emails.join(",") : "";
+                                            window.location.href = `mailto:${toRecipients}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadabastecimento@compesa.com.br,gadmonitoramento@compesa.com.br`;
+                                          }}
+                                        >
+                                          <Mail size={14} className="text-slate-400 hover:text-indigo-600" />
+                                        </Button>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </CardContent>
+                        </Card>
                       );
                     })}
                   </div>

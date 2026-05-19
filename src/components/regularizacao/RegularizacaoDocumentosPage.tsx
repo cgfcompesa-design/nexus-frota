@@ -346,7 +346,7 @@ export default function RegularizacaoDocumentosPage() {
 
       <footer className="border-t border-border bg-background">
         <div className="mx-auto max-w-7xl px-4 py-6 text-center text-xs text-muted-foreground">
-          Copyright © {new Date().getFullYear()} Nexus BI Frota.
+          Copyright © {new Date().getFullYear()} Coordenação de Gestão de Frotas - CGF.
           Todos os direitos reservados.
         </div>
       </footer>

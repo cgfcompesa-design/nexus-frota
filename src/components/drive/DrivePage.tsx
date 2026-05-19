@@ -134,7 +134,7 @@ export default function DrivePage() {
             </div>
 
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed max-w-2xl">
-              Acesse rapidamente materiais, procedimentos e consultas essenciais da Nexus BI Frota através deste portal centralizado.
+              Acesse rapidamente materiais, procedimentos e consultas essenciais da Coordenação de Gestão de Frotas - CGF através deste portal centralizado.
             </p>
           </div>
         </div>
@@ -231,7 +231,7 @@ export default function DrivePage() {
       <footer className="mt-auto border-t border-slate-200 dark:border-slate-800 py-8 bg-white dark:bg-slate-900/50">
         <div className="mx-auto max-w-6xl px-4">
           <p className="text-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-            Copyright © {new Date().getFullYear()} Nexus BI Frota. Todos os direitos reservados.
+            Copyright © {new Date().getFullYear()} Coordenação de Gestão de Frotas - CGF. Todos os direitos reservados.
           </p>
         </div>
       </footer>
