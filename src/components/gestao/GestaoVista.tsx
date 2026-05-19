@@ -54,6 +54,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         ...indicator,
         current_value: monthValue ? monthValue.current_value : 0,
         target: monthValue ? monthValue.target : indicator.target,
+        value_id: monthValue?.id,
       };
     });
   }, [indicators, indicatorValues]);
@@ -276,10 +277,17 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                   {viewMode === "table" ? (
                     <div className="space-y-6">
                       <div className="flex items-center justify-between px-2">
-                        <h2 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest flex items-center gap-3">
+                        <div className="flex items-center gap-3">
                           <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                          Histórico de Lançamentos: {section.name}
-                        </h2>
+                          <div>
+                            <h2 className="text-lg font-black uppercase text-slate-800 dark:text-white tracking-widest leading-none">
+                              Planilha de Lançamento
+                            </h2>
+                            <p className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest mt-1">
+                              Referência: {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+                            </p>
+                          </div>
+                        </div>
                         <Button
                           onClick={() => handleAddIndicator(section.id)}
                           className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 font-black uppercase text-[10px] tracking-widest h-10 shadow-lg"
@@ -293,85 +301,134 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                         <Table>
                           <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
                             <TableRow className="border-slate-100 dark:border-white/5">
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Mês/Ano</TableHead>
                               <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
                               {section.subsections && (
                                 <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Subseção</TableHead>
                               )}
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-indigo-600">Realizado</TableHead>
-                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Gráfico</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Unidade</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta (Mês)</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-indigo-600 py-4">Realizado</TableHead>
+                              <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Status</TableHead>
                               <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {allEntries
-                              .filter(e => e.section === section.id)
-                              .map((entry) => (
-                                <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
-                                  <TableCell className="py-4">
-                                    <Badge variant="outline" className="bg-slate-500/10 text-slate-500 border-slate-500/20 font-black text-[9px] uppercase">
-                                      {format(new Date(entry.month + "T12:00:00Z"), "MMM / yyyy", { locale: ptBR })}
-                                    </Badge>
-                                  </TableCell>
-                                  <TableCell className="py-4">
-                                    <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{entry.name}</div>
-                                    <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{entry.unit}</div>
-                                  </TableCell>
-                                  {section.subsections && (
-                                    <TableCell className="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                      {entry.subsection || "-"}
+                            {getIndicatorsBySection(section.id)
+                              .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+                              .map((indicator) => {
+                                const isFilled = !!indicator.value_id;
+                                const achieved = indicator.current_value >= indicator.target;
+                                
+                                return (
+                                  <TableRow key={indicator.id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
+                                    <TableCell className="py-4">
+                                      <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{indicator.name}</div>
                                     </TableCell>
-                                  )}
-                                  <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">{entry.target}{entry.unit}</TableCell>
-                                  <TableCell className="py-4 font-black text-indigo-600 dark:text-indigo-400 italic">
-                                    {entry.current_value}{entry.unit}
-                                  </TableCell>
-                                  <TableCell className="py-4 text-center capitalize text-[10px] font-bold text-slate-500">
-                                    {entry.chart_type || "bar"}
-                                  </TableCell>
-                                  <TableCell className="py-4 text-right">
-                                    <div className="flex justify-end gap-2">
+                                    {section.subsections && (
+                                      <TableCell className="py-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                                        {indicator.subsection || "-"}
+                                      </TableCell>
+                                    )}
+                                    <TableCell className="py-4 text-[9px] font-bold text-slate-400 uppercase">
+                                      {indicator.unit}
+                                    </TableCell>
+                                    <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">
+                                      {indicator.target}{indicator.unit}
+                                    </TableCell>
+                                    <TableCell className="py-4">
+                                      <div className={cn(
+                                        "font-black italic text-sm",
+                                        isFilled ? "text-indigo-600 dark:text-indigo-400" : "text-slate-300 dark:text-slate-700"
+                                      )}>
+                                        {indicator.current_value}{indicator.unit}
+                                      </div>
+                                    </TableCell>
+                                    <TableCell className="py-4 text-center">
+                                      {isFilled ? (
+                                        <Badge variant="outline" className={cn(
+                                          "font-black text-[8px] uppercase px-2",
+                                          achieved ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-rose-500/10 text-rose-500 border-rose-500/20"
+                                        )}>
+                                          {achieved ? "Atingida" : "Pendente"}
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="bg-slate-100 text-slate-400 border-slate-200 font-black text-[8px] uppercase">
+                                          Vazio
+                                        </Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="py-4 text-right">
                                       <Button 
-                                        variant="ghost" 
+                                        variant="outline" 
                                         size="sm" 
-                                        onClick={() => {
-                                          // Set the editing month to the entry month
-                                          setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
-                                          handleEditIndicator(entry);
-                                        }}
-                                        className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
+                                        onClick={() => handleEditIndicator(indicator)}
+                                        className={cn(
+                                          "h-8 px-4 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
+                                          isFilled 
+                                            ? "text-indigo-600 border-indigo-200 hover:bg-indigo-50" 
+                                            : "text-white bg-indigo-600 border-transparent hover:bg-indigo-700 shadow-sm"
+                                        )}
                                       >
-                                        Editar
+                                        {isFilled ? "Alterar" : "Lançar"}
                                       </Button>
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={async () => {
-                                          if (confirm("Deseja realmente excluir este lançamento?")) {
-                                            const { deleteDoc, doc } = await import("firebase/firestore");
-                                            const { db } = await import("@/lib/firebase");
-                                            await deleteDoc(doc(db, "indicator_values", entry.value_id));
-                                          }
-                                        }}
-                                        className="h-8 px-2 text-rose-600 hover:bg-rose-50 font-black text-[9px] uppercase tracking-widest"
-                                      >
-                                        Excluir
-                                      </Button>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            {allEntries.filter(e => e.section === section.id).length === 0 && (
-                              <TableRow>
-                                <TableCell colSpan={7} className="text-center py-12">
-                                  <div className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Nenhum lançamento encontrado para esta seção</div>
-                                </TableCell>
-                              </TableRow>
-                            )}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
                           </TableBody>
                         </Table>
                       </Card>
+
+                      <div className="pt-8 border-t border-slate-200 dark:border-white/5">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-[0.2em]">Histórico de LançamentosAnteriores</h3>
+                        </div>
+                        <Card className="bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden">
+                          <Table>
+                            <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
+                              <TableRow className="border-slate-100 dark:border-white/5">
+                                <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3">Mês/Ano</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3">Indicador</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3">Realizado</TableHead>
+                                <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 text-right">Ação</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {allEntries
+                                .filter(e => e.section === section.id && e.month !== format(selectedMonth, "yyyy-MM"))
+                                .slice(0, 10)
+                                .map((entry) => (
+                                  <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 opacity-70 hover:opacity-100 transition-opacity">
+                                    <TableCell className="py-2">
+                                      <span className="text-[9px] font-black uppercase text-slate-500">
+                                        {format(new Date(entry.month + "T12:00:00Z"), "MMM / yy", { locale: ptBR })}
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="py-2 text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase">
+                                      {entry.name}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-[10px] font-black text-indigo-500 italic">
+                                      {entry.current_value}{entry.unit}
+                                    </TableCell>
+                                    <TableCell className="py-2 text-right">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="xs"
+                                        onClick={() => {
+                                          setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
+                                          handleEditIndicator(entry);
+                                        }}
+                                        className="h-6 text-[8px] font-black uppercase"
+                                      >
+                                        Ver
+                                      </Button>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                            </TableBody>
+                          </Table>
+                        </Card>
+                      </div>
                     </div>
                   ) : (
                     <>
