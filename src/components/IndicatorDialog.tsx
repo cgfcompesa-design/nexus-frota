@@ -16,11 +16,14 @@ interface IndicatorDialogProps {
   onClose: () => void;
 }
 
+import { toast } from "sonner";
+
 export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, onClose }: IndicatorDialogProps) => {
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [currentValue, setCurrentValue] = useState("");
   const [unit, setUnit] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     if (indicator?.id) {
@@ -40,13 +43,14 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
     if (!name) return;
 
     const monthStr = format(selectedMonth, "yyyy-MM-01");
+    setIsSaving(true);
     const data = {
       name,
       section: indicator.section,
       subsection: indicator.subsection || null,
       unit,
-      target: parseFloat(target),
-      current_value: parseFloat(currentValue),
+      target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
+      current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
       updatedAt: serverTimestamp()
     };
 
@@ -66,8 +70,8 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
         const valueData = {
           indicator_id: indicator.id,
           month: monthStr,
-          target: parseFloat(target),
-          current_value: parseFloat(currentValue),
+          target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
+          current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
           updatedAt: serverTimestamp()
         };
 
@@ -86,14 +90,18 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
         await addDoc(collection(db, "indicator_values"), {
           indicator_id: newDoc.id,
           month: monthStr,
-          target: parseFloat(target),
-          current_value: parseFloat(currentValue),
+          target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
+          current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
           updatedAt: serverTimestamp()
         });
       }
+      toast.success("Indicador salvo com sucesso!");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving indicator:", error);
+      toast.error(`Erro ao salvar: ${error.message || "Erro desconhecido"}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -128,8 +136,10 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose} className="text-slate-400">Cancelar</Button>
-          <Button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700">Salvar</Button>
+          <Button variant="ghost" onClick={onClose} className="text-slate-400" disabled={isSaving}>Cancelar</Button>
+          <Button onClick={handleSubmit} className="bg-indigo-600 hover:bg-indigo-700" disabled={isSaving}>
+            {isSaving ? "Salvando..." : "Salvar"}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

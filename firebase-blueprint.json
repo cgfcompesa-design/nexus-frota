@@ -59,6 +59,17 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       }
     },
+    "KanbanResponsible": {
+      "title": "Kanban Responsible",
+      "description": "Membro da equipe responsável por atividades",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "Indicator": {
       "title": "Indicator",
       "description": "Indicador de gestão à vista",
@@ -116,6 +127,10 @@
     "/kanban_tasks/{taskId}": {
       "schema": "KanbanTask",
       "description": "Atividades CGF"
+    },
+    "/kanban_responsibles/{responsibleId}": {
+      "schema": "KanbanResponsible",
+      "description": "Equipe CGF"
     },
     "/indicators/{indicatorId}": {
       "schema": "Indicator",

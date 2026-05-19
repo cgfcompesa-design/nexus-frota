@@ -77,24 +77,20 @@ service cloud.firestore {
 
     // --- Kanban System ---
     match /kanban_tasks/{taskId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     match /kanban_responsibles/{responsibleId} {
-      allow read: if isSignedIn();
-      allow create, update, delete: if isSignedIn();
+      allow read, write: if true;
     }
 
     // --- Indicators ---
     match /indicators/{indicatorId} {
-      allow read: if isSignedIn();
-      allow write: if isGestor();
+      allow read, write: if true;
     }
 
     match /indicator_values/{valueId} {
-      allow read: if isSignedIn();
-      allow write: if isGestor();
+      allow read, write: if true;
     }
 
     // --- Machine Supply Assignments ---

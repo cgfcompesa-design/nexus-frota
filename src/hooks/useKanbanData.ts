@@ -11,6 +11,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { toast } from 'sonner';
 
 export type TaskStatus = "todo" | "progress" | "review" | "done";
 
@@ -56,8 +57,10 @@ export const useKanbanData = () => {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
-    } catch (error) {
+      toast.success("Atividade criada!");
+    } catch (error: any) {
       console.error("Error creating task:", error);
+      toast.error(`Erro ao criar: ${error.message || "Erro desconhecido"}`);
     }
   };
 
@@ -69,16 +72,20 @@ export const useKanbanData = () => {
         ...data,
         updatedAt: serverTimestamp()
       });
-    } catch (error) {
+      toast.success("Atividade atualizada!");
+    } catch (error: any) {
       console.error("Error updating task:", error);
+      toast.error(`Erro ao atualizar: ${error.message || "Erro desconhecido"}`);
     }
   };
 
   const deleteTask = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'kanban_tasks', id));
-    } catch (error) {
+      toast.success("Atividade removida!");
+    } catch (error: any) {
       console.error("Error deleting task:", error);
+      toast.error(`Erro ao remover: ${error.message || "Erro desconhecido"}`);
     }
   };
 

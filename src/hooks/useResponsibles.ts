@@ -11,6 +11,7 @@ import {
   orderBy
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { toast } from 'sonner';
 
 export interface Responsible {
   id: string;
@@ -48,8 +49,10 @@ export const useResponsibles = () => {
         ...responsible,
         createdAt: serverTimestamp()
       });
-    } catch (error) {
+      toast.success("Responsável adicionado!");
+    } catch (error: any) {
       console.error("Error creating responsible:", error);
+      toast.error(`Erro ao adicionar: ${error.message || "Erro desconhecido"}`);
     }
   };
 
@@ -60,16 +63,20 @@ export const useResponsibles = () => {
       await updateDoc(respRef, {
         ...data
       });
-    } catch (error) {
+      toast.success("Responsável atualizado!");
+    } catch (error: any) {
       console.error("Error updating responsible:", error);
+      toast.error(`Erro ao atualizar: ${error.message || "Erro desconhecido"}`);
     }
   };
 
   const deleteResponsible = async (id: string) => {
     try {
       await deleteDoc(doc(db, 'kanban_responsibles', id));
-    } catch (error) {
+      toast.success("Responsável removido!");
+    } catch (error: any) {
       console.error("Error deleting responsible:", error);
+      toast.error(`Erro ao remover: ${error.message || "Erro desconhecido"}`);
     }
   };
 
