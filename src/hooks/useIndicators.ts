@@ -30,14 +30,18 @@ export const useIndicators = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const q = query(collection(db, 'indicators'), orderBy('order', 'asc'));
+    const q = collection(db, 'indicators');
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as Indicator[];
-      setIndicators(data);
+      
+      // Sort in memory to handle missing 'order' fields
+      const sortedData = data.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      
+      setIndicators(sortedData);
       setIsLoading(false);
     }, (error) => {
       console.error("Error fetching indicators:", error);

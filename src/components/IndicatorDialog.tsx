@@ -96,6 +96,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
         // Create new
         const newDoc = await addDoc(collection(db, "indicators"), {
           ...data,
+          order: Date.now(),
           createdAt: serverTimestamp()
         });
         
