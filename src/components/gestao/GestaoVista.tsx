@@ -4,6 +4,7 @@ import { ArrowLeft, Plus, CalendarIcon, LayoutGrid, List } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { useIndicators } from "@/hooks/useIndicators";
 import { useResponsibles } from "@/hooks/useResponsibles";
 import { IndicatorDialog } from "@/components/IndicatorDialog";
@@ -262,48 +263,62 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                             Novo Indicador
                           </Button>
                         </div>
-                        {viewMode === "table" ? (
-                          <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
-                            <Table>
-                              <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
-                                <TableRow className="border-slate-100 dark:border-white/5">
-                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
-                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
-                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Realizado ({format(selectedMonth, "MMM/yy")})</TableHead>
-                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Tipo</TableHead>
-                                  <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {getIndicatorsBySection(section.id, subsection).map((indicator) => (
-                                  <TableRow key={indicator.id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
-                                    <TableCell className="py-4">
-                                      <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{indicator.name}</div>
-                                      <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{indicator.unit}</div>
-                                    </TableCell>
-                                    <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">{indicator.target}{indicator.unit}</TableCell>
-                                    <TableCell className="py-4 font-black text-indigo-600 dark:text-indigo-400 italic">
-                                      {indicator.current_value}{indicator.unit}
-                                    </TableCell>
-                                    <TableCell className="py-4 text-center capitalize text-[10px] font-bold text-slate-500">
-                                      {indicator.chart_type || "bar"}
-                                    </TableCell>
-                                    <TableCell className="py-4 text-right">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => handleEditIndicator(indicator)}
-                                        className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
-                                      >
-                                        Editar
-                                      </Button>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </Card>
-                        ) : (
+                  {viewMode === "table" ? (
+                    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                      <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <CalendarIcon className="h-5 w-5 text-indigo-600" />
+                          <div>
+                            <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none">Mês de Referência</div>
+                            <div className="text-sm font-black uppercase text-indigo-600 dark:text-indigo-400 italic mt-1">
+                              {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-black uppercase text-[9px] px-3">
+                          Modo Gerencial
+                        </Badge>
+                      </div>
+                      <Table>
+                        <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
+                          <TableRow className="border-slate-100 dark:border-white/5">
+                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Realizado</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Tipo</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {getIndicatorsBySection(section.id, subsection).map((indicator) => (
+                            <TableRow key={indicator.id} className="border-slate-100 dark:border-white/5 hover:bg-slate-50/50 dark:hover:bg-white/5 transition-colors group">
+                              <TableCell className="py-4">
+                                <div className="font-bold text-slate-800 dark:text-white uppercase text-xs">{indicator.name}</div>
+                                <div className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">{indicator.unit}</div>
+                              </TableCell>
+                              <TableCell className="py-4 font-bold text-slate-600 dark:text-slate-400">{indicator.target}{indicator.unit}</TableCell>
+                              <TableCell className="py-4 font-black text-indigo-600 dark:text-indigo-400 italic">
+                                {indicator.current_value}{indicator.unit}
+                              </TableCell>
+                              <TableCell className="py-4 text-center capitalize text-[10px] font-bold text-slate-500">
+                                {indicator.chart_type || "bar"}
+                              </TableCell>
+                              <TableCell className="py-4 text-right">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={() => handleEditIndicator(indicator)}
+                                  className="h-8 px-2 text-indigo-600 hover:bg-indigo-50 font-black text-[9px] uppercase tracking-widest"
+                                >
+                                  Editar
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </Card>
+                  ) : (
                           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {getIndicatorsBySection(section.id, subsection).map(
                               (indicator) => (
@@ -312,6 +327,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                   indicator={indicator}
                                   onEdit={handleEditIndicator}
                                   responsibles={responsibles}
+                                  selectedMonth={selectedMonth}
                                   historyValues={allIndicatorValues.filter(
                                     (v) => v.indicator_id === indicator.id
                                   )}
@@ -339,13 +355,27 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                       </div>
                   {viewMode === "table" ? (
                     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl">
+                      <div className="bg-slate-50 dark:bg-slate-800/50 p-4 border-b border-slate-100 dark:border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <CalendarIcon className="h-5 w-5 text-indigo-600" />
+                          <div>
+                            <div className="text-[10px] font-black uppercase text-slate-500 tracking-widest leading-none">Mês de Referência</div>
+                            <div className="text-sm font-black uppercase text-indigo-600 dark:text-indigo-400 italic mt-1">
+                              {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+                            </div>
+                          </div>
+                        </div>
+                        <Badge variant="outline" className="bg-indigo-500/10 text-indigo-500 border-indigo-500/20 font-black uppercase text-[9px] px-3">
+                          Modo Gerencial
+                        </Badge>
+                      </div>
                       <Table>
-                        <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
+                        <TableHeader className="bg-slate-50/50 dark:bg-slate-800/30">
                           <TableRow className="border-slate-100 dark:border-white/5">
                             <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Indicador</TableHead>
                             <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Seção / Subseção</TableHead>
                             <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Meta</TableHead>
-                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Realizado ({format(selectedMonth, "MMM/yy")})</TableHead>
+                            <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4">Realizado</TableHead>
                             <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-center">Tipo</TableHead>
                             <TableHead className="text-[10px] font-black uppercase tracking-widest text-slate-500 py-4 text-right">Ações</TableHead>
                           </TableRow>
@@ -393,6 +423,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                           indicator={indicator}
                           onEdit={handleEditIndicator}
                           responsibles={responsibles}
+                          selectedMonth={selectedMonth}
                           historyValues={allIndicatorValues.filter(
                             (v) => v.indicator_id === indicator.id
                           )}

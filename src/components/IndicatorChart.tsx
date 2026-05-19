@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Trash2, CalendarIcon } from "lucide-react";
 import { 
   ResponsiveContainer, 
   BarChart, 
@@ -25,9 +25,10 @@ interface IndicatorChartProps {
   onEdit: (indicator: any) => void;
   responsibles: any[];
   historyValues: any[];
+  selectedMonth: Date;
 }
 
-export const IndicatorChart = ({ indicator, onEdit, historyValues }: IndicatorChartProps) => {
+export const IndicatorChart = ({ indicator, onEdit, historyValues, selectedMonth }: IndicatorChartProps) => {
   const isGoalAchieved = indicator.current_value >= indicator.target;
   const statusColor = isGoalAchieved ? "#10b981" : "#f43f5e";
   const targetColor = "#6366f1";
@@ -139,6 +140,19 @@ export const IndicatorChart = ({ indicator, onEdit, historyValues }: IndicatorCh
 
   return (
     <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 overflow-hidden group shadow-md hover:shadow-lg transition-shadow">
+      <div className="bg-slate-50 dark:bg-slate-800/50 px-4 py-2 border-b border-slate-100 dark:border-white/5 flex justify-between items-center">
+        <div className="flex items-center gap-1">
+          <CalendarIcon className="h-3 w-3 text-indigo-500" />
+          <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest italic">
+            Ref: {format(selectedMonth, "MMM / yy", { locale: ptBR })}
+          </span>
+        </div>
+        {indicator.chart_type && (
+          <span className="text-[8px] font-black uppercase text-slate-400 tracking-tighter">
+            Mode: {indicator.chart_type}
+          </span>
+        )}
+      </div>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 p-4 border-b border-slate-100 dark:border-white/5">
         <CardTitle className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white leading-tight">
           {indicator.name}
