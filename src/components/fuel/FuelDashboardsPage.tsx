@@ -518,6 +518,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       liters: number;
       cost: number;
       count: number;
+      diretoria: string;
+      gerencia: string;
     }> = [];
 
     Object.keys(groups).forEach(tipo => {
@@ -532,13 +534,16 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       });
 
       if (maxPlaca && maxStats.liters > 0) {
+        const asset = assetsByPlaca.get(maxPlaca);
         result.push({
           tipo,
           placa: maxPlaca,
           model: maxStats.model,
           liters: maxStats.liters,
           cost: maxStats.cost,
-          count: maxStats.count
+          count: maxStats.count,
+          diretoria: asset?.DIRETORIA || asset?.Diretoria || "N/A",
+          gerencia: asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A"
         });
       }
     });
@@ -588,7 +593,26 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     return assets
       .filter(a => {
         const statusOp = String(a.STATUS_OPERACIONAL || a["STATUS OPERACIONAL"] || "").toUpperCase().trim();
-        return statusOp === 'OPERACIONAL';
+        if (statusOp !== 'OPERACIONAL' && statusOp !== 'ATIVO') return false;
+
+        const placaRaw = String(a.PLACA || a.placa || "").toUpperCase();
+        const placaNormalized = placaRaw.replace(/[^A-Z0-9]/gi, "");
+        const model = String(a.MODELO || a.Modelo || "N/A").trim();
+        const diretoria = String(a.DIRETORIA || a.Diretoria || "N/A").trim();
+        const gerencia = String(a.GERENCIA || a["GERÊNCIA"] || a.Gerencia || "N/A").trim();
+        const tipo = String(a.TIPO || a.Tipo || "N/A").trim();
+        const propriedade = String(a.PROPRIEDADE || a["PROPRIEDADE"] || (a.__raw && a.__raw[10]) || "N/A").trim().toUpperCase();
+        const titularidade = String(a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27]) || "N/A").trim().toUpperCase();
+
+        if (searchPlaca && !placaNormalized.includes(searchPlaca.toUpperCase().trim())) return false;
+        if (selectedDirectorias.length > 0 && !selectedDirectorias.map(d => String(d).trim()).includes(diretoria)) return false;
+        if (selectedGerencias.length > 0 && !selectedGerencias.map(g => String(g).trim()).includes(gerencia)) return false;
+        if (selectedTipos.length > 0 && !selectedTipos.map(t => String(t).trim()).includes(tipo)) return false;
+        if (selectedVehicleModels.length > 0 && !selectedVehicleModels.map(m => String(m).trim()).includes(model)) return false;
+        if (selectedPropriedades.length > 0 && !selectedPropriedades.map(p => String(p).trim().toUpperCase()).includes(propriedade)) return false;
+        if (selectedTitularidades.length > 0 && !selectedTitularidades.map(t => String(t).trim().toUpperCase()).includes(titularidade)) return false;
+
+        return true;
       })
       .map(a => {
         const placa = String(a.PLACA || a.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
@@ -602,7 +626,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           titularidade: asset?.TITULARIDADE || (asset as any)?.COL_27 || "N/A"
         };
       }).sort((a, b) => b.days - a.days).slice(0, 10);
-  }, [fuel, assets, assetsByPlaca]);
+  }, [fuel, assets, assetsByPlaca, searchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedVehicleModels, selectedPropriedades, selectedTitularidades]);
 
   // 5. Top 10 - Veículos com Menor KM Médio
   const lowKmAssets = useMemo(() => {
@@ -620,7 +644,26 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     return assets
       .filter(a => {
         const statusOp = String(a.STATUS_OPERACIONAL || a["STATUS OPERACIONAL"] || "").toUpperCase().trim();
-        return statusOp === 'OPERACIONAL';
+        if (statusOp !== 'OPERACIONAL' && statusOp !== 'ATIVO') return false;
+
+        const placaRaw = String(a.PLACA || a.placa || "").toUpperCase();
+        const placaNormalized = placaRaw.replace(/[^A-Z0-9]/gi, "");
+        const model = String(a.MODELO || a.Modelo || "N/A").trim();
+        const diretoria = String(a.DIRETORIA || a.Diretoria || "N/A").trim();
+        const gerencia = String(a.GERENCIA || a["GERÊNCIA"] || a.Gerencia || "N/A").trim();
+        const tipo = String(a.TIPO || a.Tipo || "N/A").trim();
+        const propriedade = String(a.PROPRIEDADE || a["PROPRIEDADE"] || (a.__raw && a.__raw[10]) || "N/A").trim().toUpperCase();
+        const titularidade = String(a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27]) || "N/A").trim().toUpperCase();
+
+        if (searchPlaca && !placaNormalized.includes(searchPlaca.toUpperCase().trim())) return false;
+        if (selectedDirectorias.length > 0 && !selectedDirectorias.map(d => String(d).trim()).includes(diretoria)) return false;
+        if (selectedGerencias.length > 0 && !selectedGerencias.map(g => String(g).trim()).includes(gerencia)) return false;
+        if (selectedTipos.length > 0 && !selectedTipos.map(t => String(t).trim()).includes(tipo)) return false;
+        if (selectedVehicleModels.length > 0 && !selectedVehicleModels.map(m => String(m).trim()).includes(model)) return false;
+        if (selectedPropriedades.length > 0 && !selectedPropriedades.map(p => String(p).trim().toUpperCase()).includes(propriedade)) return false;
+        if (selectedTitularidades.length > 0 && !selectedTitularidades.map(t => String(t).trim().toUpperCase()).includes(titularidade)) return false;
+
+        return true;
       })
       .map(a => {
         const placa = String(a.PLACA || a.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
@@ -632,7 +675,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           titularidade: a["TITULARIDADE"] || (a as any).COL_27 || "N/A"
         };
       }).filter(a => a.avg > 0).sort((a, b) => a.avg - b.avg).slice(0, 10);
-  }, [filteredFuel, assets]);
+  }, [filteredFuel, assets, searchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedVehicleModels, selectedPropriedades, selectedTitularidades]);
 
   // 6. Custo por Tipo de Ativo
   const costByType = useMemo(() => {
@@ -761,6 +804,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         item.tipo,
         item.placa,
         item.model,
+        item.diretoria,
+        item.gerencia,
         `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
         `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
         `${item.count} abast.`
@@ -769,10 +814,10 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       autoTable(doc, {
         startY: 30,
         theme: "grid",
-        head: [["Tipo de Ativo", "Placa", "Modelo", "Volume Abastecido", "Custo Total", "Abastecimentos"]],
+        head: [["Tipo de Ativo", "Placa", "Modelo", "Diretoria", "Gerência", "Vol. Abastecido", "Custo Total", "Abastecimentos"]],
         body: topTipoBody,
         headStyles: { fillColor: [79, 70, 229] }, // indigo-600
-        styles: { fontSize: 8.5 },
+        styles: { fontSize: 7.5 }, // slightly smaller font to fit additional columns beautifully
       });
 
       // Page 3: Rankings Top list
@@ -1412,6 +1457,14 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                     </div>
                     <div className="text-xs text-slate-500 font-bold truncate">
                       {item.model}
+                    </div>
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-bold">
+                        {item.diretoria}
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-bold truncate max-w-[150px]" title={item.gerencia}>
+                        {item.gerencia}
+                      </span>
                     </div>
                   </div>
                   
