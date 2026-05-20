@@ -199,10 +199,10 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
           'Combustível': f._fuelType || f.COL_13,
           'Litros': Number(f._litros || f.COL_14),
           'VL/L': Number(f._vlLitro || f.COL_15),
-          'Estabelecimento': f.COL_21,
-          'Endereço': f.COL_23,
-          'Bairro': f.COL_24,
-          'Cidade': f.COL_25,
+          'Estabelecimento': f._posto || f._establishment || f.COL_21,
+          'Endereço': f._endereco || f.COL_23,
+          'Bairro': f._bairro || f.COL_24,
+          'Cidade': f._cidade || f.COL_25,
           'Lotação': f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || '',
           'Cartão': f.COL_35,
           'Mês/Ano': f.COL_41,
@@ -454,9 +454,9 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                       <TableCell className="text-[10px] uppercase font-bold">{f._fuelType || f.COL_13}</TableCell>
                       <TableCell className="text-[10px] font-black text-right">{Number(f._litros || f.COL_14).toLocaleString('pt-BR')}L</TableCell>
                       <TableCell className="text-[10px] font-black text-right">R$ {Number(f._vlLitro || f.COL_15).toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</TableCell>
-                      <TableCell className="text-[10px] truncate max-w-[180px]" title={f.COL_21}>{f.COL_21}</TableCell>
-                      <TableCell className="text-[10px] truncate max-w-[250px]" title={`${f.COL_23 || ''} - ${f.COL_24 || ''} - ${f.COL_25 || ''}`}>
-                        {f.COL_23} / {f.COL_24} / {f.COL_25}
+                      <TableCell className="text-[10px] truncate max-w-[180px]" title={f._posto || f._establishment || f.COL_21}>{f._posto || f._establishment || f.COL_21}</TableCell>
+                      <TableCell className="text-[10px] truncate max-w-[250px]" title={`${f._endereco || f.COL_23 || ''} - ${f._bairro || f.COL_24 || ''} - ${f._cidade || f.COL_25 || ''}`}>
+                        {f._endereco || f.COL_23} / {f._bairro || f.COL_24} / {f._cidade || f.COL_25}
                       </TableCell>
                       <TableCell className="text-[10px] uppercase font-bold">{f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit}</TableCell>
                       <TableCell className="text-[10px] font-mono text-slate-400">{f.COL_35 || 'N/A'}</TableCell>

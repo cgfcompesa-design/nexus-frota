@@ -237,10 +237,10 @@ export async function fetchFuelData(): Promise<any[]> {
           obj._driver = val;
         }
 
-        if (key === "NOME POSTO" || key === "ESTABELECIMENTO" || key === "RAZAO SOCIAL" || key === "POSTO") {
+        if (key === "NOME ESTABELECIMENTO" || key === "NOME POSTO" || key === "ESTABELECIMENTO" || key === "RAZAO SOCIAL" || key === "POSTO" || key === "NOME_ESTABELECIMENTO") {
           obj._establishment = val;
           obj._posto = val;
-        } else if ((key.includes("POSTO") || key.includes("ESTABELECIMENTO")) && !obj._establishment) {
+        } else if ((key.includes("POSTO") || key.includes("ESTABELECIMENTO")) && !key.includes("CODIGO") && !key.includes("CNPJ") && !key.includes("ID") && !obj._establishment) {
           obj._establishment = val;
           obj._posto = val;
         }
@@ -302,10 +302,10 @@ export async function fetchFuelData(): Promise<any[]> {
     // Let's try to map txId to a different column if it's currently showing Time.
     // Usually Ticket Log has it in index 3 or 4.
     if (!obj._txId) obj._txId = row[8] || row[4] || "N/A";
-    if (!obj._posto) obj._posto = row[16] || row[23] || "N/A";
-    if (!obj._cidade) obj._cidade = row[21] || row[25] || "N/A";
-    if (!obj._endereco) obj._endereco = row[18] || "N/A";
-    if (!obj._bairro) obj._bairro = row[19] || "N/A";
+    if (!obj._posto) obj._posto = row[21] || row[16] || row[23] || "N/A";
+    if (!obj._cidade) obj._cidade = row[25] || row[21] || row[20] || "N/A";
+    if (!obj._endereco) obj._endereco = row[23] || row[18] || "N/A";
+    if (!obj._bairro) obj._bairro = row[24] || row[19] || "N/A";
 
     // Add transaction time if available (fallback Column G = index 6 or the user said Column A (0) had time)
     if (!obj._time) obj._time = row[0] || row[6] || "";
