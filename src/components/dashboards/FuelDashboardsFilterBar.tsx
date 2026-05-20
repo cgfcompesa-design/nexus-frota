@@ -41,8 +41,8 @@ export const FuelDashboardsFilterBar = ({
   onTiposChange,
   selectedMonthsYears,
   onMonthsYearsChange,
-  selectedRegioes,
-  onRegioesChange,
+  selectedPropriedades,
+  onPropriedadesChange,
   selectedCidades,
   onCidadesChange,
   selectedTipoControleAutonomia,
@@ -70,7 +70,7 @@ export const FuelDashboardsFilterBar = ({
   tipoOptions = [],
   monthYearOptions = [],
   autoControleOptions = [],
-  regiaoOptions = [],
+  propriedadeOptions = [],
   cidadeOptions = []
 }: any) => {
 
@@ -132,10 +132,10 @@ export const FuelDashboardsFilterBar = ({
         />
 
         <SearchableMultiSelect 
-          label="Região"
-          options={regiaoOptions}
-          selected={selectedRegioes || []}
-          onChange={onRegioesChange}
+          label="Propriedade"
+          options={propriedadeOptions}
+          selected={selectedPropriedades || []}
+          onChange={onPropriedadesChange}
           placeholder="Selecionar..."
         />
 
@@ -355,10 +355,10 @@ export const FuelDashboardsFilterBar = ({
             <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedMonthsYears, onMonthsYearsChange, m)} />
           </Badge>
         ))}
-        {selectedRegioes?.map((r: string) => (
-          <Badge key={r} variant="secondary" className="gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 border-indigo-200">
-            Região: {r}
-            <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedRegioes, onRegioesChange, r)} />
+        {selectedPropriedades?.map((p: string) => (
+          <Badge key={p} variant="secondary" className="gap-1 px-3 py-1 bg-indigo-50 text-indigo-700 border-indigo-200">
+            Propriedade: {p}
+            <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedPropriedades, onPropriedadesChange, p)} />
           </Badge>
         ))}
         {selectedCidades?.map((c: string) => (

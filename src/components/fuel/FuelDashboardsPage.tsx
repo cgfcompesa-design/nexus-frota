@@ -1,5 +1,8 @@
 
 import React, { useState, useMemo, useRef } from "react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import html2canvas from "html2canvas";
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData } from "@/hooks/useFleetData";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
@@ -143,6 +146,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const [selectedTipos, setSelectedTipos] = useState<string[]>([]);
   const [selectedTipoControleAutonomia, setSelectedTipoControleAutonomia] = useState<string[]>([]);
   const [selectedMonthsYears, setSelectedMonthsYears] = useState<string[]>([]);
+  const [selectedPropriedades, setSelectedPropriedades] = useState<string[]>([]);
+  const [selectedCidades, setSelectedCidades] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("dashboards");
  
   const isLoading = loadingFuel || loadingAssets;
@@ -193,6 +198,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const tipo = asset?.TIPO || asset?.Tipo || asset?.["TIPO VEICULO"] || f._assetType || "N/A";
       const mesAno = String(f._monthYear || "N/A").trim();
       const controleAuto = asset?.["CONTROLE DE AUTONOMIA"] || asset?.["CONTROLE AUTONOMIA"] || (f as any).COL_43 || "";
+      const propriedade = asset?.PROPRIEDADE || asset?.Propriedade || asset?.["PROPRIEDADE"] || (asset?.__raw && asset?.__raw[10]) || "N/A";
+      const cidade = f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "N/A";
 
       // Transaction Date Filter
       if (dateFrom || dateTo) {
@@ -212,10 +219,12 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       if (selectedTipos.length > 0 && !selectedTipos.map(t => String(t).trim()).includes(String(tipo).trim())) return false;
       if (selectedTipoControleAutonomia.length > 0 && !selectedTipoControleAutonomia.map(c => String(c).trim()).includes(String(controleAuto).trim())) return false;
       if (selectedMonthsYears.length > 0 && !selectedMonthsYears.map(m => String(m).trim()).includes(mesAno.trim())) return false;
+      if (selectedPropriedades.length > 0 && !selectedPropriedades.map(p => String(p).trim().toUpperCase()).includes(String(propriedade).trim().toUpperCase())) return false;
+      if (selectedCidades.length > 0 && !selectedCidades.map(c => String(c).trim().toUpperCase()).includes(String(cidade).trim().toUpperCase())) return false;
 
       return true;
     });
-  }, [fuel, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears]);
+  }, [fuel, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, selectedPropriedades, selectedCidades]);
 
   const formatMonthLabel = (m: string) => {
     if (!m || !m.includes('/')) return m;
@@ -253,6 +262,14 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const diretoriaOptions = useMemo(() => Array.from(new Set(assets.map(a => a.DIRETORIA || a.Diretoria).filter(Boolean))).sort() as string[], [assets]);
   const gerenciaOptions = useMemo(() => Array.from(new Set(assets.map(a => a.GERENCIA || a["GERÊNCIA"] || a.Gerencia).filter(Boolean))).sort() as string[], [assets]);
   const tipoOptions = useMemo(() => Array.from(new Set(assets.map(a => a.TIPO || a.Tipo).filter(Boolean))).sort() as string[], [assets]);
+  
+  const propriedadeOptions = useMemo(() => Array.from(new Set(assets.map(a => a.PROPRIEDADE || a.Propriedade || a["PROPRIEDADE"] || (a.__raw && a.__raw[10])).filter(Boolean))).sort() as string[], [assets]);
+  const cidadeOptions = useMemo(() => {
+    return Array.from(new Set(fuel.map(f => {
+      const c = f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "";
+      return String(c).trim().toUpperCase();
+    }).filter(c => c && c !== "N/A"))).sort() as string[];
+  }, [fuel]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -275,6 +292,145 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   }, [filteredFuel]);
 
   // Charts Logic
+
+  // Year-on-Year Comparative Chart State & Computations
+  const [compMetricMode, setCompMetricMode] = useState<'liters' | 'cost'>('liters');
+  const [compYearA, setCompYearA] = useState<number>(2025);
+  const [compYearB, setCompYearB] = useState<number>(2026);
+
+  const getMonthYearFromRow = (f: any) => {
+    const col41 = f.COL_41 || f._monthYear || "";
+    if (col41) {
+      const s = String(col41).trim();
+      const parts = s.split("/");
+      if (parts.length >= 2) {
+        const part0 = parts[0].trim().toLowerCase();
+        const part1 = parts[1].trim();
+        
+        let month = -1;
+        let year = -1;
+        
+        if (/^\d+$/.test(part0)) {
+          month = parseInt(part0) - 1;
+        } else {
+          const mStr = part0.substring(0, 3).normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+          const map: Record<string, number> = {
+            jan: 0, fev: 1, mar: 2, abr: 3, mai: 4, jun: 5,
+            jul: 6, ago: 7, set: 8, out: 9, nov: 10, dez: 11
+          };
+          month = map[mStr] ?? -1;
+        }
+        
+        if (/^\d+$/.test(part1)) {
+          year = part1.length === 2 ? 2000 + parseInt(part1) : parseInt(part1);
+        }
+        
+        if (month >= 0 && month <= 11 && year > 1900) {
+          return { month, year };
+        }
+      }
+    }
+    
+    if (f._date) {
+      const d = getFormattedDate(f._date);
+      if (d) {
+        return { month: d.getMonth(), year: d.getFullYear() };
+      }
+    }
+    return null;
+  };
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    filteredFuel.forEach(f => {
+      const my = getMonthYearFromRow(f);
+      if (my && !isNaN(my.year) && my.year > 2000 && my.year < 2100) {
+        years.add(my.year);
+      }
+    });
+    const list = Array.from(years).filter(y => !isNaN(y)).sort();
+    if (!list.includes(2025)) list.push(2025);
+    if (!list.includes(2026)) list.push(2026);
+    return list.sort();
+  }, [filteredFuel]);
+
+  const comparativeData = useMemo(() => {
+    const MONTHS_COMPARE = [
+      { name: "Janeiro", shortName: "Jan", index: 0 },
+      { name: "Fevereiro", shortName: "Fev", index: 1 },
+      { name: "Março", shortName: "Mar", index: 2 },
+      { name: "Abril", shortName: "Abr", index: 3 },
+      { name: "Maio", shortName: "Mai", index: 4 },
+      { name: "Junho", shortName: "Jun", index: 5 },
+      { name: "Julho", shortName: "Jul", index: 6 },
+      { name: "Agosto", shortName: "Ago", index: 7 },
+      { name: "Setembro", shortName: "Set", index: 8 },
+      { name: "Outubro", shortName: "Out", index: 9 },
+      { name: "Novembro", shortName: "Nov", index: 10 },
+      { name: "Dezembro", shortName: "Dez", index: 11 }
+    ];
+
+    const result = MONTHS_COMPARE.map(m => ({
+      monthIndex: m.index,
+      monthLabel: m.shortName,
+      monthFullName: m.name,
+      
+      litersA: 0,
+      costA: 0,
+      countA: 0,
+      uniquePlatesA: new Set<string>(),
+      
+      litersB: 0,
+      costB: 0,
+      countB: 0,
+      uniquePlatesB: new Set<string>(),
+    }));
+    
+    filteredFuel.forEach(f => {
+      const my = getMonthYearFromRow(f);
+      if (!my) return;
+      
+      const litros = typeof f._litros === 'number' ? f._litros : parseNum(f.COL_14 || f.LITROS || f.VOLUME || f.QUANTIDADE || 0);
+      const custo = typeof f._total === 'number' ? f._total : parseNum(f.COL_19 || f["VALOR EMISSAO"] || f._total || f.VALOR || f.TOTAL || 0);
+      const placa = String(f.PLACA || f._placa || f.COL_5 || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      
+      if (my.year === compYearA) {
+        const idx = my.month;
+        if (idx >= 0 && idx < 12) {
+          result[idx].litersA += litros;
+          result[idx].costA += custo;
+          result[idx].countA += 1;
+          if (placa) {
+            result[idx].uniquePlatesA.add(placa);
+          }
+        }
+      } else if (my.year === compYearB) {
+        const idx = my.month;
+        if (idx >= 0 && idx < 12) {
+          result[idx].litersB += litros;
+          result[idx].costB += custo;
+          result[idx].countB += 1;
+          if (placa) {
+            result[idx].uniquePlatesB.add(placa);
+          }
+        }
+      }
+    });
+    
+    return result.map(m => ({
+      monthIndex: m.monthIndex,
+      monthLabel: m.monthLabel,
+      monthFullName: m.monthFullName,
+      litersA: m.litersA,
+      costA: m.costA,
+      countA: m.countA,
+      platesA: m.uniquePlatesA.size,
+      litersB: m.litersB,
+      costB: m.costB,
+      countB: m.countB,
+      platesB: m.uniquePlatesB.size,
+    }));
+  }, [filteredFuel, compYearA, compYearB]);
 
   // 1. Histórico de Abastecimentos (Liters and Value by Month/Year)
   const [chartViewMode, setChartViewMode] = useState<'liters' | 'cost'>('liters');
@@ -320,6 +476,68 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     filteredFuel.forEach(f => set.add(f._fuelType || "Outros"));
     return Array.from(set);
   }, [filteredFuel]);
+
+  // Veículo com maior consumo por tipo
+  const topConsumidoresPorTipo = useMemo(() => {
+    const groups: Record<string, Record<string, { liters: number, cost: number, count: number, model: string }>> = {};
+    
+    filteredFuel.forEach(f => {
+      const pRaw = f._placa || f.PLACA || "";
+      if (!pRaw) return;
+      const placa = String(pRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase().trim();
+      if (!placa) return;
+      
+      const asset = assetsByPlaca.get(placa);
+      const tipo = (asset?.TIPO || asset?.Tipo || asset?.["TIPO VEICULO"] || f._assetType || "Outros").trim().toUpperCase();
+      const model = asset?.MODELO || asset?.Modelo || f._vehicleModel || "N/A";
+      
+      const litros = f._litros || 0;
+      const custo = f._total || 0;
+      
+      if (!groups[tipo]) groups[tipo] = {};
+      if (!groups[tipo][placa]) {
+        groups[tipo][placa] = { liters: 0, cost: 0, count: 0, model };
+      }
+      
+      groups[tipo][placa].liters += litros;
+      groups[tipo][placa].cost += custo;
+      groups[tipo][placa].count += 1;
+    });
+
+    const result: Array<{
+      tipo: string;
+      placa: string;
+      model: string;
+      liters: number;
+      cost: number;
+      count: number;
+    }> = [];
+
+    Object.keys(groups).forEach(tipo => {
+      let maxPlaca = "";
+      let maxStats = { liters: 0, cost: 0, count: 0, model: "N/A" };
+      
+      Object.keys(groups[tipo]).forEach(placa => {
+        if (groups[tipo][placa].liters > maxStats.liters) {
+          maxPlaca = placa;
+          maxStats = groups[tipo][placa];
+        }
+      });
+
+      if (maxPlaca && maxStats.liters > 0) {
+        result.push({
+          tipo,
+          placa: maxPlaca,
+          model: maxStats.model,
+          liters: maxStats.liters,
+          cost: maxStats.cost,
+          count: maxStats.count
+        });
+      }
+    });
+
+    return result.sort((a, b) => b.liters - a.liters);
+  }, [filteredFuel, assetsByPlaca]);
 
   // 2. Top 10 - Consumo por Ativo (Liters and Cost)
   const top10ByAsset = useMemo(() => {
@@ -441,6 +659,122 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
+  const chartsContainerRef = useRef<HTMLDivElement>(null);
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+
+  const handleExportPDF = async () => {
+    setIsExportingPDF(true);
+    const toastId = toast.loading("Gerando relatório PDF de qualidade...");
+    try {
+      const doc = new jsPDF("p", "mm", "a4");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Top Header bar design (COMPESA deep corporate dark blue)
+      doc.setFillColor(30, 41, 59); // slate-800
+      doc.rect(0, 0, pageWidth, 40, "F");
+
+      // Title Text
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.text("COMPESA - GESTÃO DE FROTAS", 14, 18);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(10);
+      doc.text("Relatório Executivo de Abastecimentos e Consumo", 14, 25);
+      
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(8);
+      doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 14, 32);
+
+      // Section: Active Filters
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text("Filtros Ativos do Relatório", 14, 52);
+
+      const activeFiltersText = [
+        `Placa de Busca: ${searchPlaca || "Todas"}`,
+        `Diretoria Selecionada: ${selectedDirectorias.length > 0 ? selectedDirectorias.join(", ") : "Todas"}`,
+        `Gerência Selecionada: ${selectedGerencias.length > 0 ? selectedGerencias.join(", ") : "Todas"}`,
+        `Propriedade: ${selectedPropriedades.length > 0 ? selectedPropriedades.join(", ") : "Todas"}`,
+        `Cidade de Abastecimento: ${selectedCidades.length > 0 ? selectedCidades.join(", ") : "Todas"}`,
+        `Tipo de Ativo: ${selectedTipos.length > 0 ? selectedTipos.join(", ") : "Todos"}`,
+        `Período Selecionado: ${dateFrom ? dateFrom.toLocaleDateString('pt-BR') : "Início"} até ${dateTo ? dateTo.toLocaleDateString('pt-BR') : "Fim"}`
+      ];
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105);
+      
+      let filterY = 58;
+      activeFiltersText.forEach(filter => {
+        doc.text(`• ${filter}`, 18, filterY);
+        filterY += 5;
+      });
+
+      // Section: Key metrics summary table
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(30, 41, 59);
+      doc.text("Indicadores de Consumo Consolidados", 14, 102);
+
+      autoTable(doc, {
+        startY: 107,
+        theme: "striped",
+        head: [["Indicador de Performance", "Resultado Obtido"]],
+        body: [
+          ["Total de Volume Abastecido (Litros)", `${metrics.totalCombustivel.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`],
+          ["Investimento Total em Combustível", `R$ ${metrics.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`],
+          ["Preço Médio Unitário do Litro", `R$ ${metrics.avgPrecoLitro.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`],
+          ["Autonomia Real Média da Categoria", `${metrics.avgAutonomiaReal > 0 ? metrics.avgAutonomiaReal.toLocaleString('pt-BR', { maximumFractionDigits: 2 }) + " km/L" : "N/A"}`],
+          ["Média de Deslocamento Registrado", `${metrics.avgKmMedio > 0 ? metrics.avgKmMedio.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) + " km" : "N/A"}`],
+          ["Quantidade de Abastecimentos Computados", `${filteredFuel.length} registros`]
+        ],
+        headStyles: { fillColor: [51, 65, 85] },
+        styles: { fontSize: 9, cellPadding: 2.5 },
+      });
+
+      // Page 2: Visual charts from dashboard captured under chartsContainerRef
+      if (chartsContainerRef.current) {
+        doc.addPage();
+        
+        doc.setFillColor(30, 41, 59);
+        doc.rect(0, 0, pageWidth, 15, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.text("COMPESA - DEMONSTRATIVOS GRÁFICOS", 14, 10);
+
+        doc.setTextColor(30, 41, 59);
+        doc.setFontSize(11);
+        doc.text("Análise Visual de Abastecimentos & Tendências", 14, 25);
+
+        // Capture visual charts container
+        const canvas = await html2canvas(chartsContainerRef.current, {
+          scale: 1.5,
+          useCORS: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+        });
+
+        const imgData = canvas.toDataURL("image/jpeg", 0.9);
+        const imgWidth = 180;
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        
+        doc.addImage(imgData, "JPEG", 15, 30, imgWidth, Math.min(imgHeight, 240));
+      }
+
+      doc.save(`Relatorio_Abastecimento_Compesa_${new Date().toISOString().split('T')[0]}.pdf`);
+      toast.success("Relatório executivo PDF baixado com sucesso!", { id: toastId });
+    } catch (err) {
+      console.error("Erro na geração do PDF:", err);
+      toast.error("Ocorreu um erro ao gerar o PDF. Tente novamente.", { id: toastId });
+    } finally {
+      setIsExportingPDF(false);
+    }
+  };
 
   const handleTopScroll = (e: React.UIEvent<HTMLDivElement>) => {
     if (tableContainerRef.current) {
@@ -578,6 +912,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     setSelectedTipos([]);
     setSelectedTipoControleAutonomia([]);
     setSelectedMonthsYears([]);
+    setSelectedPropriedades([]);
+    setSelectedCidades([]);
   };
 
   const handleExport = () => {
@@ -631,7 +967,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   return (
     <div className="space-y-6">
       <FuelDashboardsFilterBar
-            onClearFilters={handleClearFilters}
+        onClearFilters={handleClearFilters}
         searchPlaca={searchPlaca}
         onSearchPlacaChange={setSearchPlaca}
         dateFrom={dateFrom}
@@ -652,6 +988,10 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         onTipoControleAutonomiaChange={setSelectedTipoControleAutonomia}
         selectedMonthsYears={selectedMonthsYears}
         onMonthsYearsChange={setSelectedMonthsYears}
+        selectedPropriedades={selectedPropriedades}
+        onPropriedadesChange={setSelectedPropriedades}
+        selectedCidades={selectedCidades}
+        onCidadesChange={setSelectedCidades}
         fuelTypeOptions={fuelTypeOptions}
         modelOptions={modelOptions}
         diretoriaOptions={diretoriaOptions}
@@ -659,6 +999,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         tipoOptions={tipoOptions}
         monthYearOptions={monthYearOptions}
         autoControleOptions={autoControleOptions}
+        propriedadeOptions={propriedadeOptions}
+        cidadeOptions={cidadeOptions}
       />
 
       <div className="flex justify-between items-center">
@@ -679,10 +1021,20 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             <FileText className="h-4 w-4" />
             Exportar para Excel (Filtrado)
           </Button>
+          <Button 
+            onClick={handleExportPDF} 
+            disabled={isExportingPDF}
+            variant="outline" 
+            className="gap-2 border-slate-300 hover:bg-slate-50 text-slate-700 dark:border-slate-800 dark:text-slate-300"
+          >
+            <FileText className="h-4 w-4 text-indigo-500" />
+            {isExportingPDF ? "Exportando..." : "Exportar Relatório PDF"}
+          </Button>
         </div>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-5">
+      <div ref={chartsContainerRef} className="space-y-6">
+        <div className="grid gap-3 md:grid-cols-5">
         <MetricCard title="Total de Combustível" value={`${metrics.totalCombustivel.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}L`} icon={<Droplets className="h-4 w-4" />} centered />
         <MetricCard title="Custo Total" value={`R$ ${metrics.custoTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={<DollarSign className="h-4 w-4" />} centered />
         <MetricCard title="Preço Médio/Litro" value={`R$ ${metrics.avgPrecoLitro.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`} icon={<Tag className="h-4 w-4" />} centered />
@@ -768,6 +1120,225 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             </ResponsiveContainer>
         )}
       </ChartCard>
+
+      <ChartCard 
+        title="Comparação Mês a Mês Ano a Ano" 
+        description={`Comparativo mensal de ${compMetricMode === 'liters' ? "abastecimento em Litros (L)" : "Custo total em Reais (R$)"} entre os anos ${compYearA} e ${compYearB}`}
+        headerAction={
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-500">
+              <span>Anos:</span>
+              <select 
+                value={compYearA} 
+                onChange={(e) => setCompYearA(Number(e.target.value))}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
+              >
+                {availableYears.map(y => (
+                  <option key={`a-${y}`} value={y}>{y}</option>
+                ))}
+              </select>
+              <span className="text-slate-400">vs</span>
+              <select 
+                value={compYearB} 
+                onChange={(e) => setCompYearB(Number(e.target.value))}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-300 outline-none"
+              >
+                {availableYears.map(y => (
+                  <option key={`b-${y}`} value={y}>{y}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
+              <Button 
+                variant={compMetricMode === 'liters' ? "secondary" : "ghost"} 
+                size="sm" 
+                onClick={() => setCompMetricMode('liters')}
+                className="h-7 text-[10px] font-black uppercase px-3"
+              >
+                Litros (L)
+              </Button>
+              <Button 
+                variant={compMetricMode === 'cost' ? "secondary" : "ghost"} 
+                size="sm" 
+                onClick={() => setCompMetricMode('cost')}
+                className="h-7 text-[10px] font-black uppercase px-3"
+              >
+                Custo (R$)
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {comparativeData.length === 0 ? (
+          <ChartEmptyState title="Comparativo Ano a Ano" />
+        ) : (
+          <ResponsiveContainer width="100%" height={350}>
+            <LineChart data={comparativeData} margin={{ top: 15, right: 30, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
+              <XAxis 
+                dataKey="monthLabel" 
+                tick={{ fontSize: 10 }}
+                axisLine={{ stroke: '#e2e8f0' }}
+              />
+              <YAxis 
+                tick={{ fontSize: 10 }}
+                axisLine={{ stroke: '#e2e8f0' }}
+                label={{ 
+                  value: compMetricMode === 'liters' ? 'Volume (Litros)' : 'Valor (R$)', 
+                  angle: -90, 
+                  position: 'insideLeft', 
+                  style: { textAnchor: 'middle', fontSize: 10, fill: '#94a3b8' } 
+                }} 
+              />
+              <Tooltip 
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl text-white shadow-xl space-y-3 min-w-[240px]">
+                        <div className="font-bold border-b border-slate-800 pb-1.5 text-xs text-slate-400 font-mono tracking-wider uppercase">
+                          Mês: {data.monthFullName}
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <div className="flex justify-between items-center text-xs font-semibold">
+                            <span className="flex items-center gap-1.5 font-bold text-indigo-400">
+                              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+                              Ano {compYearA}
+                            </span>
+                            <span className="font-mono text-slate-200">
+                              {compMetricMode === 'liters' 
+                                ? `${data.litersA.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`
+                                : `R$ ${data.costA.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </span>
+                          </div>
+                          <div className="pl-3.5 flex justify-between text-[11px] text-slate-400">
+                            <span>Abastecimentos:</span>
+                            <span className="font-mono text-slate-300 font-bold">{data.countA}</span>
+                          </div>
+                          <div className="pl-3.5 flex justify-between text-[11px] text-slate-400">
+                            <span>Ativos Abastecidos:</span>
+                            <span className="font-mono text-slate-300 font-bold">{data.platesA}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-1 pt-1.5 border-t border-dashed border-slate-800">
+                          <div className="flex justify-between items-center text-xs font-semibold">
+                            <span className="flex items-center gap-1.5 font-bold text-teal-400">
+                              <span className="h-2 w-2 rounded-full bg-teal-500" />
+                              Ano {compYearB}
+                            </span>
+                            <span className="font-mono text-slate-200">
+                              {compMetricMode === 'liters' 
+                                ? `${data.litersB.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`
+                                : `R$ ${data.costB.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </span>
+                          </div>
+                          <div className="pl-3.5 flex justify-between text-[11px] text-slate-400">
+                            <span>Abastecimentos:</span>
+                            <span className="font-mono text-slate-300 font-bold">{data.countB}</span>
+                          </div>
+                          <div className="pl-3.5 flex justify-between text-[11px] text-slate-400">
+                            <span>Ativos Abastecidos:</span>
+                            <span className="font-mono text-slate-300 font-bold">{data.platesB}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: '10px', paddingTop: '10px' }} />
+              <Line 
+                type="monotone" 
+                dataKey={compMetricMode === 'liters' ? "litersA" : "costA"} 
+                name={`Ano ${compYearA}`} 
+                stroke="#6366f1" 
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#6366f1', strokeWidth: 2, stroke: '#fff' }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                connectNulls
+              />
+              <Line 
+                type="monotone" 
+                dataKey={compMetricMode === 'liters' ? "litersB" : "costB"} 
+                name={`Ano ${compYearB}`} 
+                stroke="#14b8a6" 
+                strokeWidth={3}
+                dot={{ r: 4, fill: '#14b8a6', strokeWidth: 2, stroke: '#fff' }}
+                activeDot={{ r: 6, strokeWidth: 0 }}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        )}
+      </ChartCard>
+
+      {/* Dashboard: Veículo com Maior Consumo por Tipo */}
+      <div className="space-y-3">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-sm font-black uppercase tracking-widest flex items-center gap-2 text-slate-700 dark:text-slate-300">
+              <TrendingUp className="h-5 w-5 text-indigo-500" />
+              Veículos com Maior Consumo por Tipo de Ativo
+            </h2>
+            <p className="text-xs text-slate-500 font-medium">Líderes de consumo de combustível agrupados por categoria de veículo</p>
+          </div>
+          <Badge variant="outline" className="border-indigo-200 text-indigo-600 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-950/20">
+            {topConsumidoresPorTipo.length} Categorias
+          </Badge>
+        </div>
+
+        {topConsumidoresPorTipo.length === 0 ? (
+          <Card className="p-6 text-center border-dashed border-2">
+            <span className="text-xs font-bold text-slate-400">Nenhum dado de consumo por tipo disponível</span>
+          </Card>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {topConsumidoresPorTipo.map((item) => (
+              <Card key={item.tipo} className="overflow-hidden shadow-sm hover:shadow-md border-slate-200 hover:border-indigo-200 dark:border-slate-800 transition-all duration-200 flex flex-col justify-between">
+                <div className="bg-slate-50 border-b border-slate-100 dark:bg-slate-900 p-3 flex justify-between items-center">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 truncate max-w-[155px]">
+                    {item.tipo}
+                  </span>
+                  <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[9px] font-black hover:bg-indigo-100">
+                    {item.count} {item.count === 1 ? 'abast.' : 'abast.'}
+                  </Badge>
+                </div>
+                <CardContent className="p-4 space-y-3">
+                  <div className="space-y-0.5">
+                    <div className="text-xl font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight">
+                      {item.placa}
+                    </div>
+                    <div className="text-xs text-slate-500 font-bold truncate">
+                      {item.model}
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-150 border-dashed">
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Litros</span>
+                      <div className="text-sm font-extrabold text-blue-600 font-mono">
+                        {item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L
+                      </div>
+                    </div>
+                    <div className="space-y-0.5">
+                      <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Custo</span>
+                      <div className="text-sm font-extrabold text-emerald-600 font-mono">
+                        R$ {item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="grid gap-4 md:grid-cols-2">
         <ChartCard title="Top 10 - Consumo por Ativo (L)" description="Veículos com maior volume abastecido" className="h-[350px]">
@@ -927,6 +1498,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             </Table>
           </div>
         </Card>
+      </div>
       </div>
 
       <Card className="p-3 shadow-none border-slate-200">
