@@ -701,6 +701,22 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [filteredFuel]);
 
+  // Consumo Geral por Tipo de Combustível (Litros e Custo)
+  const fuelTypeConsumptionData = useMemo(() => {
+    const map: Record<string, { type: string; liters: number; cost: number }> = {};
+    filteredFuel.forEach(f => {
+      const type = String(f._fuelType || "Outros").trim().toUpperCase();
+      const liters = f._litros || 0;
+      const cost = f._total || 0;
+      if (!map[type]) {
+        map[type] = { type, liters: 0, cost: 0 };
+      }
+      map[type].liters += liters;
+      map[type].cost += cost;
+    });
+    return Object.values(map).sort((a, b) => b.liters - a.liters);
+  }, [filteredFuel]);
+
   // 8. Tabela de Detalhamento por Veículo (Placa, Tipo, Modelo, Titularidade, Ano, Mês 1, Mês 2, Mês 3, Último Odômetro)
   const displayMonths = useMemo(() => {
     if (monthYearOptions.length > 0) return monthYearOptions.slice(-6);
@@ -1439,45 +1455,45 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             <span className="text-xs font-bold text-slate-400">Nenhum dado de consumo por tipo disponível</span>
           </Card>
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
             {topConsumidoresPorTipo.map((item) => (
               <Card key={item.tipo} className="overflow-hidden shadow-sm hover:shadow-md border-slate-200 hover:border-indigo-200 dark:border-slate-800 transition-all duration-200 flex flex-col justify-between">
-                <div className="bg-slate-50 border-b border-slate-100 dark:bg-slate-900 p-3 flex justify-between items-center">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 truncate max-w-[155px]">
+                <div className="bg-slate-50 border-b border-slate-100 dark:bg-slate-900 py-2 px-2.5 flex justify-between items-center">
+                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-600 truncate max-w-[140px]" title={item.tipo}>
                     {item.tipo}
                   </span>
-                  <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[9px] font-black hover:bg-indigo-100">
-                    {item.count} {item.count === 1 ? 'abast.' : 'abast.'}
+                  <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[8px] px-1.5 py-0 font-black hover:bg-indigo-100">
+                    {item.count} ab.
                   </Badge>
                 </div>
-                <CardContent className="p-4 space-y-3">
-                  <div className="space-y-0.5">
-                    <div className="text-xl font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight">
+                <CardContent className="p-2.5 space-y-1.5">
+                  <div>
+                    <div className="text-base font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight leading-tight">
                       {item.placa}
                     </div>
-                    <div className="text-xs text-slate-500 font-bold truncate">
+                    <div className="text-[10px] text-slate-500 font-bold truncate">
                       {item.model}
                     </div>
-                    <div className="flex flex-wrap gap-1 pt-1">
-                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-bold">
+                    <div className="flex flex-wrap gap-1 mt-0.5">
+                      <span className="text-[8px] px-1 py-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold">
                         {item.diretoria}
                       </span>
-                      <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-bold truncate max-w-[150px]" title={item.gerencia}>
+                      <span className="text-[8px] px-1 py-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold truncate max-w-[100px]" title={item.gerencia}>
                         {item.gerencia}
                       </span>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-150 border-dashed">
-                    <div className="space-y-0.5">
-                      <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Litros</span>
-                      <div className="text-sm font-extrabold text-blue-600 font-mono">
-                        {item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L
+                  <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-100 border-dashed">
+                    <div>
+                      <span className="text-[8px] uppercase font-bold text-slate-400 block leading-tight">Litros</span>
+                      <div className="text-xs font-black text-blue-600 font-mono">
+                        {item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L
                       </div>
                     </div>
-                    <div className="space-y-0.5">
-                      <span className="text-[9px] uppercase font-black text-slate-400 tracking-wider">Custo</span>
-                      <div className="text-sm font-extrabold text-emerald-600 font-mono">
+                    <div>
+                      <span className="text-[8px] uppercase font-bold text-slate-400 block leading-tight">Custo</span>
+                      <div className="text-xs font-black text-emerald-600 font-mono">
                         R$ {item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
                       </div>
                     </div>
@@ -1488,6 +1504,39 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           </div>
         )}
       </div>
+
+      {/* Dashboard: Consumo por Tipo de Combustível */}
+      <ChartCard 
+        title="Consumo por Tipo de Combustível" 
+        description="Volume abastecido em litros (coluna O) contra o custo total em reais (coluna T) por combustível"
+        className="min-h-[380px]"
+      >
+        {fuelTypeConsumptionData.length === 0 ? (
+          <ChartEmptyState title="Consumo por Tipo de Combustível" />
+        ) : (
+          <ResponsiveContainer width="100%" height={320}>
+            <BarChart data={fuelTypeConsumptionData} margin={{ top: 15, right: 15, left: 10, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+              <XAxis dataKey="type" axisLine={false} tickLine={false} fontSize={10} className="font-bold text-slate-600" />
+              <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" axisLine={false} tickLine={false} fontSize={10} label={{ value: 'Volume (L)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 10, fill: '#3b82f6', fontWeight: 'bold' } }} />
+              <YAxis yAxisId="right" orientation="right" stroke="#10b981" axisLine={false} tickLine={false} fontSize={10} label={{ value: 'Custo (R$)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fontSize: 10, fill: '#10b981', fontWeight: 'bold' } }} />
+              <Tooltip 
+                cursor={{ fill: 'rgba(99, 102, 241, 0.04)' }} 
+                contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                itemStyle={{ color: '#fff' }}
+                formatter={(val: number, name: string) => {
+                  if (name === "liters") return [`${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`, "Volume (Litros)"];
+                  if (name === "cost") return [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Custo Total (R$)"];
+                  return [val.toLocaleString('pt-BR'), name];
+                }}
+              />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+              <Bar yAxisId="left" dataKey="liters" name="Volume (Litros)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={45} />
+              <Bar yAxisId="right" dataKey="cost" name="Custo (R$)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={45} />
+            </BarChart>
+          </ResponsiveContainer>
+        )}
+      </ChartCard>
 
       <div className="grid gap-4 md:grid-cols-2">
         <ChartCard title="Top 10 - Consumo por Ativo (L)" description="Veículos com maior volume abastecido" className="h-[350px]">
