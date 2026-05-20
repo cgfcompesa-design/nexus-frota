@@ -283,20 +283,9 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       
       const asset = assetsByPlaca.get(placa);
       
-      // Filter by Operational Status
-      const statusOp = (asset?.STATUS_OPERACIONAL || asset?.["STATUS OPERACIONAL"] || "").toUpperCase().trim();
-      if (statusOp && statusOp !== 'OPERACIONAL' && statusOp !== 'ATIVO') return false;
-
       // Metadata extraction
       const fuelType = f._fuelType || "N/A";
       const vlLitro = f._vlLitro || 0;
-
-      // Filter extreme price outliers (batch amounts incorrectly reported as unit price)
-      if (vlLitro > 0) {
-        const ftUpper = String(fuelType).toUpperCase();
-        if (ftUpper.includes("ARLA") && (vlLitro > 15 || vlLitro < 2)) return false;
-        if (!ftUpper.includes("ARLA") && (vlLitro > 15 || vlLitro < 3)) return false;
-      }
       
       const model = asset?.MODELO || asset?.Modelo || f._vehicleModel || "N/A";
       const diretoria = asset?.DIRETORIA || asset?.Diretoria || "N/A";

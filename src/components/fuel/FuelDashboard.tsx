@@ -672,11 +672,6 @@ Coordenação de Gestão de Frotas - CGF`;
         selectedTipoControleAutonomia.length === 0 ||
         selectedTipoControleAutonomia.includes(f["TIPO CONTROLE AUTONOMIA"] || (f as any).TIPO_CONTROLE_AUTONOMIA || (f as any).__raw?.[27] || "");
 
-      // GLOBAL PRICE OUTLIER FILTER (Correcting cases like R$ 120.000,00 reported incorrectly)
-      const vlLitro = f._vlLitro || 0;
-      if (vlLitro > 25) return false; // Any fuel unit price above 25.00 is an outlier or data error
-      if (vlLitro > 0 && vlLitro < 2.00) return false; // Very low prices are also suspect
-
       return matchesFuelType && matchesModel && matchesPlaca && matchesDiretoria && matchesGerencia && matchesTipo && matchesDate && matchesMonthYear && matchesTipoControleAutonomia && matchesRegiao && matchesCidade;
     }).sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0)); // Ordem decrescente de data por padrão
   }, [preProcessedFuel, assetsByPlaca, debouncedSearchPlaca, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedGerencias, selectedTipos, dateFrom, dateTo, selectedMonthsYears, selectedTipoControleAutonomia, selectedRegioes, selectedCidades]);

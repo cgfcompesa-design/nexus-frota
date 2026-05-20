@@ -160,13 +160,13 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     return (maintenance || []).filter(item => {
       const vals = item?.__raw || [];
       const placa = vals[0]?.toString().toUpperCase().trim() || "";
-      const statusOperacional = vals[1]?.toString() || "";
-      const statusManutencao = vals[2]?.toString() || "";
-      const diretoria = vals[7]?.toString() || "";
-      const gerencia = vals[8]?.toString() || "";
-      const tipo = vals[9]?.toString() || "";
-      const statusControle = vals[11]?.toString() || "";
-      const classificacao = classificacaoMap.get(placa) || "";
+      const statusOperacional = (vals[1]?.toString() || "").trim().toUpperCase();
+      const statusManutencao = (vals[2]?.toString() || "").trim().toUpperCase();
+      const diretoria = (vals[7]?.toString() || "").trim().toUpperCase();
+      const gerencia = (vals[8]?.toString() || "").trim().toUpperCase();
+      const tipo = (vals[9]?.toString() || "").trim().toUpperCase();
+      const statusControle = (vals[11]?.toString() || "").trim().toUpperCase();
+      const classificacao = (classificacaoMap.get(placa) || "").trim().toUpperCase();
       
       if (!placa) return false;
       const matchPlaca = searchPlaca === "" || placa.includes(searchPlaca.toUpperCase());
@@ -185,12 +185,12 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     const map = new Map<string, { diretoria: string; gerencia: string; tipo: string }>();
     (maintenance || []).forEach(item => {
       const vals = item?.__raw || [];
-      const placa = vals[0]?.toString().toUpperCase() || "";
-      const diretoria = vals[7]?.toString() || "";
-      const gerencia = vals[8]?.toString() || "";
-      const tipo = vals[9]?.toString() || "";
+      const placa = vals[0]?.toString().toUpperCase().trim() || "";
+      const diretoria = (vals[7]?.toString() || "").trim().toUpperCase();
+      const gerencia = (vals[8]?.toString() || "").trim().toUpperCase();
+      const tipo = (vals[9]?.toString() || "").trim().toUpperCase();
       if (placa && !map.has(placa)) {
-        map.set(placa, { diretoria, gerencia, tipo });
+         map.set(placa, { diretoria, gerencia, tipo });
       }
     });
     return map;
@@ -199,8 +199,8 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
   const filteredPreventiveMaintenance = useMemo(() => {
     return (preventiveMaintenance || []).filter(item => {
       const vals = item?.__raw || [];
-      const placa = vals[0]?.toString().toUpperCase() || "";
-      const statusRevisao = vals[20]?.toString() || ""; 
+      const placa = vals[0]?.toString().toUpperCase().trim() || "";
+      const statusRevisao = (vals[20]?.toString() || "").trim().toUpperCase(); 
       const vehicleInfo = vehicleInfoMap.get(placa);
       const matchPlaca = searchPlaca === "" || placa.includes(searchPlaca.toUpperCase());
       const matchDiretoria = selectedDiretoria === "all" || vehicleInfo?.diretoria === selectedDiretoria;
