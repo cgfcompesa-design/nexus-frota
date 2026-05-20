@@ -111,23 +111,62 @@ const getValByIndex = (obj: any, index: number) => {
 
 const getFormattedDate = (dateString: any): Date | null => {
   if (!dateString) return null;
+  if (dateString instanceof Date) {
+    if (isNaN(dateString.getTime())) return null;
+    let y = dateString.getFullYear();
+    if (y < 100) y += 2000;
+    return new Date(y, dateString.getMonth(), dateString.getDate());
+  }
   try {
     if (typeof dateString === 'number') {
-      return new Date((dateString - 25569) * 86400 * 1000);
+      const utcDate = new Date((dateString - 25569) * 86400 * 1000);
+      if (isNaN(utcDate.getTime())) return null;
+      let y = utcDate.getUTCFullYear();
+      if (y < 100) y += 2000;
+      return new Date(y, utcDate.getUTCMonth(), utcDate.getUTCDate());
     }
-    if (typeof dateString === 'string') {
-      // Check if it's a numeric string (Excel date)
-      if (/^\d+(\.\d+)?$/.test(dateString)) {
-        return new Date((parseFloat(dateString) - 25569) * 86400 * 1000);
-      }
-      const parts = dateString.split('/');
-      if (parts.length === 3) {
-        const d = new Date(`${parts[2].split(' ')[0]}-${parts[1]}-${parts[0]}`);
-        if (!isNaN(d.getTime())) return d;
-      }
+    
+    const str = String(dateString).trim();
+    if (/^\d+(\.\d+)?$/.test(str)) {
+      const excelNum = parseFloat(str);
+      const utcDate = new Date((excelNum - 25569) * 86400 * 1000);
+      if (isNaN(utcDate.getTime())) return null;
+      let y = utcDate.getUTCFullYear();
+      if (y < 100) y += 2000;
+      return new Date(y, utcDate.getUTCMonth(), utcDate.getUTCDate());
     }
-    const d = new Date(dateString);
-    return isNaN(d.getTime()) ? null : d;
+
+    const parts = str.split(/[\/\-]/);
+    if (parts.length === 3) {
+      let day = 1;
+      let month = 0;
+      let year = 2026;
+      
+      if (parts[0].length === 4) {
+        // ISO format YYYY-MM-DD
+        year = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        day = parseInt(parts[2].split(' ')[0], 10);
+      } else {
+        // BR format DD/MM/YYYY or DD-MM-YYYY or DD/MM/YY
+        day = parseInt(parts[0], 10);
+        month = parseInt(parts[1], 10) - 1;
+        const yearPart = parts[2].split(' ')[0];
+        year = parseInt(yearPart, 10);
+      }
+      
+      if (year < 100) year += 2000;
+      const localD = new Date(year, month, day);
+      if (!isNaN(localD.getTime())) return localD;
+    }
+
+    const testDate = new Date(str);
+    if (!isNaN(testDate.getTime())) {
+      let y = testDate.getFullYear();
+      if (y < 100) y += 2000;
+      return new Date(y, testDate.getMonth(), testDate.getDate());
+    }
+    return null;
   } catch { return null; }
 };
 
@@ -169,8 +208,74 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     return map;
   }, [assets]);
 
+  // Sanitized Fuel Data to enforce correct columns consistently across pages
+  const sanitizedFuelData = useMemo(() => {
+    return fuel.map((f) => {
+      // 1. Litros (Column O, index 14 is primary. Fallback if not found)
+      const litros = parseNum(f.COL_14 !== undefined && f.COL_14 !== null && String(f.COL_14).trim() !== "" ? f.COL_14 : f._litros || f.LITROS || f.VOLUME || f.QUANTIDADE || 0);
+      
+      // 2. Custo / Valor Emissão (Column T, index 19 is primary)
+      const total = parseNum(f.COL_19 !== undefined && f.COL_19 !== null && String(f.COL_19).trim() !== "" ? f.COL_19 : f._total || f["VALOR EMISSAO"] || f.VALOR || f.TOTAL || 0);
+
+      // 3. Tipo Combustível (Column N, index 13 is primary)
+      const rawFuelType = f.COL_13 !== undefined && f.COL_13 !== null && String(f.COL_13).trim() !== "" ? f.COL_13 : f._fuelType || f.COMBUSTIVEL || "N/A";
+      const fuelType = String(rawFuelType).trim().toUpperCase();
+
+      // 4. Parse Date (Column E / COL_4 is the primary date column)
+      const d = getFormattedDate(f._date || f.COL_4);
+
+      // 5. Month/Year calculation and normalization
+      let mesAno = String(f._monthYear || f.COL_41 || "").trim();
+      if (!mesAno || mesAno === "N/A" || mesAno === "undefined") {
+        if (d) {
+          const m = (d.getMonth() + 1).toString().padStart(2, '0');
+          const y = d.getFullYear().toString();
+          mesAno = `${m}/${y}`;
+        } else {
+          mesAno = "N/A";
+        }
+      } else {
+        const my = mesAno.toLowerCase();
+        const monthNames = { 
+          'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06', 
+          'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
+          'janeiro': '01', 'fevereiro': '02', 'março': '03', 'abril': '04', 'maio': '05', 
+          'junho': '06', 'julho': '07', 'agosto': '08', 'setembro': '09', 'outubro': '10', 
+          'novembro': '11', 'dezembro': '12'
+        };
+        const parts = my.split(/[\/\s-]/);
+        if (parts.length >= 2) {
+          let month = "";
+          let year = "";
+          for (const [name, code] of Object.entries(monthNames)) {
+            if (parts[0].startsWith(name)) { month = code; break; }
+          }
+          if (!month && /^\d+$/.test(parts[0])) {
+            month = parts[0].padStart(2, '0');
+          }
+          if (/^\d+$/.test(parts[parts.length - 1])) {
+            year = parts[parts.length - 1];
+            if (year.length === 2) year = "20" + year;
+          }
+          if (month && year) {
+            mesAno = `${month}/${year}`;
+          }
+        }
+      }
+
+      return {
+        ...f,
+        _litros: litros,
+        _total: total,
+        _fuelType: fuelType,
+        _dateParsed: d,
+        _monthYear: mesAno,
+      };
+    });
+  }, [fuel]);
+
   const filteredFuel = useMemo(() => {
-    return fuel.filter((f) => {
+    return sanitizedFuelData.filter((f) => {
       // Basic data extraction with fallbacks
       const pRaw = f._placa || f.PLACA || (f.__raw && f.__raw[5]) || "";
       if (!pRaw) return false;
@@ -197,25 +302,33 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const diretoria = asset?.DIRETORIA || asset?.Diretoria || "N/A";
       const gerencia = asset?.GERENCIA || asset?.["GER\u00CANCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || f._unit || "N/A";
       const tipo = asset?.TIPO || asset?.Tipo || asset?.["TIPO VEICULO"] || f._assetType || "N/A";
-      const mesAno = String(f._monthYear || "N/A").trim();
+      const mesAno = f._monthYear;
+      
       const controleAuto = asset?.["CONTROLE DE AUTONOMIA"] || asset?.["CONTROLE AUTONOMIA"] || (f as any).COL_43 || "";
       const propriedade = asset?.PROPRIEDADE || asset?.Propriedade || asset?.["PROPRIEDADE"] || (asset?.__raw && asset?.__raw[10]) || "N/A";
       const cidade = f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "N/A";
       const titularidade = asset?.TITULARIDADE || asset?.["TITULARIDADE"] || (asset?.__raw && asset?.__raw[27]) || "N/A";
 
-      // Transaction Date Filter
+      // Transaction Date Filter - Pure Date Comparison
       if (dateFrom || dateTo) {
-        const dStr = f._date;
-        const d = getFormattedDate(dStr);
+        const d = f._dateParsed;
         if (!d) return false;
-        if (dateFrom && d < dateFrom) return false;
-        if (dateTo && d > dateTo) return false;
+        
+        const cleanD = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+        if (dateFrom) {
+          const cleanFrom = new Date(dateFrom.getFullYear(), dateFrom.getMonth(), dateFrom.getDate());
+          if (cleanD < cleanFrom) return false;
+        }
+        if (dateTo) {
+          const cleanTo = new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate());
+          if (cleanD > cleanTo) return false;
+        }
       }
       
       // Applying active filters
       if (searchPlaca && !placa.includes(searchPlaca.toUpperCase().trim())) return false;
       if (selectedGerencias.length > 0 && !selectedGerencias.map(g => String(g).trim()).includes(String(gerencia).trim())) return false;
-      if (selectedFuelTypes.length > 0 && !selectedFuelTypes.map(f => String(f).trim()).includes(String(fuelType).trim())) return false;
+      if (selectedFuelTypes.length > 0 && !selectedFuelTypes.map(ft => String(ft).trim().toUpperCase()).includes(String(fuelType).trim().toUpperCase())) return false;
       if (selectedVehicleModels.length > 0 && !selectedVehicleModels.map(m => String(m).trim()).includes(String(model).trim())) return false;
       if (selectedDirectorias.length > 0 && !selectedDirectorias.map(d => String(d).trim()).includes(String(diretoria).trim())) return false;
       if (selectedTipos.length > 0 && !selectedTipos.map(t => String(t).trim()).includes(String(tipo).trim())) return false;
@@ -227,7 +340,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
       return true;
     });
-  }, [fuel, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, selectedPropriedades, selectedCidades, selectedTitularidades]);
+  }, [sanitizedFuelData, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, selectedPropriedades, selectedCidades, selectedTitularidades]);
 
   const formatMonthLabel = (m: string) => {
     if (!m || !m.includes('/')) return m;
@@ -241,25 +354,18 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   };
 
   // Filter Options
-  const fuelTypeOptions = useMemo(() => Array.from(new Set(fuel.map(f => f._fuelType).filter(Boolean))).sort() as string[], [fuel]);
+  const fuelTypeOptions = useMemo(() => Array.from(new Set(sanitizedFuelData.map(f => f._fuelType).filter(Boolean))).sort() as string[], [sanitizedFuelData]);
   const monthYearOptions = useMemo(() => {
     const set = new Set<string>();
-    fuel.forEach(f => {
-      const mesAno = f._monthYear || "";
-      if (mesAno) {
+    sanitizedFuelData.forEach(f => {
+      const mesAno = f._monthYear;
+      if (mesAno && mesAno !== "N/A") {
         set.add(String(mesAno).trim());
-      } else if (f._date) {
-        const d = getFormattedDate(f._date);
-        if (d) {
-          const m = (d.getMonth() + 1).toString().padStart(2, '0');
-          const y = d.getFullYear().toString();
-          set.add(`${m}/${y}`);
-        }
       }
     });
     return Array.from(set).sort((a, b) => parseMonthYear(a).getTime() - parseMonthYear(b).getTime());
-  }, [fuel]);
-  const autoControleOptions = useMemo(() => Array.from(new Set(fuel.map(f => f["TIPO CONTROLE AUTONOMIA"] || (f as any).COL_43).filter(Boolean))).sort() as string[], [fuel]);
+  }, [sanitizedFuelData]);
+  const autoControleOptions = useMemo(() => Array.from(new Set(sanitizedFuelData.map(f => f["TIPO CONTROLE AUTONOMIA"] || (f as any).COL_43).filter(Boolean))).sort() as string[], [sanitizedFuelData]);
   
   const modelOptions = useMemo(() => Array.from(new Set(assets.map(a => a.MODELO || a.Modelo).filter(Boolean))).sort() as string[], [assets]);
   const diretoriaOptions = useMemo(() => Array.from(new Set(assets.map(a => a.DIRETORIA || a.Diretoria).filter(Boolean))).sort() as string[], [assets]);
@@ -268,11 +374,11 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   
   const propriedadeOptions = useMemo(() => Array.from(new Set(assets.map(a => a.PROPRIEDADE || a.Propriedade || a["PROPRIEDADE"] || (a.__raw && a.__raw[10])).filter(Boolean))).sort() as string[], [assets]);
   const cidadeOptions = useMemo(() => {
-    return Array.from(new Set(fuel.map(f => {
+    return Array.from(new Set(sanitizedFuelData.map(f => {
       const c = f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "";
       return String(c).trim().toUpperCase();
     }).filter(c => c && c !== "N/A"))).sort() as string[];
-  }, [fuel]);
+  }, [sanitizedFuelData]);
   const titularidadeOptions = useMemo(() => {
     const dynamic = assets.map(a => a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27])).filter(Boolean).map(t => String(t).toUpperCase().trim());
     return Array.from(new Set(["TITULAR", "RESERVA", "N/A", ...dynamic])).filter(Boolean).sort() as string[];
@@ -580,14 +686,19 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   // 4. Top 10 - Veículos Há Mais Tempo Sem Abastecer
   const longTimeNoFuel = useMemo(() => {
     const lastFueling: Record<string, Date> = {};
-    fuel.forEach(f => {
-      const placa = (f._placa || "").toUpperCase();
-      const dateStr = f._date;
-      const date = getFormattedDate(dateStr);
+    
+    // Compile last fueling dates from matching filtered fuel transactions
+    filteredFuel.forEach(f => {
+      const placa = (f._placa || f.PLACA || "").toString().replace(/[^A-Z0-9]/gi, "").toUpperCase().trim();
+      const date = f._dateParsed;
       if (placa && date) {
-        if (!lastFueling[placa] || date > lastFueling[placa]) lastFueling[placa] = date;
+        if (!lastFueling[placa] || date > lastFueling[placa]) {
+          lastFueling[placa] = date;
+        }
       }
     });
+
+    const activeFuelFilters = selectedFuelTypes.length > 0 || selectedCidades.length > 0 || selectedMonthsYears.length > 0 || dateFrom !== undefined || dateTo !== undefined || selectedTipoControleAutonomia.length > 0;
 
     const now = new Date();
     return assets
@@ -597,10 +708,16 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
         const placaRaw = String(a.PLACA || a.placa || "").toUpperCase();
         const placaNormalized = placaRaw.replace(/[^A-Z0-9]/gi, "");
+        
+        // If fuel/transaction filters are active, only show assets that are present in the filtered transactions
+        if (activeFuelFilters && !lastFueling[placaNormalized]) {
+          return false;
+        }
+
         const model = String(a.MODELO || a.Modelo || "N/A").trim();
         const diretoria = String(a.DIRETORIA || a.Diretoria || "N/A").trim();
         const gerencia = String(a.GERENCIA || a["GERÊNCIA"] || a.Gerencia || "N/A").trim();
-        const tipo = String(a.TIPO || a.Tipo || "N/A").trim();
+        const tipo = String(a.TIPO || a.Type || a.Tipo || "N/A").trim();
         const propriedade = String(a.PROPRIEDADE || a["PROPRIEDADE"] || (a.__raw && a.__raw[10]) || "N/A").trim().toUpperCase();
         const titularidade = String(a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27]) || "N/A").trim().toUpperCase();
 
@@ -626,7 +743,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           titularidade: asset?.TITULARIDADE || (asset as any)?.COL_27 || "N/A"
         };
       }).sort((a, b) => b.days - a.days).slice(0, 10);
-  }, [fuel, assets, assetsByPlaca, searchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedVehicleModels, selectedPropriedades, selectedTitularidades]);
+  }, [filteredFuel, assets, assetsByPlaca, searchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedVehicleModels, selectedPropriedades, selectedTitularidades, selectedFuelTypes, selectedCidades, selectedMonthsYears, dateFrom, dateTo, selectedTipoControleAutonomia]);
 
   // 5. Top 10 - Veículos com Menor KM Médio
   const lowKmAssets = useMemo(() => {
