@@ -47,6 +47,8 @@ export const FuelDashboardsFilterBar = ({
   onCidadesChange,
   selectedTipoControleAutonomia,
   onTipoControleAutonomiaChange,
+  selectedTitularidades,
+  onTitularidadesChange,
   selectedAlerta,
   onAlertaChange,
   selectedAlertaAutonomia,
@@ -71,7 +73,8 @@ export const FuelDashboardsFilterBar = ({
   monthYearOptions = [],
   autoControleOptions = [],
   propriedadeOptions = [],
-  cidadeOptions = []
+  cidadeOptions = [],
+  titularidadeOptions = []
 }: any) => {
 
   const handleMultiSelect = (current: string[], onChange: (val: string[]) => void, val: string) => {
@@ -144,6 +147,14 @@ export const FuelDashboardsFilterBar = ({
           options={cidadeOptions}
           selected={selectedCidades || []}
           onChange={onCidadesChange}
+          placeholder="Selecionar..."
+        />
+
+        <SearchableMultiSelect 
+          label="Titularidade"
+          options={titularidadeOptions}
+          selected={selectedTitularidades || []}
+          onChange={onTitularidadesChange}
           placeholder="Selecionar..."
         />
 
@@ -365,6 +376,12 @@ export const FuelDashboardsFilterBar = ({
           <Badge key={c} variant="secondary" className="gap-1 px-3 py-1 bg-teal-50 text-teal-700 border-teal-200">
             Cidade: {c}
             <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedCidades, onCidadesChange, c)} />
+          </Badge>
+        ))}
+        {selectedTitularidades?.map((t: string) => (
+          <Badge key={t} variant="secondary" className="gap-1 px-3 py-1 bg-violet-50 text-violet-700 border-violet-200">
+            Titularidade: {t}
+            <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedTitularidades, onTitularidadesChange, t)} />
           </Badge>
         ))}
         {selectedTipoControleAutonomia?.map((c: string) => (

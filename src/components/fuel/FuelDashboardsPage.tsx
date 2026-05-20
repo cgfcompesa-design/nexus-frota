@@ -148,6 +148,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const [selectedMonthsYears, setSelectedMonthsYears] = useState<string[]>([]);
   const [selectedPropriedades, setSelectedPropriedades] = useState<string[]>([]);
   const [selectedCidades, setSelectedCidades] = useState<string[]>([]);
+  const [selectedTitularidades, setSelectedTitularidades] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("dashboards");
  
   const isLoading = loadingFuel || loadingAssets;
@@ -200,6 +201,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const controleAuto = asset?.["CONTROLE DE AUTONOMIA"] || asset?.["CONTROLE AUTONOMIA"] || (f as any).COL_43 || "";
       const propriedade = asset?.PROPRIEDADE || asset?.Propriedade || asset?.["PROPRIEDADE"] || (asset?.__raw && asset?.__raw[10]) || "N/A";
       const cidade = f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "N/A";
+      const titularidade = asset?.TITULARIDADE || asset?.["TITULARIDADE"] || (asset?.__raw && asset?.__raw[27]) || "N/A";
 
       // Transaction Date Filter
       if (dateFrom || dateTo) {
@@ -221,10 +223,11 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       if (selectedMonthsYears.length > 0 && !selectedMonthsYears.map(m => String(m).trim()).includes(mesAno.trim())) return false;
       if (selectedPropriedades.length > 0 && !selectedPropriedades.map(p => String(p).trim().toUpperCase()).includes(String(propriedade).trim().toUpperCase())) return false;
       if (selectedCidades.length > 0 && !selectedCidades.map(c => String(c).trim().toUpperCase()).includes(String(cidade).trim().toUpperCase())) return false;
+      if (selectedTitularidades.length > 0 && !selectedTitularidades.map(t => String(t).trim().toUpperCase()).includes(String(titularidade).trim().toUpperCase())) return false;
 
       return true;
     });
-  }, [fuel, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, selectedPropriedades, selectedCidades]);
+  }, [fuel, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, selectedPropriedades, selectedCidades, selectedTitularidades]);
 
   const formatMonthLabel = (m: string) => {
     if (!m || !m.includes('/')) return m;
@@ -270,6 +273,10 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       return String(c).trim().toUpperCase();
     }).filter(c => c && c !== "N/A"))).sort() as string[];
   }, [fuel]);
+  const titularidadeOptions = useMemo(() => {
+    const dynamic = assets.map(a => a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27])).filter(Boolean).map(t => String(t).toUpperCase().trim());
+    return Array.from(new Set(["TITULAR", "RESERVA", "N/A", ...dynamic])).filter(Boolean).sort() as string[];
+  }, [assets]);
 
   // Metrics
   const metrics = useMemo(() => {
@@ -692,7 +699,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(30, 41, 59);
-      doc.text("Filtros Ativos do Relatório", 14, 52);
+      doc.text("Filtros Ativos do Relatório", 14, 48);
 
       const activeFiltersText = [
         `Placa de Busca: ${searchPlaca || "Todas"}`,
@@ -700,6 +707,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         `Gerência Selecionada: ${selectedGerencias.length > 0 ? selectedGerencias.join(", ") : "Todas"}`,
         `Propriedade: ${selectedPropriedades.length > 0 ? selectedPropriedades.join(", ") : "Todas"}`,
         `Cidade de Abastecimento: ${selectedCidades.length > 0 ? selectedCidades.join(", ") : "Todas"}`,
+        `Titularidade: ${selectedTitularidades.length > 0 ? selectedTitularidades.join(", ") : "Todas"}`,
         `Tipo de Ativo: ${selectedTipos.length > 0 ? selectedTipos.join(", ") : "Todos"}`,
         `Período Selecionado: ${dateFrom ? dateFrom.toLocaleDateString('pt-BR') : "Início"} até ${dateTo ? dateTo.toLocaleDateString('pt-BR') : "Fim"}`
       ];
@@ -708,7 +716,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       doc.setFontSize(9);
       doc.setTextColor(71, 85, 105);
       
-      let filterY = 58;
+      let filterY = 54;
       activeFiltersText.forEach(filter => {
         doc.text(`• ${filter}`, 18, filterY);
         filterY += 5;
@@ -718,10 +726,10 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(30, 41, 59);
-      doc.text("Indicadores de Consumo Consolidados", 14, 102);
+      doc.text("Indicadores de Consumo Consolidados", 14, 98);
 
       autoTable(doc, {
-        startY: 107,
+        startY: 103,
         theme: "striped",
         head: [["Indicador de Performance", "Resultado Obtido"]],
         body: [
@@ -736,34 +744,118 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         styles: { fontSize: 9, cellPadding: 2.5 },
       });
 
-      // Page 2: Visual charts from dashboard captured under chartsContainerRef
+      // Page 2: Table of category leaders
+      doc.addPage();
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("COMPESA - RELATÓRIO DE CONSUMO POR CATEGORIA", 14, 10);
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(11);
+      doc.text("Veículo com Maior Consumo por Tipo de Ativo", 14, 25);
+
+      const topTipoBody = topConsumidoresPorTipo.map(item => [
+        item.tipo,
+        item.placa,
+        item.model,
+        `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
+        `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
+        `${item.count} abast.`
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        theme: "grid",
+        head: [["Tipo de Ativo", "Placa", "Modelo", "Volume Abastecido", "Custo Total", "Abastecimentos"]],
+        body: topTipoBody,
+        headStyles: { fillColor: [79, 70, 229] }, // indigo-600
+        styles: { fontSize: 8.5 },
+      });
+
+      // Page 3: Rankings Top list
+      doc.addPage();
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("COMPESA - TOP 10 RANKING DE CONSUMO E CUSTOS", 14, 10);
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(11);
+      doc.text("Top 10 Ativos com Maior Consumo (litros)", 14, 25);
+
+      const top10Body = top10ByAsset.map((item, idx) => [
+        `#${idx + 1}`,
+        item.placa,
+        `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
+        `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        theme: "striped",
+        head: [["Posição", "Placa do Ativo", "Total de Volume", "Investimento Total"]],
+        body: top10Body,
+        headStyles: { fillColor: [51, 65, 85] },
+        styles: { fontSize: 8.5 },
+      });
+
+      // Next table on the same page: Top 10 by unit
+      const finalY = (doc as any).lastAutoTable.finalY || 135;
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.text("Top 10 Unidades/Gerências por Custo Total de Abastecimento", 14, finalY + 12);
+
+      const topUnitBody = top10ByUnit.map((item, idx) => [
+        `#${idx + 1}`,
+        item.unit,
+        `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
+      ]);
+
+      autoTable(doc, {
+        startY: finalY + 16,
+        theme: "striped",
+        head: [["Posição", "Unidade / Gerência", "Despesa Total"]],
+        body: topUnitBody,
+        headStyles: { fillColor: [51, 65, 85] },
+        styles: { fontSize: 8.5 },
+      });
+
+      // Page 4: Visual charts fallback image handler
       if (chartsContainerRef.current) {
-        doc.addPage();
-        
-        doc.setFillColor(30, 41, 59);
-        doc.rect(0, 0, pageWidth, 15, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.text("COMPESA - DEMONSTRATIVOS GRÁFICOS", 14, 10);
+        try {
+          const canvas = await html2canvas(chartsContainerRef.current, {
+            scale: 1.2,
+            useCORS: true,
+            logging: false,
+            backgroundColor: "#ffffff",
+          });
 
-        doc.setTextColor(30, 41, 59);
-        doc.setFontSize(11);
-        doc.text("Análise Visual de Abastecimentos & Tendências", 14, 25);
+          doc.addPage();
+          
+          doc.setFillColor(30, 41, 59);
+          doc.rect(0, 0, pageWidth, 15, "F");
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.text("COMPESA - DEMONSTRATIVOS GRÁFICOS", 14, 10);
 
-        // Capture visual charts container
-        const canvas = await html2canvas(chartsContainerRef.current, {
-          scale: 1.5,
-          useCORS: true,
-          logging: false,
-          backgroundColor: "#ffffff",
-        });
+          doc.setTextColor(30, 41, 59);
+          doc.setFontSize(11);
+          doc.text("Análise Visual de Abastecimentos & Tendências", 14, 25);
 
-        const imgData = canvas.toDataURL("image/jpeg", 0.9);
-        const imgWidth = 180;
-        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-        
-        doc.addImage(imgData, "JPEG", 15, 30, imgWidth, Math.min(imgHeight, 240));
+          const imgData = canvas.toDataURL("image/jpeg", 0.9);
+          const imgWidth = 180;
+          const imgHeight = (canvas.height * imgWidth) / canvas.width;
+          
+          doc.addImage(imgData, "JPEG", 15, 30, imgWidth, Math.min(imgHeight, 240));
+        } catch (canvasErr) {
+          console.warn("Mapeamento gráfico indisponível devido a regras de sandbox do navegador.", canvasErr);
+        }
       }
 
       doc.save(`Relatorio_Abastecimento_Compesa_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -914,6 +1006,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     setSelectedMonthsYears([]);
     setSelectedPropriedades([]);
     setSelectedCidades([]);
+    setSelectedTitularidades([]);
   };
 
   const handleExport = () => {
@@ -992,6 +1085,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         onPropriedadesChange={setSelectedPropriedades}
         selectedCidades={selectedCidades}
         onCidadesChange={setSelectedCidades}
+        selectedTitularidades={selectedTitularidades}
+        onTitularidadesChange={setSelectedTitularidades}
         fuelTypeOptions={fuelTypeOptions}
         modelOptions={modelOptions}
         diretoriaOptions={diretoriaOptions}
@@ -1001,6 +1096,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         autoControleOptions={autoControleOptions}
         propriedadeOptions={propriedadeOptions}
         cidadeOptions={cidadeOptions}
+        titularidadeOptions={titularidadeOptions}
       />
 
       <div className="flex justify-between items-center">
