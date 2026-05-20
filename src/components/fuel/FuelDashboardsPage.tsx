@@ -1455,53 +1455,60 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             <span className="text-xs font-bold text-slate-400">Nenhum dado de consumo por tipo disponível</span>
           </Card>
         ) : (
-          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
-            {topConsumidoresPorTipo.map((item) => (
-              <Card key={item.tipo} className="overflow-hidden shadow-sm hover:shadow-md border-slate-200 hover:border-indigo-200 dark:border-slate-800 transition-all duration-200 flex flex-col justify-between">
-                <div className="bg-slate-50 border-b border-slate-100 dark:bg-slate-900 py-2 px-2.5 flex justify-between items-center">
-                  <span className="text-[9px] font-black uppercase tracking-wider text-slate-600 truncate max-w-[140px]" title={item.tipo}>
-                    {item.tipo}
-                  </span>
-                  <Badge className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300 text-[8px] px-1.5 py-0 font-black hover:bg-indigo-100">
-                    {item.count} ab.
-                  </Badge>
-                </div>
-                <CardContent className="p-2.5 space-y-1.5">
-                  <div>
-                    <div className="text-base font-black text-slate-800 dark:text-slate-100 font-mono tracking-tight leading-tight">
-                      {item.placa}
-                    </div>
-                    <div className="text-[10px] text-slate-500 font-bold truncate">
-                      {item.model}
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-0.5">
-                      <span className="text-[8px] px-1 py-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold">
-                        {item.diretoria}
-                      </span>
-                      <span className="text-[8px] px-1 py-0 bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded font-semibold truncate max-w-[100px]" title={item.gerencia}>
-                        {item.gerencia}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 gap-1.5 pt-1.5 border-t border-slate-100 border-dashed">
-                    <div>
-                      <span className="text-[8px] uppercase font-bold text-slate-400 block leading-tight">Litros</span>
-                      <div className="text-xs font-black text-blue-600 font-mono">
+          <Card className="overflow-hidden border border-slate-200 dark:border-slate-800 shadow-sm">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Tipo de Ativo</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-center py-2.5">Placa</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Modelo</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Diretoria</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Gerência</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-center py-2.5">Abastecimentos</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Litros</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Custo Total</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {topConsumidoresPorTipo.map((item) => (
+                    <TableRow key={item.tipo} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                      <TableCell className="font-semibold text-xs py-2 text-slate-800 dark:text-slate-200 max-w-[150px] truncate" title={item.tipo}>
+                        {item.tipo}
+                      </TableCell>
+                      <TableCell className="font-bold text-xs text-center py-2 font-mono text-slate-900 dark:text-slate-100">
+                        {item.placa}
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-600 dark:text-slate-400 py-2 truncate max-w-[160px]" title={item.model}>
+                        {item.model}
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-semibold whitespace-nowrap">
+                          {item.diretoria}
+                        </span>
+                      </TableCell>
+                      <TableCell className="py-2 max-w-[180px] truncate" title={item.gerencia}>
+                        <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-semibold">
+                          {item.gerencia}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center py-2">
+                        <Badge variant="outline" className="bg-indigo-50/50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-300 dark:border-indigo-900 font-bold text-[11px] px-2 py-0">
+                          {item.count} abast.
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold font-mono text-xs text-blue-600 py-2">
                         {item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[8px] uppercase font-bold text-slate-400 block leading-tight">Custo</span>
-                      <div className="text-xs font-black text-emerald-600 font-mono">
+                      </TableCell>
+                      <TableCell className="text-right font-black font-mono text-xs text-emerald-600 py-2">
                         R$ {item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Card>
         )}
       </div>
 
