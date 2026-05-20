@@ -992,7 +992,72 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         styles: { fontSize: 8.5 },
       });
 
-      // Page 4: Visual charts fallback image handler
+      // Page 4: Consolidated comparative data (YoY and Fuel Type) as requested
+      doc.addPage();
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("COMPESA - DADOS CONSOLIDADOS DOS DEMONSTRATIVOS", 14, 10);
+
+      // Section A: Comparação Mês a Mês Ano a Ano
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text(`Comparativo Mensal de Abastecimentos: ${compYearA} vs ${compYearB}`, 14, 25);
+
+      const compBody = comparativeData.map(item => [
+        item.monthFullName,
+        `${item.litersA.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
+        `R$ ${item.costA.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `${item.litersB.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
+        `R$ ${item.costB.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        theme: "grid",
+        head: [[
+          "Mês", 
+          `Volume ${compYearA}`, 
+          `Custo ${compYearA}`, 
+          `Volume ${compYearB}`, 
+          `Custo ${compYearB}`
+        ]],
+        body: compBody,
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 8, cellPadding: 2 },
+      });
+
+      const finalYPage4 = (doc as any).lastAutoTable.finalY || 135;
+
+      // Section B: Consumo por Tipo de Combustível
+      doc.setTextColor(30, 41, 59);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.text("Consumo Consolidado por Tipo de Combustível", 14, finalYPage4 + 10);
+
+      const fuelTypeBody = fuelTypeConsumptionData.map(item => {
+        const avg = item.liters > 0 ? (item.cost / item.liters) : 0;
+        return [
+          item.type,
+          `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
+          `R$ ${item.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+          `R$ ${avg.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`
+        ];
+      });
+
+      autoTable(doc, {
+        startY: finalYPage4 + 14,
+        theme: "grid",
+        head: [["Tipo de Combustível", "Volume Abastecido", "Custo Total", "Preço Médio / Litro"]],
+        body: fuelTypeBody,
+        headStyles: { fillColor: [16, 185, 129] },
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+      });
+
+      // Page 5: Visual charts fallback image handler
       if (chartsContainerRef.current) {
         try {
           const canvas = await html2canvas(chartsContainerRef.current, {
@@ -1693,7 +1758,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         </ChartCard>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="w-full">
         <ChartCard title="Custo por Tipo de Ativo (Top 10)" description="Maiores gastos por categoria" className="h-[350px]">
           {costByType.length === 0 ? (
             <ChartEmptyState title="Custo por Tipo" />
@@ -1710,34 +1775,6 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                     ))}
                   </Bar>
                 </BarChart>
-              </ResponsiveContainer>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Custo por Tipo de Combustível" description="Total gasto por categoria" className="h-[350px]">
-          {costByFuelType.length === 0 ? (
-            <ChartEmptyState title="Custo por Combustível" />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <PieChart>
-                  <Pie
-                    data={costByFuelType}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={5}
-                    dataKey="value"
-                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    style={{ fontSize: '8px', fontWeight: 'bold' }}
-                  >
-                    {costByFuelType.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(val: number) => `R$ ${val.toLocaleString('pt-BR')}`} />
-                  <Legend />
-                </PieChart>
               </ResponsiveContainer>
           )}
         </ChartCard>
