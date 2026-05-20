@@ -633,7 +633,7 @@ export default function TelemetryDashboard() {
                                     const emails = getEmailsByGerencia(op.gerencia);
                                     const recipient = emails.join(",");
                                     const subject = `Alerta: Pendência de Curso - ${op.nome}`;
-                                   const body = `Prezados(as) Gestores(as),\n\nSolicitamos, por gentileza, o preenchimento do formulário disponível no link abaixo e o envio do certificado do curso, para fins de levantamento e contabilização dos condutores que possuem cursos para operação de veículos e equipamentos pesados.\n\nLink: https://forms.gle/ha3Et4GLwHGGgY6Y9
+                                   const body = `Prezados(as) Gestores(as),\n\nSolicitamos, por gentileza, o preenchimento do formulário disponível no link abaixo e o envio do certificado do curso, para fins de levantamento e contabilização dos condutores que possuem cursos para operação de veículos e equipamentos pesados.\n\n
 \n\nLink: https://forms.gle/ha3Et4GLwHGGgY6Y9\n\nAtenciosamente,\n\nCGF – Coordenação de Gestão de Frotas\n`;
                                     window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
                                   }}
