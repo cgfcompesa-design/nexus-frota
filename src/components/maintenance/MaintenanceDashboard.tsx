@@ -713,6 +713,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
                       <TableHead className="text-center">Placa</TableHead>
                       <TableHead className="text-center">Odômetro</TableHead>
                       <TableHead className="text-center">Tipo</TableHead>
+                      <TableHead className="text-center">Tipo Preventiva</TableHead>
                       <TableHead className="text-center">Próxima Revisão</TableHead>
                       <TableHead className="text-center">Status</TableHead>
                     </TableRow>
@@ -725,6 +726,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
                           <TableCell className="font-bold text-center">{String(v[0] || "")}</TableCell>
                           <TableCell className="text-xs text-center">{String(v[1] || "")}</TableCell>
                           <TableCell className="text-xs text-center">{String(v[8] || "")}</TableCell>
+                          <TableCell className="text-xs text-center">{String(v[2] || "")}</TableCell>
                           <TableCell className="text-xs text-center">{String(v[14] || "")}</TableCell>
                           <TableCell className="text-xs font-bold text-center">{String(v[20] || "")}</TableCell>
                         </TableRow>

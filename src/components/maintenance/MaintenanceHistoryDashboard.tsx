@@ -675,6 +675,18 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       .sort((a, b) => b.custo - a.custo);
   }, [filteredCustosData]);
 
+  const costsByPlate = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredCustosData.forEach(c => {
+      const placa = c.placa || "S/D";
+      map[placa] = (map[placa] || 0) + c.custo;
+    });
+    return Object.entries(map)
+      .map(([placa, custo]) => ({ placa, custo }))
+      .sort((a, b) => b.custo - a.custo)
+      .slice(0, 10);
+  }, [filteredCustosData]);
+
   const countsByTipoAtivo = useMemo(() => {
     const map: Record<string, number> = {};
     indicatorData.forEach(i => {
@@ -766,11 +778,92 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       bodyStyles: { fontSize: 9 },
     });
 
-    const finalY = (doc as any).lastAutoTable.finalY + 10;
+    let currentY = (doc as any).lastAutoTable.finalY + 12;
 
+    // Table: Custo de Manutenção por Tipo
     doc.setFontSize(12);
     doc.setTextColor(30, 64, 175);
-    doc.text("Registros de Custos Detalhados (Top 30)", 14, finalY);
+    doc.text("Custo de Manutenção por Tipo", 14, currentY);
+
+    const tipoTableData = costsByTipo.map(item => [
+      item.name || "Não Especificado",
+      formatCurrency(item.value)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Tipo de Custo", "Valor Total Gasto"]],
+      body: tipoTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Table: Custo Consolidado por Atividade (TAM)
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Custo Consolidado por Tipo de Atividade de Manutenção (TAM)", 14, currentY);
+
+    const tamTableData = costsByTam.map(item => [
+      item.tam,
+      TAM_DESCRIPTIONS[item.tam] || "Outros",
+      formatCurrency(item.custo)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Sigla TAM", "Descrição da Atividade", "Custo Total"]],
+      body: tamTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Table: Registros de Manutenção (Histórico)
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Registros de Manutenção - Histórico (Top 30)", 14, currentY);
+
+    const mntTableData = filteredData.slice(0, 30).map(item => [
+      item.ordemServico,
+      item.placa,
+      item.estabelecimento || "N/A",
+      item.tam,
+      formatCurrency(parseFloat(item.total) || 0),
+      item.dataConclusaoOS
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Ordem Serv.", "Placa", "Local / Oficina", "TAM", "Total Gasto", "Data Conclusão"]],
+      body: mntTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8 },
+      bodyStyles: { fontSize: 7.5 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Table: Registros de Custos Detalhados
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Registros de Custos Detalhados (Top 30)", 14, currentY);
 
     const costTableData = filteredCustosData.slice(0, 30).map(c => [
       c.placa,
@@ -782,7 +875,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     ]);
 
     autoTable(doc, {
-      startY: finalY + 4,
+      startY: currentY + 4,
       head: [["Placa", "Tipo Manut.", "Mês/Ano", "TAM", "Custo Total", "Gerência"]],
       body: costTableData,
       theme: "grid",
@@ -1477,38 +1570,54 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
-            <Card className="p-8 flex flex-col items-center justify-center text-center bg-gradient-to-br from-green-50 to-white dark:from-green-900/10 dark:to-slate-900 border-none shadow-sm relative overflow-hidden group">
-              <div className="absolute top-[-20px] right-[-20px] w-32 h-32 bg-green-500/5 rounded-full blur-2xl group-hover:bg-green-500/10 transition-colors"></div>
-              <DollarSign className="h-16 w-16 text-green-500 mb-4 opacity-80" />
-              <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Montante Investido em Manutenção</h2>
-              <h1 className="text-5xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
-                {formatCurrency(filteredCustosData.reduce((acc, c) => acc + c.custo, 0))}
-              </h1>
-              <p className="text-xs font-bold text-green-600 mt-4 bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full uppercase">Base Consolidada</p>
-            </Card>
+
+            <ChartCard title="Ativos com Maior Consumo por Placa" description="Os 10 veículos com maiores gastos acumulados em manutenção">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costsByPlate} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="placa" type="category" tick={{fontSize: 10, fontWeight: 'bold'}} width={85} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
+                  />
+                  <Bar dataKey="custo" fill="#e11d48" radius={[0, 4, 4, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm">
-               <Label className="text-[10px] font-black uppercase opacity-50 mb-2 block">Total Orçamentos</Label>
-               <div className="flex justify-between items-baseline">
-                 <h4 className="text-2xl font-black">{orcamentosMap.size}</h4>
-                 <Package className="h-4 w-4 text-blue-500 opacity-30" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Card className="p-4 bg-gradient-to-br from-green-50 to-white dark:from-green-900/10 dark:to-slate-900 border-none shadow-sm flex flex-col justify-between">
+               <div>
+                 <Label className="text-[10px] font-black uppercase opacity-50 mb-1 block">Montante Investido</Label>
+                 <h4 className="text-xl font-black text-green-600">{formatCurrency(filteredCustosData.reduce((acc, c) => acc + c.custo, 0))}</h4>
                </div>
+               <DollarSign className="h-4 w-4 text-green-500 opacity-30 self-end" />
             </Card>
-            <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm">
-               <Label className="text-[10px] font-black uppercase opacity-50 mb-2 block">Média por OS</Label>
-               <div className="flex justify-between items-baseline">
-                 <h4 className="text-2xl font-black">{formatCurrency(filteredCustosData.length > 0 ? filteredCustosData.reduce((acc, c) => acc + c.custo, 0) / filteredCustosData.length : 0)}</h4>
-                 <TrendingUp className="h-4 w-4 text-orange-500 opacity-30" />
+            <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm flex flex-col justify-between">
+               <div>
+                 <Label className="text-[10px] font-black uppercase opacity-50 mb-1 block">Total Orçamentos</Label>
+                 <h4 className="text-xl font-black text-slate-800 dark:text-white">{orcamentosMap.size}</h4>
                </div>
+               <Package className="h-4 w-4 text-blue-500 opacity-30 self-end" />
             </Card>
-            <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm">
-               <Label className="text-[10px] font-black uppercase opacity-50 mb-2 block">Custo Orçado Acum.</Label>
-               <div className="flex justify-between items-baseline">
-                 <h4 className="text-2xl font-black">{formatCurrency(filteredCustosData.reduce((acc, c) => acc + c.custoOrcado, 0))}</h4>
-                 <CheckCircle2 className="h-4 w-4 text-green-500 opacity-30" />
+            <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm flex flex-col justify-between">
+               <div>
+                 <Label className="text-[10px] font-black uppercase opacity-50 mb-1 block">Média por OS</Label>
+                 <h4 className="text-xl font-black text-slate-800 dark:text-white">
+                   {formatCurrency(filteredCustosData.length > 0 ? filteredCustosData.reduce((acc, c) => acc + c.custo, 0) / filteredCustosData.length : 0)}
+                 </h4>
                </div>
+               <TrendingUp className="h-4 w-4 text-orange-500 opacity-30 self-end" />
+            </Card>
+            <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm flex flex-col justify-between">
+               <div>
+                 <Label className="text-[10px] font-black uppercase opacity-50 mb-1 block">Custo Orçado Acumulado</Label>
+                 <h4 className="text-xl font-black text-slate-800 dark:text-white">{formatCurrency(filteredCustosData.reduce((acc, c) => acc + c.custoOrcado, 0))}</h4>
+               </div>
+               <CheckCircle2 className="h-4 w-4 text-green-500 opacity-30 self-end" />
             </Card>
           </div>
         </TabsContent>
