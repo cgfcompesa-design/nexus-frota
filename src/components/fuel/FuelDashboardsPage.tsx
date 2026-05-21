@@ -855,6 +855,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const topScrollRef = useRef<HTMLDivElement>(null);
   const chartsContainerRef = useRef<HTMLDivElement>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const [tableScrollWidth, setTableScrollWidth] = useState(1500);
 
   const handleExportPDF = async () => {
     setIsExportingPDF(true);
@@ -1124,13 +1125,13 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   };
 
   const handleTopScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (tableContainerRef.current) {
+    if (tableContainerRef.current && tableContainerRef.current.scrollLeft !== e.currentTarget.scrollLeft) {
       tableContainerRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
   };
 
   const handleTableScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (topScrollRef.current) {
+    if (topScrollRef.current && topScrollRef.current.scrollLeft !== e.currentTarget.scrollLeft) {
       topScrollRef.current.scrollLeft = e.currentTarget.scrollLeft;
     }
   };
@@ -1225,6 +1226,29 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         };
       });
   }, [assets, fuel, filteredFuel, displayMonths, searchPlaca, selectedGerencias, selectedDirectorias, selectedFuelTypes, selectedVehicleModels, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears]);
+
+  React.useEffect(() => {
+    const updateWidth = () => {
+      if (tableContainerRef.current) {
+        setTableScrollWidth(tableContainerRef.current.scrollWidth);
+      }
+    };
+
+    // Run layout measurements
+    updateWidth();
+    window.addEventListener("resize", updateWidth);
+
+    // Dynamic observer for content shifts
+    const observer = new ResizeObserver(updateWidth);
+    if (tableContainerRef.current) {
+      observer.observe(tableContainerRef.current);
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateWidth);
+      observer.disconnect();
+    };
+  }, [vehicleSummaryData]);
 
   const ChartEmptyState = ({ title }: { title: string }) => (
     <div className="flex flex-col items-center justify-center h-full space-y-2 text-slate-400 bg-slate-50/50 rounded-xl border-2 border-dashed border-slate-100 dark:bg-slate-900/50 dark:border-slate-800">
@@ -1753,7 +1777,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         )}
       </ChartCard>
 
-      <div className="grid gap-4 grid-cols-1">
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos (R$)" className="h-[350px]">
           {top10ByUnit.length === 0 ? (
             <ChartEmptyState title="Gastos por Gerência" />
@@ -1773,9 +1797,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
               </ResponsiveContainer>
           )}
         </ChartCard>
-      </div>
 
-      <div className="w-full">
         <ChartCard title="Custo por Tipo de Ativo (Top 10)" description="Maiores gastos por categoria" className="h-[350px]">
           {costByType.length === 0 ? (
             <ChartEmptyState title="Custo por Tipo" />
@@ -1881,7 +1903,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             onScroll={handleTopScroll}
             className="overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-50 dark:bg-slate-900 border-b"
           >
-            <div style={{ width: '1600px', height: '1px' }} />
+            <div style={{ width: `${tableScrollWidth}px`, height: '1px' }} />
           </div>
           
           <div 
@@ -1889,26 +1911,26 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             onScroll={handleTableScroll}
             className="max-h-[500px] overflow-auto custom-scrollbar"
           >
-            <Table className="min-w-[1600px] border-separate border-spacing-0">
+            <Table className="min-w-[1450px] border-separate border-spacing-0">
               <TableHeader className="sticky top-0 bg-background z-30">
                 <TableRow>
-                  <TableHead className="w-[100px] text-center sticky left-0 bg-background z-40 border-b border-r" rowSpan={2}>Placa</TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Diretoria</TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Gerência</TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Tipo</TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Modelo</TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Titularidade</TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Ano</TableHead>
+                  <TableHead className="w-[85px] text-center sticky left-0 bg-background z-40 border-b border-r text-[10px] font-bold" rowSpan={2}>Placa</TableHead>
+                  <TableHead className="text-center border-b px-2 py-1 select-none text-[10px] font-bold" rowSpan={2}>Diretoria</TableHead>
+                  <TableHead className="text-center border-b px-2 py-1 select-none text-[10px] font-bold" rowSpan={2}>Gerência</TableHead>
+                  <TableHead className="text-center border-b px-1 py-1 select-none text-[10px] font-bold" rowSpan={2}>Tipo</TableHead>
+                  <TableHead className="text-center border-b px-2 py-1 select-none text-[10px] font-bold" rowSpan={2}>Modelo</TableHead>
+                  <TableHead className="text-center border-b px-1 py-1 select-none text-[10px] font-bold whitespace-nowrap" rowSpan={2}>Titularidade</TableHead>
+                  <TableHead className="text-center border-b px-1 py-1 select-none text-[10px] font-bold" rowSpan={2}>Ano</TableHead>
                   <TableHead className="text-center bg-slate-50 dark:bg-slate-900/50 border-x border-b text-[10px] font-black uppercase tracking-widest text-primary py-1" colSpan={displayMonths.length}>
                     Desempenho por Período (Km / L / R$)
                   </TableHead>
-                  <TableHead className="text-center border-b" rowSpan={2}>Último Odômetro</TableHead>
-                  <TableHead className="text-center bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 font-bold border-b" rowSpan={2}>Consumo Litros (Mês Atual)</TableHead>
-                  <TableHead className="text-center bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 font-bold border-b" rowSpan={2}>Custo Reais (Mês Atual)</TableHead>
+                  <TableHead className="text-center border-b px-1 py-1 text-[10px] font-bold leading-tight" rowSpan={2}>Último<br/>Odômetro</TableHead>
+                  <TableHead className="text-center bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 font-bold border-b text-[10px] uppercase py-1 px-2 leading-tight" rowSpan={2}>Volume Litros<br/>(Mês Atual)</TableHead>
+                  <TableHead className="text-center bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 font-bold border-b text-[10px] uppercase py-1 px-2 leading-tight" rowSpan={2}>Custo Reais<br/>(Mês Atual)</TableHead>
                 </TableRow>
                 <TableRow>
                   {displayMonths.map((m, idx) => (
-                    <TableHead key={m} className="text-center border-x border-b">
+                    <TableHead key={m} className="text-center border-x border-b text-[10px] py-1">
                       {formatMonthLabel(m)}
                       {idx === displayMonths.length - 1 && (
                         <span className="block text-[8px] text-indigo-500 font-black">Mês Atual</span>
@@ -1921,23 +1943,23 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                 {vehicleSummaryData.map((row) => (
                   <TableRow key={row.placa}>
                     <TableCell className="font-bold text-center sticky left-0 bg-white dark:bg-slate-950 z-10 border-r">{row.placa}</TableCell>
-                    <TableCell className="text-center text-xs">
-                      <span className="text-[10px] uppercase font-bold text-slate-550">{row.diretoria}</span>
+                    <TableCell className="text-center p-1 px-2">
+                      <span className="text-[10px] uppercase font-bold text-slate-500 whitespace-pre-wrap leading-tight block max-w-[90px] mx-auto">{row.diretoria}</span>
                     </TableCell>
-                    <TableCell className="text-center text-xs font-semibold max-w-[150px] truncate" title={row.gerencia}>
+                    <TableCell className="text-center p-1 px-2 text-xs font-semibold max-w-[125px] whitespace-pre-wrap leading-tight" title={row.gerencia}>
                       {row.gerencia}
                     </TableCell>
-                    <TableCell className="text-center text-xs">{row.tipo}</TableCell>
-                    <TableCell className="text-center text-xs truncate max-w-[150px]" title={row.modelo}>{row.modelo}</TableCell>
-                    <TableCell className="text-center text-xs">
-                      <Badge variant="outline" className="font-normal">{row.titularidade}</Badge>
+                    <TableCell className="text-center p-1 px-1 text-[10px] max-w-[80px] whitespace-pre-wrap leading-tight">{row.tipo}</TableCell>
+                    <TableCell className="text-center p-1 px-2 text-[10px] max-w-[110px] whitespace-pre-wrap leading-tight" title={row.modelo}>{row.modelo}</TableCell>
+                    <TableCell className="text-center p-1 px-1 max-w-[90px] whitespace-pre-wrap leading-tight">
+                      <Badge variant="outline" className="font-normal text-[9px] px-1 py-0 whitespace-normal text-center mx-auto block leading-tight">{row.titularidade}</Badge>
                     </TableCell>
-                    <TableCell className="text-center text-xs">{row.ano}</TableCell>
+                    <TableCell className="text-center p-1 text-[10px]">{row.ano}</TableCell>
                     {displayMonths.map(m => {
                       const stats = row.monthStats?.[m] || { kms: 0, liters: 0, cost: 0 };
                       return (
-                        <TableCell key={m} className="text-center py-2 px-3 border-x">
-                          <div className="flex flex-col space-y-0.5 items-center justify-center text-[10px]">
+                        <TableCell key={m} className="text-center py-1.5 px-2 border-x whitespace-pre-wrap">
+                          <div className="flex flex-col space-y-0.5 items-center justify-center text-[10px] leading-tight">
                             {stats.kms > 0 ? (
                               <span className="font-bold text-slate-700 dark:text-slate-300">
                                 {stats.kms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km
@@ -1963,13 +1985,13 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                         </TableCell>
                       );
                     })}
-                    <TableCell className="text-center font-mono">
+                    <TableCell className="text-center font-mono py-1 px-2 text-[10px]">
                       {row.lastOdo > 0 ? row.lastOdo.toLocaleString('pt-BR') : "-"}
                     </TableCell>
-                    <TableCell className="text-center font-semibold font-mono text-blue-600 bg-blue-50/10 dark:bg-blue-950/5">
+                    <TableCell className="text-center font-semibold font-mono text-blue-600 bg-blue-50/10 dark:bg-blue-950/5 py-1 px-2 text-[10px]">
                       {row.currentMonthLiters > 0 ? `${row.currentMonthLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L` : "-"}
                     </TableCell>
-                    <TableCell className="text-center font-bold font-mono text-emerald-600 bg-emerald-50/10 dark:bg-emerald-950/5">
+                    <TableCell className="text-center font-bold font-mono text-emerald-600 bg-emerald-50/10 dark:bg-emerald-950/5 py-1 px-2 text-[10px]">
                       {row.currentMonthCost > 0 ? `R$ ${row.currentMonthCost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : "-"}
                     </TableCell>
                   </TableRow>
