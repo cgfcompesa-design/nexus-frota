@@ -582,6 +582,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   // Veículo com maior consumo por tipo
   const topConsumidoresPorTipo = useMemo(() => {
     const groups: Record<string, Record<string, { liters: number, cost: number, count: number, model: string }>> = {};
+    const driversByTipo: Record<string, Record<string, number>> = {};
     
     filteredFuel.forEach(f => {
       const pRaw = f._placa || f.PLACA || "";
@@ -604,6 +605,13 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       groups[tipo][placa].liters += litros;
       groups[tipo][placa].cost += custo;
       groups[tipo][placa].count += 1;
+
+      // Group drivers by type of active based on Column L (f.COL_11 or _driver)
+      const driver = String(f.COL_11 || f._driver || f.CONDUTOR || f["NOME MOTORISTA"] || "").trim().toUpperCase();
+      if (driver && driver !== "N/A" && driver !== "NOME MOTORISTA" && driver !== "CONDUTOR" && driver !== "") {
+        if (!driversByTipo[tipo]) driversByTipo[tipo] = {};
+        driversByTipo[tipo][driver] = (driversByTipo[tipo][driver] || 0) + litros;
+      }
     });
 
     const result: Array<{
@@ -615,6 +623,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       count: number;
       diretoria: string;
       gerencia: string;
+      driverMaisAbasteceu: string;
     }> = [];
 
     Object.keys(groups).forEach(tipo => {
@@ -630,6 +639,18 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
       if (maxPlaca && maxStats.liters > 0) {
         const asset = assetsByPlaca.get(maxPlaca);
+        
+        let topDriver = "Sem dados";
+        let maxDriverL = 0;
+        if (driversByTipo[tipo]) {
+          Object.entries(driversByTipo[tipo]).forEach(([dr, totalL]) => {
+            if (totalL > maxDriverL) {
+              topDriver = dr;
+              maxDriverL = totalL;
+            }
+          });
+        }
+
         result.push({
           tipo,
           placa: maxPlaca,
@@ -638,7 +659,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           cost: maxStats.cost,
           count: maxStats.count,
           diretoria: asset?.DIRETORIA || asset?.Diretoria || "N/A",
-          gerencia: asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A"
+          gerencia: asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A",
+          driverMaisAbasteceu: topDriver
         });
       }
     });
@@ -928,6 +950,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         item.model,
         item.diretoria,
         item.gerencia,
+        item.driverMaisAbasteceu || "Sem dados",
         `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
         `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
         `${item.count} abast.`
@@ -936,10 +959,10 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       autoTable(doc, {
         startY: 30,
         theme: "grid",
-        head: [["Tipo de Ativo", "Placa", "Modelo", "Diretoria", "Gerência", "Vol. Abastecido", "Custo Total", "Abastecimentos"]],
+        head: [["Tipo de Ativo", "Placa", "Modelo", "Diretoria", "Gerência", "Condutor Principal", "Vol. Abastecido", "Custo Total", "Abastecimentos"]],
         body: topTipoBody,
         headStyles: { fillColor: [79, 70, 229] }, // indigo-600
-        styles: { fontSize: 7.5 }, // slightly smaller font to fit additional columns beautifully
+        styles: { fontSize: 7.0 }, // slightly smaller font to fit additional columns beautifully
       });
 
       // Page 3: Rankings Top list
@@ -1173,12 +1196,18 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           }
         });
 
-        // Calculate SUM for last months
-        const monthSumKms: Record<string, number> = {};
+        // Calculate stats for each month
+        const monthStats: Record<string, { kms: number, liters: number, cost: number }> = {};
         displayMonths.forEach(m => {
           const mTransactions = assetFuel.filter(f => String(f._monthYear || "").trim() === String(m).trim());
-          monthSumKms[m] = mTransactions.reduce((sum, f) => sum + (f._total || 0), 0); // User likely wants values in currency here or KM? Summing _total (value) for detailed view
+          const kms = mTransactions.reduce((sum, f) => sum + (f._kmRodados || f.KM_RODADOS || 0), 0);
+          const liters = mTransactions.reduce((sum, f) => sum + (f._litros || 0), 0);
+          const cost = mTransactions.reduce((sum, f) => sum + (f._total || 0), 0);
+          monthStats[m] = { kms, liters, cost };
         });
+
+        const lastMonth = displayMonths.length > 0 ? displayMonths[displayMonths.length - 1] : "";
+        const currentMonthStats = lastMonth ? (monthStats[lastMonth] || { kms: 0, liters: 0, cost: 0 }) : { kms: 0, liters: 0, cost: 0 };
 
         return {
           ...a,
@@ -1187,7 +1216,11 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           modelo: a.MODELO || a.Modelo || "N/A",
           titularidade: a.TITULARIDADE || (a as any).COL_27 || "N/A",
           ano: a.ANO || (a as any).COL_8 || "N/A",
-          monthSumKms,
+          diretoria: a.DIRETORIA || a.Diretoria || (a as any).COL_3 || "N/A",
+          gerencia: a.GERENCIA || a["GERÊNCIA"] || a["GERENCIA"] || a.Gerencia || (a as any).COL_4 || "N/A",
+          monthStats,
+          currentMonthLiters: currentMonthStats.liters,
+          currentMonthCost: currentMonthStats.cost,
           lastOdo
         };
       });
@@ -1636,6 +1669,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Modelo</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Diretoria</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Gerência</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-indigo-500 py-2.5">Condutor que Mais Abasteceu</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-center py-2.5">Abastecimentos</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Litros</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Custo Total</TableHead>
@@ -1662,6 +1696,9 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                         <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 rounded font-semibold">
                           {item.gerencia}
                         </span>
+                      </TableCell>
+                      <TableCell className="py-2 max-w-[180px] truncate text-xs font-bold text-indigo-600 dark:text-indigo-400" title={item.driverMaisAbasteceu}>
+                        {item.driverMaisAbasteceu}
                       </TableCell>
                       <TableCell className="text-center py-2">
                         <Badge variant="outline" className="bg-indigo-50/50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-300 dark:border-indigo-900 font-bold text-[11px] px-2 py-0">
@@ -1716,27 +1753,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         )}
       </ChartCard>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <ChartCard title="Top 10 - Consumo por Ativo (L)" description="Veículos com maior volume abastecido" className="h-[350px]">
-          {top10ByAsset.length === 0 ? (
-            <ChartEmptyState title="Consumo por Ativo" />
-          ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={top10ByAsset} layout="vertical" margin={{ left: 30, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="placa" type="category" width={80} axisLine={false} tickLine={false} fontSize={9} />
-                  <Tooltip formatter={(val: number) => `${val.toLocaleString('pt-BR')} L`} />
-                  <Bar dataKey="liters" radius={[0, 4, 4, 0]}>
-                    {top10ByAsset.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-          )}
-        </ChartCard>
-
+      <div className="grid gap-4 grid-cols-1">
         <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos (R$)" className="h-[350px]">
           {top10ByUnit.length === 0 ? (
             <ChartEmptyState title="Gastos por Gerência" />
@@ -1745,7 +1762,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
               <BarChart data={top10ByUnit} layout="vertical" margin={{ left: 30, right: 30 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="unit" type="category" width={100} axisLine={false} tickLine={false} fontSize={8} />
+                  <YAxis dataKey="unit" type="category" width={140} axisLine={false} tickLine={false} fontSize={9} />
                   <Tooltip formatter={(val: number) => `R$ ${val.toLocaleString('pt-BR')}`} />
                   <Bar dataKey="cost" radius={[0, 4, 4, 0]}>
                     {top10ByUnit.map((_, index) => (
@@ -1864,7 +1881,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             onScroll={handleTopScroll}
             className="overflow-x-auto overflow-y-hidden custom-scrollbar bg-slate-50 dark:bg-slate-900 border-b"
           >
-            <div style={{ width: '1200px', height: '1px' }} />
+            <div style={{ width: '1600px', height: '1px' }} />
           </div>
           
           <div 
@@ -1872,18 +1889,22 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             onScroll={handleTableScroll}
             className="max-h-[500px] overflow-auto custom-scrollbar"
           >
-            <Table className="min-w-[1200px] border-separate border-spacing-0">
+            <Table className="min-w-[1600px] border-separate border-spacing-0">
               <TableHeader className="sticky top-0 bg-background z-30">
                 <TableRow>
                   <TableHead className="w-[100px] text-center sticky left-0 bg-background z-40 border-b border-r" rowSpan={2}>Placa</TableHead>
+                  <TableHead className="text-center border-b" rowSpan={2}>Diretoria</TableHead>
+                  <TableHead className="text-center border-b" rowSpan={2}>Gerência</TableHead>
                   <TableHead className="text-center border-b" rowSpan={2}>Tipo</TableHead>
                   <TableHead className="text-center border-b" rowSpan={2}>Modelo</TableHead>
                   <TableHead className="text-center border-b" rowSpan={2}>Titularidade</TableHead>
                   <TableHead className="text-center border-b" rowSpan={2}>Ano</TableHead>
                   <TableHead className="text-center bg-slate-50 dark:bg-slate-900/50 border-x border-b text-[10px] font-black uppercase tracking-widest text-primary py-1" colSpan={displayMonths.length}>
-                    Deslocamento Últimos 04 Meses
+                    Desempenho por Período (Km / L / R$)
                   </TableHead>
                   <TableHead className="text-center border-b" rowSpan={2}>Último Odômetro</TableHead>
+                  <TableHead className="text-center bg-blue-50/50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300 font-bold border-b" rowSpan={2}>Consumo Litros (Mês Atual)</TableHead>
+                  <TableHead className="text-center bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 font-bold border-b" rowSpan={2}>Custo Reais (Mês Atual)</TableHead>
                 </TableRow>
                 <TableRow>
                   {displayMonths.map((m, idx) => (
@@ -1900,19 +1921,56 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                 {vehicleSummaryData.map((row) => (
                   <TableRow key={row.placa}>
                     <TableCell className="font-bold text-center sticky left-0 bg-white dark:bg-slate-950 z-10 border-r">{row.placa}</TableCell>
+                    <TableCell className="text-center text-xs">
+                      <span className="text-[10px] uppercase font-bold text-slate-550">{row.diretoria}</span>
+                    </TableCell>
+                    <TableCell className="text-center text-xs font-semibold max-w-[150px] truncate" title={row.gerencia}>
+                      {row.gerencia}
+                    </TableCell>
                     <TableCell className="text-center text-xs">{row.tipo}</TableCell>
-                    <TableCell className="text-center text-xs truncate max-w-[150px]">{row.modelo}</TableCell>
+                    <TableCell className="text-center text-xs truncate max-w-[150px]" title={row.modelo}>{row.modelo}</TableCell>
                     <TableCell className="text-center text-xs">
                       <Badge variant="outline" className="font-normal">{row.titularidade}</Badge>
                     </TableCell>
                     <TableCell className="text-center text-xs">{row.ano}</TableCell>
-                    {displayMonths.map(m => (
-                      <TableCell key={m} className="text-center">
-                        {row.monthSumKms[m] > 0 ? `${row.monthSumKms[m].toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-"}
-                      </TableCell>
-                    ))}
+                    {displayMonths.map(m => {
+                      const stats = row.monthStats?.[m] || { kms: 0, liters: 0, cost: 0 };
+                      return (
+                        <TableCell key={m} className="text-center py-2 px-3 border-x">
+                          <div className="flex flex-col space-y-0.5 items-center justify-center text-[10px]">
+                            {stats.kms > 0 ? (
+                              <span className="font-bold text-slate-700 dark:text-slate-300">
+                                {stats.kms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                            {stats.liters > 0 ? (
+                              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                {stats.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                            {stats.cost > 0 ? (
+                              <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                                R$ {stats.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">-</span>
+                            )}
+                          </div>
+                        </TableCell>
+                      );
+                    })}
                     <TableCell className="text-center font-mono">
                       {row.lastOdo > 0 ? row.lastOdo.toLocaleString('pt-BR') : "-"}
+                    </TableCell>
+                    <TableCell className="text-center font-semibold font-mono text-blue-600 bg-blue-50/10 dark:bg-blue-950/5">
+                      {row.currentMonthLiters > 0 ? `${row.currentMonthLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L` : "-"}
+                    </TableCell>
+                    <TableCell className="text-center font-bold font-mono text-emerald-600 bg-emerald-50/10 dark:bg-emerald-950/5">
+                      {row.currentMonthCost > 0 ? `R$ ${row.currentMonthCost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : "-"}
                     </TableCell>
                   </TableRow>
                 ))}
