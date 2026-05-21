@@ -315,7 +315,9 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                               .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
                               .map((indicator) => {
                                 const isFilled = !!indicator.value_id;
-                                const achieved = indicator.current_value >= indicator.target;
+                                const achieved = indicator.goal_type === "lower" 
+                                  ? indicator.current_value <= indicator.target 
+                                  : indicator.current_value >= indicator.target;
                                 const responsible = responsibles.find(r => r.id === indicator.responsible_id);
                                 
                                 return (

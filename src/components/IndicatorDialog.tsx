@@ -28,6 +28,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
   const [section, setSection] = useState("manutencao");
   const [subsection, setSubsection] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [goalType, setGoalType] = useState<"higher" | "lower">("higher");
 
   useEffect(() => {
     if (indicator) {
@@ -39,6 +40,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setMonth(format(selectedMonth, "yyyy-MM"));
       setSection(indicator.section || "manutencao");
       setSubsection(indicator.subsection || "");
+      setGoalType(indicator.goal_type || "higher");
     } else {
       setName("");
       setTarget("");
@@ -48,6 +50,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setMonth(format(selectedMonth, "yyyy-MM"));
       setSection("manutencao");
       setSubsection("");
+      setGoalType("higher");
     }
   }, [indicator, open, selectedMonth]);
 
@@ -65,6 +68,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
       current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
       chart_type: chartType,
+      goal_type: goalType,
       updatedAt: serverTimestamp()
     };
 
@@ -202,6 +206,19 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Unidade (ex: %, R$, Km, L)</Label>
             <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Lógica do Indicador (Meta)</Label>
+            <Select value={goalType} onValueChange={(val: any) => setGoalType(val)}>
+              <SelectTrigger className="bg-slate-800 border-slate-700 h-10 text-white">
+                <SelectValue placeholder="Selecione o critério" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                <SelectItem value="higher">Maior ou igual à meta é "Dentro da Meta"</SelectItem>
+                <SelectItem value="lower">Menor ou igual à meta é "Dentro da Meta"</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
 

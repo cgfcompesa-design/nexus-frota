@@ -29,7 +29,9 @@ interface IndicatorChartProps {
 }
 
 export const IndicatorChart = ({ indicator, onEdit, historyValues, selectedMonth }: IndicatorChartProps) => {
-  const isGoalAchieved = indicator.current_value >= indicator.target;
+  const isGoalAchieved = indicator.goal_type === "lower"
+    ? indicator.current_value <= indicator.target
+    : indicator.current_value >= indicator.target;
   const statusColor = isGoalAchieved ? "#10b981" : "#f43f5e";
   const targetColor = "#6366f1";
 
@@ -40,14 +42,15 @@ export const IndicatorChart = ({ indicator, onEdit, historyValues, selectedMonth
 
   const pieData = [
     { name: "Real", value: indicator.current_value, fill: statusColor },
-    { name: "Restante", value: Math.max(0, indicator.target - indicator.current_value), fill: "#1e293b" }
+    { name: indicator.goal_type === "lower" ? "Meta" : "Restante", value: Math.max(0, Math.abs(indicator.target - indicator.current_value)), fill: "#1e293b" }
   ];
 
   // For Gauge, we use a specialized PieChart or just a progress bar approach
   // Let's use a semi-circle PieChart for gauge
+  const maxFactor = indicator.goal_type === "lower" ? 1.5 : 1.2;
   const gaugeData = [
-    { name: "Score", value: Math.min(indicator.current_value, indicator.target * 1.2), fill: statusColor },
-    { name: "Remaining", value: Math.max(0, (indicator.target * 1.2) - indicator.current_value), fill: "#1e293b" }
+    { name: "Score", value: Math.min(indicator.current_value, indicator.target * maxFactor), fill: statusColor },
+    { name: "Remaining", value: Math.max(0, (indicator.target * maxFactor) - indicator.current_value), fill: "#1e293b" }
   ];
 
   // Process history for line chart

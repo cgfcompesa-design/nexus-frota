@@ -13,13 +13,16 @@ import {
   Loader2, Search, Filter, Download, X, Wrench, Package, 
   DollarSign, ChevronLeft, ChevronRight, ChevronDown, 
   Clock, Activity, Info, TrendingUp, TrendingDown, 
-  CheckCircle2, Timer, Gauge, Calculator
+  CheckCircle2, Timer, Gauge, Calculator, FileText
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format, parse, isValid, isWithinInterval, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { exportToExcel } from "@/lib/exportToExcel";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { toast } from "sonner";
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, 
   Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ReferenceLine 
@@ -497,6 +500,19 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     return res.filter(i => i.tam === "MCE");
   }, [indicatorSource, selectedMesAnoIndicadores, selectedDiretoria, selectedGerencia]);
 
+  const filteredCustosData = useMemo(() => {
+    let res = custosData;
+    if (selectedMesAnoIndicadores !== "all") res = res.filter(c => c.mesAno === selectedMesAnoIndicadores);
+    if (selectedDiretoria !== "all") res = res.filter(c => c.diretoria === selectedDiretoria);
+    if (selectedGerencia !== "all") res = res.filter(c => c.gerencia === selectedGerencia);
+    if (selectedTam && selectedTam !== "ALL") res = res.filter(c => c.tam === selectedTam);
+    if (searchPlaca) {
+      const sp = searchPlaca.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      res = res.filter(c => c.placa.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(sp));
+    }
+    return res;
+  }, [custosData, selectedMesAnoIndicadores, selectedDiretoria, selectedGerencia, selectedTam, searchPlaca]);
+
   const operationalPlates = useMemo(() => {
     const normalize = (p: string) => (p || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
     return new Set(
@@ -608,22 +624,18 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
 
   const costsByTipo = useMemo(() => {
     const map: Record<string, number> = {};
-    custosData.forEach(c => {
-      if (selectedDiretoria !== "all" && c.diretoria !== selectedDiretoria) return;
-      if (selectedGerencia !== "all" && c.gerencia !== selectedGerencia) return;
+    filteredCustosData.forEach(c => {
       map[c.tipo] = (map[c.tipo] || 0) + c.custo;
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
-  }, [custosData]);
+  }, [filteredCustosData]);
 
   const costsByPeriod = useMemo(() => {
     const map: Record<string, { mesAno: string; real: number; orcado: number; count: number }> = {};
-    custosData.forEach(c => {
-      if (selectedDiretoria !== "all" && c.diretoria !== selectedDiretoria) return;
-      if (selectedGerencia !== "all" && c.gerencia !== selectedGerencia) return;
+    filteredCustosData.forEach(c => {
       if (!map[c.mesAno]) map[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0, count: 0 };
       map[c.mesAno].real += c.custoReal;
       map[c.mesAno].orcado += c.custoOrcado;
@@ -650,20 +662,18 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
         if (numAnoA !== numAnoB) return numAnoA - numAnoB;
         return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
       });
-  }, [custosData]);
+  }, [filteredCustosData]);
 
   const costsByTam = useMemo(() => {
     const map: Record<string, number> = {};
-    custosData.forEach(c => {
-      if (selectedDiretoria !== "all" && c.diretoria !== selectedDiretoria) return;
-      if (selectedGerencia !== "all" && c.gerencia !== selectedGerencia) return;
+    filteredCustosData.forEach(c => {
       const tam = c.tam || "S/D";
       map[tam] = (map[tam] || 0) + c.custo;
     });
     return Object.entries(map)
       .map(([tam, custo]) => ({ tam, custo }))
       .sort((a, b) => b.custo - a.custo);
-  }, [custosData]);
+  }, [filteredCustosData]);
 
   const countsByTipoAtivo = useMemo(() => {
     const map: Record<string, number> = {};
@@ -715,6 +725,73 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       Total: i.total, 'Data Conclusão': i.dataConclusaoOS
     }));
     exportToExcel(exportData, `Historico_Manutencao_${format(new Date(), 'yyyyMMdd')}`, 'Histórico');
+  };
+
+  const handleGenerateHistoryPDF = () => {
+    const doc = new jsPDF("p", "mm", "a4");
+    const now = new Date();
+    const formattedDate = now.toLocaleString("pt-BR");
+
+    doc.setFontSize(16);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Relatório CGF - Histórico & Custos de Manutenção", 14, 20);
+
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Atualizado em: ${formattedDate}`, 14, 28);
+    
+    const fillStr = `Filtros: Diretoria: ${selectedDiretoria === "all" ? "Todas" : selectedDiretoria} | Gerência: ${selectedGerencia === "all" ? "Todas" : selectedGerencia} | Mês/Ano: ${selectedMesAnoIndicadores === "all" ? "Todos" : selectedMesAnoIndicadores} | TAM: ${selectedTam === "ALL" ? "Todos" : selectedTam}`;
+    doc.text(fillStr, 14, 33);
+
+    // Summary section
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Resumo Financeiro Consolidado", 14, 43);
+
+    const totalInvestido = filteredCustosData.reduce((acc, c) => acc + c.custo, 0);
+    const orcadoAcumulado = filteredCustosData.reduce((acc, c) => acc + c.custoOrcado, 0);
+    const mediaPorOS = filteredCustosData.length > 0 ? totalInvestido / filteredCustosData.length : 0;
+
+    autoTable(doc, {
+      startY: 47,
+      head: [["Indicador Financeiro", "Valor"]],
+      body: [
+        ["Montante Investido em Manutenção", formatCurrency(totalInvestido)],
+        ["Média Financeira por OS", formatCurrency(mediaPorOS)],
+        ["Custo Orçado Acumulado", formatCurrency(orcadoAcumulado)],
+        ["Qtd. Orçamentos", String(orcamentosMap.size)],
+      ],
+      theme: "striped",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+      bodyStyles: { fontSize: 9 },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Registros de Custos Detalhados (Top 30)", 14, finalY);
+
+    const costTableData = filteredCustosData.slice(0, 30).map(c => [
+      c.placa,
+      c.tipo,
+      c.mesAno,
+      c.tam,
+      formatCurrency(c.custo),
+      c.gerencia,
+    ]);
+
+    autoTable(doc, {
+      startY: finalY + 4,
+      head: [["Placa", "Tipo Manut.", "Mês/Ano", "TAM", "Custo Total", "Gerência"]],
+      body: costTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8 },
+      bodyStyles: { fontSize: 7.5 },
+    });
+
+    doc.save(`Relatorio_Custos_Manutencao_${now.toISOString().split("T")[0]}.pdf`);
+    toast.success("PDF de custos gerado com sucesso!");
   };
 
   if (isLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin mr-2 h-8 w-8 text-primary" /> Carregando Dashboard Otimizado...</div>;
@@ -784,12 +861,17 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       </Card>
 
       <Tabs defaultValue="indicadores" className="space-y-6">
-        <TabsList className="h-auto p-1 bg-slate-100 dark:bg-slate-800">
-          <TabsTrigger value="indicadores" className="py-2 px-4 text-xs font-bold uppercase transition-all">Indicadores de Desempenho</TabsTrigger>
-          <TabsTrigger value="historico" className="py-2 px-4 text-xs font-bold uppercase transition-all">Histórico de Manutenção</TabsTrigger>
-          <TabsTrigger value="custo" className="py-2 px-4 text-xs font-bold uppercase transition-all">Custo de Manutenção</TabsTrigger>
-          <TabsTrigger value="lcc" className="py-2 px-4 text-xs font-bold uppercase transition-all">LCC - Ciclo de Vida</TabsTrigger>
-        </TabsList>
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <TabsList className="h-auto p-1 bg-slate-100 dark:bg-slate-800">
+            <TabsTrigger value="indicadores" className="py-2 px-4 text-xs font-bold uppercase transition-all">Indicadores de Desempenho</TabsTrigger>
+            <TabsTrigger value="historico" className="py-2 px-4 text-xs font-bold uppercase transition-all">Histórico de Manutenção</TabsTrigger>
+            <TabsTrigger value="custo" className="py-2 px-4 text-xs font-bold uppercase transition-all">Custo de Manutenção</TabsTrigger>
+            <TabsTrigger value="lcc" className="py-2 px-4 text-xs font-bold uppercase transition-all">LCC - Ciclo de Vida</TabsTrigger>
+          </TabsList>
+          <Button onClick={handleGenerateHistoryPDF} variant="outline" size="sm" className="bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 flex items-center font-bold text-xs uppercase h-9">
+            <FileText className="h-4 w-4 mr-2" /> Exportar para PDF
+          </Button>
+        </div>
 
         <TabsContent value="lcc" className="space-y-6">
           <div className="grid gap-4 md:grid-cols-2">
@@ -1380,7 +1462,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ChartCard title="Custo Consolidado por TAM" description="Distribuição financeira por tipo de atividade">
+            <ChartCard title="Custo Consolidado por Tipo de Atividade de Manutenção" description="Distribuição financeira por tipo de atividade">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={costsByTam}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
@@ -1400,7 +1482,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
               <DollarSign className="h-16 w-16 text-green-500 mb-4 opacity-80" />
               <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-400 mb-2">Montante Investido em Manutenção</h2>
               <h1 className="text-5xl font-black text-slate-900 dark:text-white tabular-nums tracking-tighter">
-                {formatCurrency(custosData.reduce((acc, c) => acc + c.custo, 0))}
+                {formatCurrency(filteredCustosData.reduce((acc, c) => acc + c.custo, 0))}
               </h1>
               <p className="text-xs font-bold text-green-600 mt-4 bg-green-100 dark:bg-green-900/30 px-3 py-1 rounded-full uppercase">Base Consolidada</p>
             </Card>
@@ -1417,14 +1499,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
             <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm">
                <Label className="text-[10px] font-black uppercase opacity-50 mb-2 block">Média por OS</Label>
                <div className="flex justify-between items-baseline">
-                 <h4 className="text-2xl font-black">{formatCurrency(custosData.length > 0 ? custosData.reduce((acc, c) => acc + c.custo, 0) / custosData.length : 0)}</h4>
+                 <h4 className="text-2xl font-black">{formatCurrency(filteredCustosData.length > 0 ? filteredCustosData.reduce((acc, c) => acc + c.custo, 0) / filteredCustosData.length : 0)}</h4>
                  <TrendingUp className="h-4 w-4 text-orange-500 opacity-30" />
                </div>
             </Card>
             <Card className="p-4 bg-white dark:bg-slate-900 border-none shadow-sm">
                <Label className="text-[10px] font-black uppercase opacity-50 mb-2 block">Custo Orçado Acum.</Label>
                <div className="flex justify-between items-baseline">
-                 <h4 className="text-2xl font-black">{formatCurrency(custosData.reduce((acc, c) => acc + c.custoOrcado, 0))}</h4>
+                 <h4 className="text-2xl font-black">{formatCurrency(filteredCustosData.reduce((acc, c) => acc + c.custoOrcado, 0))}</h4>
                  <CheckCircle2 className="h-4 w-4 text-green-500 opacity-30" />
                </div>
             </Card>

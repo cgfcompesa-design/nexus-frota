@@ -13,6 +13,15 @@ interface PrintDashboardProps {
 }
 
 export const PrintDashboard = ({ indicators, tasks, selectedMonth, allIndicatorValues, responsibles, onEditIndicator }: PrintDashboardProps) => {
+  const getIsGoalAchieved = (indicator: any) => {
+    if (indicator.goal_type === "lower") {
+      return indicator.current_value <= indicator.target;
+    }
+    return indicator.current_value >= indicator.target;
+  };
+
+  const achievedCount = indicators.filter(getIsGoalAchieved).length;
+
   return (
     <div className="space-y-6 pb-12">
       <Card className="bg-slate-900 border-slate-800 shadow-2xl rounded-3xl overflow-hidden">
@@ -30,7 +39,7 @@ export const PrintDashboard = ({ indicators, tasks, selectedMonth, allIndicatorV
             </div>
             <div className="bg-white/5 p-6 rounded-2xl border border-white/5 text-center">
               <p className="text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Metas Atingidas</p>
-              <p className="text-4xl font-black text-emerald-500 italic">{indicators.filter(i => i.current_value >= i.target).length}</p>
+              <p className="text-4xl font-black text-emerald-500 italic">{achievedCount}</p>
             </div>
             <div className="bg-white/5 p-6 rounded-2xl border border-white/5 text-center">
               <p className="text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Tarefas Concluídas</p>
@@ -39,7 +48,7 @@ export const PrintDashboard = ({ indicators, tasks, selectedMonth, allIndicatorV
             <div className="bg-white/5 p-6 rounded-2xl border border-white/5 text-center">
               <p className="text-[10px] font-black uppercase text-slate-500 mb-2 tracking-widest">Eficiência Global</p>
               <p className="text-4xl font-black text-amber-500 italic">
-                {indicators.length > 0 ? Math.round((indicators.filter(i => i.current_value >= i.target).length / indicators.length) * 100) : 0}%
+                {indicators.length > 0 ? Math.round((achievedCount / indicators.length) * 100) : 0}%
               </p>
             </div>
           </div>
