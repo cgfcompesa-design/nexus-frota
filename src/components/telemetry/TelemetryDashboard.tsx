@@ -297,6 +297,7 @@ export default function TelemetryDashboard() {
   }, [filteredNotificacoes, groupingMode]);
 
   // Real-time metrics and derived data
+  //
   const veiculosMonitorados = realtimeData.length;
   const veiculosLigados = realtimeData.filter(v => ["LIGADA", "1", 1].includes(String(v.Ignicao || "").toUpperCase()) || v.Ignicao === 1).length;
   const veiculosEmMovimento = realtimeData.filter(v => Number(v.Velocidade || 0) > 0).length;
