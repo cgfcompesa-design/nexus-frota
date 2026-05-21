@@ -687,6 +687,18 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       .slice(0, 10);
   }, [filteredCustosData]);
 
+  const costsByGerencia = useMemo(() => {
+    const map: Record<string, number> = {};
+    filteredCustosData.forEach(c => {
+      const g = c.gerencia || "S/D";
+      map[g] = (map[g] || 0) + c.custo;
+    });
+    return Object.entries(map)
+      .map(([gerencia, custo]) => ({ gerencia, custo }))
+      .sort((a, b) => b.custo - a.custo)
+      .slice(0, 10);
+  }, [filteredCustosData]);
+
   const countsByTipoAtivo = useMemo(() => {
     const map: Record<string, number> = {};
     indicatorData.forEach(i => {
@@ -800,7 +812,88 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 12;
-    if (currentY > 250) {
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Table: Gerências com Maior Custo
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Top 10 - Gerências com Maior Custo", 14, currentY);
+
+    const gerenciaTableData = costsByGerencia.map((item, idx) => [
+      `${idx + 1}º`,
+      item.gerencia,
+      formatCurrency(item.custo),
+      totalInvestido > 0 ? `${((item.custo / totalInvestido) * 100).toFixed(1)}%` : "0%"
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Posição", "Unidade (Gerência)", "Custo Total Gasto", "% do Total"]],
+      body: gerenciaTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Table: Custo Real vs Orçado por Período
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Comparativo de Custo Real vs Orçado por Período (Mensal)", 14, currentY);
+
+    const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number }> = {};
+    filteredCustosData.forEach(c => {
+      if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0 };
+      monthlyTotalMap[c.mesAno].real += c.custoReal;
+      monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
+    });
+
+    const monthsRef: Record<string, number> = {
+      jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+      jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+    };
+
+    const monthlyTotalsList = Object.values(monthlyTotalMap).sort((a, b) => {
+      const partsA = a.mesAno.split('/');
+      const partsB = b.mesAno.split('/');
+      if (partsA.length < 2 || partsB.length < 2) return 0;
+      const numAnoA = parseInt(partsA[1]) || 0;
+      const numAnoB = parseInt(partsB[1]) || 0;
+      if (numAnoA !== numAnoB) return numAnoA - numAnoB;
+      return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
+    });
+
+    const periodTableData = monthlyTotalsList.map(item => {
+      const desvio = item.real - item.orcado;
+      const desvioPercent = item.orcado > 0 ? `${((desvio / item.orcado) * 100).toFixed(1)}%` : "0.0%";
+      return [
+        item.mesAno,
+        formatCurrency(item.orcado),
+        formatCurrency(item.real),
+        formatCurrency(desvio),
+        desvioPercent
+      ];
+    });
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Mês/Ano", "Custo Orçado", "Custo Realizado", "Desvio (R$)", "Desvio (%)"]],
+      body: periodTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
+      bodyStyles: { fontSize: 8 },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 230) {
       doc.addPage();
       currentY = 20;
     }
@@ -1586,6 +1679,91 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChartCard title="Top 10 - Maiores Custos por Unidade (Gerência)" description="Unidades (Gerências - Coluna AL) com maiores gastos acumulados (Coluna AO)">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costsByGerencia} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="gerencia" type="category" tick={{fontSize: 9, fontWeight: 'bold'}} width={110} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'rgba(99, 102, 241, 0.1)'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
+                  />
+                  <Bar dataKey="custo" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col justify-between">
+              <CardHeader className="py-4">
+                <CardTitle className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Comparativo Mensal - Real vs Orçado</CardTitle>
+                <p className="text-xs text-muted-foreground">Tabela com valores consolidados por mês e desvio financeiro</p>
+              </CardHeader>
+              <CardContent className="p-0 overflow-auto max-h-[290px]">
+                <Table>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Mês/Ano</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Orçado</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Realizado</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Desvio (R$)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Desvio (%)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number }> = {};
+                      filteredCustosData.forEach(c => {
+                        if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0 };
+                        monthlyTotalMap[c.mesAno].real += c.custoReal;
+                        monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
+                      });
+
+                      const monthsRef: Record<string, number> = {
+                        jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+                        jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+                      };
+
+                      const sorted = Object.values(monthlyTotalMap).sort((a, b) => {
+                        const partsA = a.mesAno.split('/');
+                        const partsB = b.mesAno.split('/');
+                        if (partsA.length < 2 || partsB.length < 2) return 0;
+                        const numAnoA = parseInt(partsA[1]) || 0;
+                        const numAnoB = parseInt(partsB[1]) || 0;
+                        if (numAnoA !== numAnoB) return numAnoA - numAnoB;
+                        return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
+                      });
+
+                      if (sorted.length === 0) {
+                        return <TableRow><TableCell colSpan={5} className="text-center py-8 text-xs text-muted-foreground">Nenhum dado financeiro para o período</TableCell></TableRow>;
+                      }
+
+                      return sorted.map((row, idx) => {
+                        const desvio = row.real - row.orcado;
+                        const desvioPercent = row.orcado > 0 ? (desvio / row.orcado) * 100 : 0;
+                        return (
+                          <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                            <TableCell className="text-center text-xs font-black py-2.5">{row.mesAno}</TableCell>
+                            <TableCell className="text-center text-xs py-2.5">{formatCurrency(row.orcado)}</TableCell>
+                            <TableCell className="text-center text-xs font-bold py-2.5">{formatCurrency(row.real)}</TableCell>
+                            <TableCell className={`text-center text-xs font-black py-2.5 ${desvio > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {desvio > 0 ? `+${formatCurrency(desvio)}` : formatCurrency(desvio)}
+                            </TableCell>
+                            <TableCell className={`text-center text-xs font-black py-2.5 ${desvio > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {desvio > 0 ? `+${desvioPercent.toFixed(1)}%` : `${desvioPercent.toFixed(1)}%`}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </div>
           
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
