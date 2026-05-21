@@ -5,6 +5,7 @@ import {
   onSnapshot, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   doc, 
   serverTimestamp,
   where,
@@ -60,5 +61,9 @@ export const useIndicatorValues = (indicatorId?: string, month?: string) => {
     });
   };
 
-  return { values, isLoading, upsertValue };
+  const deleteValue = async (id: string) => {
+    await deleteDoc(doc(db, 'indicator_values', id));
+  };
+
+  return { values, isLoading, upsertValue, deleteValue };
 };

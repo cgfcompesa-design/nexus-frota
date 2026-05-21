@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Plus, CalendarIcon, LayoutGrid, List } from "lucide-react";
+import { ArrowLeft, Plus, CalendarIcon, LayoutGrid, List, Trash2, CalendarX } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -17,13 +17,14 @@ import { ptBR } from "date-fns/locale";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface GestaoVistaProps {
   onBack: () => void;
 }
 
 const GestaoVista = ({ onBack }: GestaoVistaProps) => {
-  const { indicators, isLoading } = useIndicators();
+  const { indicators, isLoading, deleteIndicator } = useIndicators();
   const { responsibles } = useResponsibles();
   const { tasks } = useKanbanData();
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -32,8 +33,47 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   
   const formattedMonth = format(selectedMonth, "yyyy-MM-01");
-  const { values: indicatorValues } = useIndicatorValues(undefined, formattedMonth);
-  const { values: allIndicatorValues } = useIndicatorValues();
+  const { values: indicatorValues, deleteValue } = useIndicatorValues(undefined, formattedMonth);
+  const { values: allIndicatorValues, deleteValue: deleteAnyValue } = useIndicatorValues();
+
+  const handleDeleteValue = async (valueId: string, indicatorName: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir o lançamento de score do mês selecionado para o indicador "${indicatorName}"?`)) {
+      return;
+    }
+    try {
+      await deleteValue(valueId);
+      toast.success("Lançamento mensal excluído com sucesso!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao excluir o lançamento do mês.");
+    }
+  };
+
+  const handleDeleteHistoryValue = async (valueId: string, indicatorName: string) => {
+    if (!window.confirm(`Tem certeza que deseja excluir este lançamento histórico do indicador "${indicatorName}"?`)) {
+      return;
+    }
+    try {
+      await deleteAnyValue(valueId);
+      toast.success("Lançamento histórico excluído com sucesso!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao excluir lançamento histórico.");
+    }
+  };
+
+  const handleDeleteIndicator = async (indicatorId: string, indicatorName: string) => {
+    if (!window.confirm(`ATENÇÃO: Isso removerá o indicador "${indicatorName}" PERMANENTEMENTE das listagens e relatórios. Confirma?`)) {
+      return;
+    }
+    try {
+      await deleteIndicator(indicatorId);
+      toast.success(`Indicador "${indicatorName}" removido permanentemente!`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao excluir cadastro do indicador.");
+    }
+  };
 
   const cgfLogo = "/src/assets/images/regenerated_image_1778593500523.png";
 
@@ -361,19 +401,43 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                       )}
                                     </TableCell>
                                     <TableCell className="py-4 text-right">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="sm" 
-                                        onClick={() => handleEditIndicator(indicator)}
-                                        className={cn(
-                                          "h-8 px-3 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
-                                          isFilled 
-                                            ? "text-indigo-600 hover:bg-indigo-50" 
-                                            : "text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                                      <div className="flex items-center justify-end gap-2">
+                                        <Button 
+                                          variant="ghost" 
+                                          size="sm" 
+                                          onClick={() => handleEditIndicator(indicator)}
+                                          className={cn(
+                                            "h-8 px-3 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
+                                            isFilled 
+                                              ? "text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-white/5" 
+                                              : "text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                                          )}
+                                        >
+                                          {isFilled ? "Alterar" : "Lançar"}
+                                        </Button>
+
+                                        {isFilled && (
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleDeleteValue(indicator.value_id, indicator.name)}
+                                            className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all"
+                                            title="Excluir lançamento deste mês"
+                                          >
+                                            <CalendarX className="h-4 w-4" />
+                                          </Button>
                                         )}
-                                      >
-                                        {isFilled ? "Alterar" : "Lançar"}
-                                      </Button>
+
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => handleDeleteIndicator(indicator.id, indicator.name)}
+                                          className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 pr-1"
+                                          title="Excluir indicador cadastrado"
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 );
@@ -401,7 +465,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                 .filter(e => e.section === section.id && e.month !== format(selectedMonth, "yyyy-MM"))
                                 .slice(0, 10)
                                 .map((entry) => (
-                                  <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 opacity-70 hover:opacity-100 transition-opacity">
+                                  <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 opacity-70 hover:opacity-100 transition-opacity group">
                                     <TableCell className="py-2">
                                       <span className="text-[9px] font-black uppercase text-slate-500">
                                         {format(new Date(entry.month + "T12:00:00Z"), "MMM / yy", { locale: ptBR })}
@@ -414,17 +478,28 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                       {entry.current_value}{entry.unit}
                                     </TableCell>
                                     <TableCell className="py-2 text-right">
-                                      <Button 
-                                        variant="ghost" 
-                                        size="xs"
-                                        onClick={() => {
-                                          setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
-                                          handleEditIndicator(entry);
-                                        }}
-                                        className="h-6 text-[8px] font-black uppercase"
-                                      >
-                                        Ver
-                                      </Button>
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        <Button 
+                                          variant="ghost" 
+                                          size="xs"
+                                          onClick={() => {
+                                            setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
+                                            handleEditIndicator(entry);
+                                          }}
+                                          className="h-6 text-[8px] font-black uppercase"
+                                        >
+                                          Ver
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => handleDeleteHistoryValue(entry.value_id, entry.name)}
+                                          className="h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                                          title="Excluir este lançamento histórico"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </div>
                                     </TableCell>
                                   </TableRow>
                                 ))}
