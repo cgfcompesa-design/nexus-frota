@@ -844,16 +844,17 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       currentY = 20;
     }
 
-    // Table: Custo Real vs Orçado por Período
+    // Table: Custo Real vs Orçado por Período (Média)
     doc.setFontSize(12);
     doc.setTextColor(30, 64, 175);
-    doc.text("Comparativo de Custo Real vs Orçado por Período (Mensal)", 14, currentY);
+    doc.text("Comparativo de Custo Real vs Orçado por Período (Média Mensal)", 14, currentY);
 
-    const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number }> = {};
+    const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number; count: number }> = {};
     filteredCustosData.forEach(c => {
-      if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0 };
+      if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0, count: 0 };
       monthlyTotalMap[c.mesAno].real += c.custoReal;
       monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
+      monthlyTotalMap[c.mesAno].count += 1;
     });
 
     const monthsRef: Record<string, number> = {
@@ -861,15 +862,21 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
     };
 
-    const monthlyTotalsList = Object.values(monthlyTotalMap).sort((a, b) => {
-      const partsA = a.mesAno.split('/');
-      const partsB = b.mesAno.split('/');
-      if (partsA.length < 2 || partsB.length < 2) return 0;
-      const numAnoA = parseInt(partsA[1]) || 0;
-      const numAnoB = parseInt(partsB[1]) || 0;
-      if (numAnoA !== numAnoB) return numAnoA - numAnoB;
-      return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
-    });
+    const monthlyTotalsList = Object.values(monthlyTotalMap)
+      .map(item => ({
+        mesAno: item.mesAno,
+        real: item.real / (item.count || 1),
+        orcado: item.orcado / (item.count || 1)
+      }))
+      .sort((a, b) => {
+        const partsA = a.mesAno.split('/');
+        const partsB = b.mesAno.split('/');
+        if (partsA.length < 2 || partsB.length < 2) return 0;
+        const numAnoA = parseInt(partsA[1]) || 0;
+        const numAnoB = parseInt(partsB[1]) || 0;
+        if (numAnoA !== numAnoB) return numAnoA - numAnoB;
+        return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
+      });
 
     const periodTableData = monthlyTotalsList.map(item => {
       const desvio = item.real - item.orcado;
@@ -1628,72 +1635,23 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
               </ResponsiveContainer>
             </ChartCard>
 
-            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col justify-between">
-              <CardHeader className="py-4">
-                <CardTitle className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Comparativo Mensal - Real vs Orçado</CardTitle>
-                <p className="text-xs text-muted-foreground">Tabela com valores consolidados por mês e desvio financeiro</p>
-              </CardHeader>
-              <CardContent className="p-0 overflow-auto max-h-[290px]">
-                <Table>
-                  <TableHeader className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
-                    <TableRow>
-                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Mês/Ano</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Orçado</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Realizado</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Desvio (R$)</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Desvio (%)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {(() => {
-                      const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number }> = {};
-                      filteredCustosData.forEach(c => {
-                        if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0 };
-                        monthlyTotalMap[c.mesAno].real += c.custoReal;
-                        monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
-                      });
-
-                      const monthsRef: Record<string, number> = {
-                        jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
-                        jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
-                      };
-
-                      const sorted = Object.values(monthlyTotalMap).sort((a, b) => {
-                        const partsA = a.mesAno.split('/');
-                        const partsB = b.mesAno.split('/');
-                        if (partsA.length < 2 || partsB.length < 2) return 0;
-                        const numAnoA = parseInt(partsA[1]) || 0;
-                        const numAnoB = parseInt(partsB[1]) || 0;
-                        if (numAnoA !== numAnoB) return numAnoA - numAnoB;
-                        return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
-                      });
-
-                      if (sorted.length === 0) {
-                        return <TableRow><TableCell colSpan={5} className="text-center py-8 text-xs text-muted-foreground">Nenhum dado financeiro para o período</TableCell></TableRow>;
-                      }
-
-                      return sorted.map((row, idx) => {
-                        const desvio = row.real - row.orcado;
-                        const desvioPercent = row.orcado > 0 ? (desvio / row.orcado) * 100 : 0;
-                        return (
-                          <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                            <TableCell className="text-center text-xs font-black py-2.5">{row.mesAno}</TableCell>
-                            <TableCell className="text-center text-xs py-2.5">{formatCurrency(row.orcado)}</TableCell>
-                            <TableCell className="text-center text-xs font-bold py-2.5">{formatCurrency(row.real)}</TableCell>
-                            <TableCell className={`text-center text-xs font-black py-2.5 ${desvio > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                              {desvio > 0 ? `+${formatCurrency(desvio)}` : formatCurrency(desvio)}
-                            </TableCell>
-                            <TableCell className={`text-center text-xs font-black py-2.5 ${desvio > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
-                              {desvio > 0 ? `+${desvioPercent.toFixed(1)}%` : `${desvioPercent.toFixed(1)}%`}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      });
-                    })()}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+            <ChartCard title="Custo Real vs Orçado por Período" description="Comparativo mensal de investimentos">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costsByPeriod}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                  <XAxis dataKey="mesAno" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                  <YAxis tick={{fontSize: 9}} tickFormatter={v => `R$${(v/1000)}k`} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={v => [formatCurrency(Number(v)), '']} 
+                  />
+                  <Legend />
+                  <Bar name="Realizado" dataKey="real" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                  <Bar name="Orçado" dataKey="orcado" fill="#94a3b8" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1747,19 +1705,78 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
               </ResponsiveContainer>
             </ChartCard>
 
-            <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-900/50 p-6 flex flex-col justify-between">
-              <div>
-                <h3 className="text-sm font-black text-indigo-900 dark:text-indigo-400 uppercase tracking-widest mb-3">📍 DIRETRIZES DE AUDITORIA & REGULAMENTAÇÃO</h3>
-                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
-                  <p>• <strong>Controle Orçamentário (AO vs AU/AV):</strong> O acompanhamento mensal cruza os custos lançados na planilha de detalhes gerais com o orçamento planejado inicial. Desvios superiores a 15% devem ser justificados formalmente.</p>
-                  <p>• <strong>Distribuição por Regional:</strong> As ordens de serviço são triadas pela coluna Unidade (Gerência AL) permitindo a identificação imediata de pólos operacionais com alto consumo ou desgaste severo.</p>
-                  <p>• <strong>Políticas de Manutenção:</strong> Priorize inspeções preventivas regulares para atenuar as despesas das MCE (Corretivas Emergenciais), estendendo o índice de disponibilidade inerente dos ativos.</p>
-                </div>
-              </div>
-              <div className="mt-4 pt-4 border-t border-indigo-100 dark:border-slate-800 text-[10px] text-indigo-600 dark:text-indigo-300 font-bold uppercase flex justify-between">
-                <span>Relatório Consolidado de Custos</span>
-                <span>CGF / COMPESA</span>
-              </div>
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col justify-between">
+              <CardHeader className="py-4">
+                <CardTitle className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Comparativo Mensal - Real vs Orçado</CardTitle>
+                <p className="text-xs text-muted-foreground">Tabela com médias mensais de custo e desvio financeiro</p>
+              </CardHeader>
+              <CardContent className="p-0 overflow-auto max-h-[290px]">
+                <Table>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-800/50 sticky top-0">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Mês/Ano</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Orçado (Média)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Realizado (Média)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Desvio (R$)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-center py-2">Desvio (%)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number; count: number }> = {};
+                      filteredCustosData.forEach(c => {
+                        if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0, count: 0 };
+                        monthlyTotalMap[c.mesAno].real += c.custoReal;
+                        monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
+                        monthlyTotalMap[c.mesAno].count += 1;
+                      });
+
+                      const monthsRef: Record<string, number> = {
+                        jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+                        jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+                      };
+
+                      const sorted = Object.values(monthlyTotalMap)
+                        .map(item => ({
+                          mesAno: item.mesAno,
+                          real: item.real / (item.count || 1),
+                          orcado: item.orcado / (item.count || 1)
+                        }))
+                        .sort((a, b) => {
+                          const partsA = a.mesAno.split('/');
+                          const partsB = b.mesAno.split('/');
+                          if (partsA.length < 2 || partsB.length < 2) return 0;
+                          const numAnoA = parseInt(partsA[1]) || 0;
+                          const numAnoB = parseInt(partsB[1]) || 0;
+                          if (numAnoA !== numAnoB) return numAnoA - numAnoB;
+                          return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
+                        });
+
+                      if (sorted.length === 0) {
+                        return <TableRow><TableCell colSpan={5} className="text-center py-8 text-xs text-muted-foreground">Nenhum dado financeiro para o período</TableCell></TableRow>;
+                      }
+
+                      return sorted.map((row, idx) => {
+                        const desvio = row.real - row.orcado;
+                        const desvioPercent = row.orcado > 0 ? (desvio / row.orcado) * 100 : 0;
+                        return (
+                          <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                            <TableCell className="text-center text-xs font-black py-2.5">{row.mesAno}</TableCell>
+                            <TableCell className="text-center text-xs py-2.5">{formatCurrency(row.orcado)}</TableCell>
+                            <TableCell className="text-center text-xs font-bold py-2.5">{formatCurrency(row.real)}</TableCell>
+                            <TableCell className={`text-center text-xs font-black py-2.5 ${desvio > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {desvio > 0 ? `+${formatCurrency(desvio)}` : formatCurrency(desvio)}
+                            </TableCell>
+                            <TableCell className={`text-center text-xs font-black py-2.5 ${desvio > 0 ? "text-rose-600 dark:text-rose-400" : "text-emerald-600 dark:text-emerald-400"}`}>
+                              {desvio > 0 ? `+${desvioPercent.toFixed(1)}%` : `${desvioPercent.toFixed(1)}%`}
+                            </TableCell>
+                          </TableRow>
+                        );
+                      });
+                    })()}
+                  </TableBody>
+                </Table>
+              </CardContent>
             </Card>
           </div>
           
