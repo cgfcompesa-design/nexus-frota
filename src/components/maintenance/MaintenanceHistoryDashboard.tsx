@@ -1628,76 +1628,6 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
               </ResponsiveContainer>
             </ChartCard>
 
-            <ChartCard title="Custo Real vs Orçado por Período" description="Comparativo mensal de investimentos">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={costsByPeriod}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                  <XAxis dataKey="mesAno" tick={{fontSize: 10, fontWeight: 'bold'}} />
-                  <YAxis tick={{fontSize: 9}} tickFormatter={v => `R$${(v/1000)}k`} />
-                  <RechartsTooltip 
-                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
-                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                    formatter={v => [formatCurrency(Number(v)), '']} 
-                  />
-                  <Legend />
-                  <Bar name="Realizado" dataKey="real" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                  <Bar name="Orçado" dataKey="orcado" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ChartCard title="Custo Consolidado por Tipo de Atividade de Manutenção" description="Distribuição financeira por tipo de atividade">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={costsByTam}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
-                  <XAxis dataKey="tam" tick={{fontSize: 10, fontWeight: 'bold'}} />
-                  <YAxis tick={{fontSize: 9}} tickFormatter={v => `R$${(v/1000)}k`} />
-                  <RechartsTooltip 
-                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
-                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
-                  />
-                  <Bar dataKey="custo" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={40} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
-            <ChartCard title="Ativos com Maior Consumo por Placa" description="Os 10 veículos com maiores gastos acumulados em manutenção">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={costsByPlate} layout="vertical" margin={{ left: 20, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="placa" type="category" tick={{fontSize: 10, fontWeight: 'bold'}} width={85} />
-                  <RechartsTooltip 
-                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
-                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
-                  />
-                  <Bar dataKey="custo" fill="#e11d48" radius={[0, 4, 4, 0]} maxBarSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ChartCard title="Top 10 - Maiores Custos por Unidade (Gerência)" description="Unidades (Gerências - Coluna AL) com maiores gastos acumulados (Coluna AO)">
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={costsByGerencia} layout="vertical" margin={{ left: 20, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="gerencia" type="category" tick={{fontSize: 9, fontWeight: 'bold'}} width={110} />
-                  <RechartsTooltip 
-                    cursor={{fill: 'rgba(99, 102, 241, 0.1)'}}
-                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
-                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
-                  />
-                  <Bar dataKey="custo" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={20} />
-                </BarChart>
-              </ResponsiveContainer>
-            </ChartCard>
-
             <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col justify-between">
               <CardHeader className="py-4">
                 <CardTitle className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider">Comparativo Mensal - Real vs Orçado</CardTitle>
@@ -1763,6 +1693,73 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                   </TableBody>
                 </Table>
               </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChartCard title="Custo Consolidado por Tipo de Atividade de Manutenção" description="Distribuição financeira por tipo de atividade">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costsByTam}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                  <XAxis dataKey="tam" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                  <YAxis tick={{fontSize: 9}} tickFormatter={v => `R$${(v/1000)}k`} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
+                  />
+                  <Bar dataKey="custo" fill="#3b82f6" radius={[6, 6, 0, 0]} barSize={40} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <ChartCard title="Ativos com Maior Consumo por Placa" description="Os 10 veículos com maiores gastos acumulados em manutenção">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costsByPlate} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="placa" type="category" tick={{fontSize: 10, fontWeight: 'bold'}} width={85} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'rgba(59, 130, 246, 0.1)'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
+                  />
+                  <Bar dataKey="custo" fill="#e11d48" radius={[0, 4, 4, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChartCard title="Top 10 - Maiores Custos por Unidade (Gerência)" description="Unidades (Gerências - Coluna AL) com maiores gastos acumulados (Coluna AO)">
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={costsByGerencia} layout="vertical" margin={{ left: 20, right: 30 }}>
+                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
+                  <XAxis type="number" hide />
+                  <YAxis dataKey="gerencia" type="category" tick={{fontSize: 9, fontWeight: 'bold'}} width={110} />
+                  <RechartsTooltip 
+                    cursor={{fill: 'rgba(99, 102, 241, 0.1)'}}
+                    contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                    formatter={v => [formatCurrency(Number(v)), 'Custo']} 
+                  />
+                  <Bar dataKey="custo" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={20} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartCard>
+
+            <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-50 to-white dark:from-slate-900 dark:to-slate-900/50 p-6 flex flex-col justify-between">
+              <div>
+                <h3 className="text-sm font-black text-indigo-900 dark:text-indigo-400 uppercase tracking-widest mb-3">📍 DIRETRIZES DE AUDITORIA & REGULAMENTAÇÃO</h3>
+                <div className="space-y-3 text-xs text-slate-600 dark:text-slate-300">
+                  <p>• <strong>Controle Orçamentário (AO vs AU/AV):</strong> O acompanhamento mensal cruza os custos lançados na planilha de detalhes gerais com o orçamento planejado inicial. Desvios superiores a 15% devem ser justificados formalmente.</p>
+                  <p>• <strong>Distribuição por Regional:</strong> As ordens de serviço são triadas pela coluna Unidade (Gerência AL) permitindo a identificação imediata de pólos operacionais com alto consumo ou desgaste severo.</p>
+                  <p>• <strong>Políticas de Manutenção:</strong> Priorize inspeções preventivas regulares para atenuar as despesas das MCE (Corretivas Emergenciais), estendendo o índice de disponibilidade inerente dos ativos.</p>
+                </div>
+              </div>
+              <div className="mt-4 pt-4 border-t border-indigo-100 dark:border-slate-800 text-[10px] text-indigo-600 dark:text-indigo-300 font-bold uppercase flex justify-between">
+                <span>Relatório Consolidado de Custos</span>
+                <span>CGF / COMPESA</span>
+              </div>
             </Card>
           </div>
           
