@@ -845,6 +845,31 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     return Object.values(map).sort((a, b) => b.liters - a.liters);
   }, [filteredFuel]);
 
+  // Top Condutores (por Litros e por Custo)
+  const topDriversData = useMemo(() => {
+    const map: Record<string, { name: string; liters: number; cost: number; count: number }> = {};
+    filteredFuel.forEach(f => {
+      const name = String(f.COL_11 || f._driver || f.CONDUTOR || f["NOME MOTORISTA"] || "").trim().toUpperCase();
+      if (!name || name === "N/A" || name === "NOME MOTORISTA" || name === "CONDUTOR" || name === "NULL" || name === "UNDEFINED" || name === "") return;
+
+      const liters = f._litros || 0;
+      const cost = f._total || 0;
+
+      if (!map[name]) {
+        map[name] = { name, liters: 0, cost: 0, count: 0 };
+      }
+      map[name].liters += liters;
+      map[name].cost += cost;
+      map[name].count += 1;
+    });
+
+    const list = Object.values(map);
+    return {
+      byLiters: [...list].sort((a, b) => b.liters - a.liters).slice(0, 10),
+      byCost: [...list].sort((a, b) => b.cost - a.cost).slice(0, 10)
+    };
+  }, [filteredFuel]);
+
   // 8. Tabela de Detalhamento por Veículo (Placa, Tipo, Modelo, Titularidade, Ano, Mês 1, Mês 2, Mês 3, Último Odômetro)
   const displayMonths = useMemo(() => {
     if (monthYearOptions.length > 0) return monthYearOptions.slice(-6);
@@ -856,6 +881,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const chartsContainerRef = useRef<HTMLDivElement>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [tableScrollWidth, setTableScrollWidth] = useState(1500);
+  const [driverChartMetric, setDriverChartMetric] = useState<"liters" | "cost">("liters");
 
   const handleExportPDF = async () => {
     setIsExportingPDF(true);
@@ -1081,7 +1107,37 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         styles: { fontSize: 8.5, cellPadding: 2.5 },
       });
 
-      // Page 5: Visual charts fallback image handler
+      // Page 5: Dedicated Page for Drivers ranking
+      doc.addPage();
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidth, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("COMPESA - RANKING DE CONDUTORES (TOP 10)", 14, 10);
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(11);
+      doc.text("Os 10 Condutores com Maior Consumo e Investimento", 14, 25);
+
+      const driversBody = topDriversData.byLiters.map((item, idx) => [
+        `#${idx + 1}`,
+        item.name,
+        `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
+        `R$ ${item.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+        `${item.count} abast.`
+      ]);
+
+      autoTable(doc, {
+        startY: 30,
+        theme: "striped",
+        head: [["Posição", "Nome do Condutor (Coluna L)", "Volume (Litros - Coluna O)", "Custo Total (R$ - Coluna T)", "Qtd de Abastecimentos"]],
+        body: driversBody,
+        headStyles: { fillColor: [79, 70, 229] }, // indigo-600
+        styles: { fontSize: 8.5, cellPadding: 2.5 },
+      });
+
+      // Page 6: Visual charts fallback image handler
       if (chartsContainerRef.current) {
         try {
           const canvas = await html2canvas(chartsContainerRef.current, {
@@ -1345,6 +1401,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       { data: summaryData, sheetName: "Resumo por Veículo" }
     ], "Relatorio_Fuel_Dashboard");
   };
+
+  const activeDriversData = driverChartMetric === "liters" ? topDriversData.byLiters : topDriversData.byCost;
 
   return (
     <div className="space-y-6">
@@ -1744,38 +1802,121 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         )}
       </div>
 
-      {/* Dashboard: Consumo por Tipo de Combustível */}
-      <ChartCard 
-        title="Consumo por Tipo de Combustível" 
-        description="Volume abastecido em litros (coluna O) contra o custo total em reais (coluna T) por combustível"
-        className="min-h-[380px]"
-      >
-        {fuelTypeConsumptionData.length === 0 ? (
-          <ChartEmptyState title="Consumo por Tipo de Combustível" />
-        ) : (
-          <ResponsiveContainer width="100%" height={320}>
-            <BarChart data={fuelTypeConsumptionData} margin={{ top: 15, right: 15, left: 10, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-              <XAxis dataKey="type" axisLine={false} tickLine={false} fontSize={10} className="font-bold text-slate-600" />
-              <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" axisLine={false} tickLine={false} fontSize={10} label={{ value: 'Volume (L)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 10, fill: '#3b82f6', fontWeight: 'bold' } }} />
-              <YAxis yAxisId="right" orientation="right" stroke="#10b981" axisLine={false} tickLine={false} fontSize={10} label={{ value: 'Custo (R$)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fontSize: 10, fill: '#10b981', fontWeight: 'bold' } }} />
-              <Tooltip 
-                cursor={{ fill: 'rgba(99, 102, 241, 0.04)' }} 
-                contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
-                itemStyle={{ color: '#fff' }}
-                formatter={(val: number, name: string) => {
-                  if (name === "liters") return [`${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`, "Volume (Litros)"];
-                  if (name === "cost") return [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Custo Total (R$)"];
-                  return [val.toLocaleString('pt-BR'), name];
-                }}
-              />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-              <Bar yAxisId="left" dataKey="liters" name="Volume (Litros)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={45} />
-              <Bar yAxisId="right" dataKey="cost" name="Custo (R$)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={45} />
-            </BarChart>
-          </ResponsiveContainer>
-        )}
-      </ChartCard>
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        {/* Dashboard: Consumo por Tipo de Combustível */}
+        <ChartCard 
+          title="Consumo por Tipo de Combustível" 
+          description="Volume em litros (coluna O) contra o custo total em reais (coluna T) por tipo"
+          className="min-h-[380px]"
+        >
+          {fuelTypeConsumptionData.length === 0 ? (
+            <ChartEmptyState title="Consumo por Tipo de Combustível" />
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={fuelTypeConsumptionData} margin={{ top: 15, right: 15, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                <XAxis dataKey="type" axisLine={false} tickLine={false} fontSize={10} className="font-bold text-slate-600" />
+                <YAxis yAxisId="left" orientation="left" stroke="#3b82f6" axisLine={false} tickLine={false} fontSize={10} label={{ value: 'Volume (L)', angle: -90, position: 'insideLeft', style: { textAnchor: 'middle', fontSize: 10, fill: '#3b82f6', fontWeight: 'bold' } }} />
+                <YAxis yAxisId="right" orientation="right" stroke="#10b981" axisLine={false} tickLine={false} fontSize={10} label={{ value: 'Custo (R$)', angle: 90, position: 'insideRight', style: { textAnchor: 'middle', fontSize: 10, fill: '#10b981', fontWeight: 'bold' } }} />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.04)' }} 
+                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(val: number, name: string) => {
+                    if (name === "liters") return [`${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`, "Volume (Litros)"];
+                    if (name === "cost") return [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Custo Total (R$)"];
+                    return [val.toLocaleString('pt-BR'), name];
+                  }}
+                />
+                <Legend iconType="circle" wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
+                <Bar yAxisId="left" dataKey="liters" name="Volume (Litros)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={45} />
+                <Bar yAxisId="right" dataKey="cost" name="Custo (R$)" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={45} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+
+        {/* Dashboard: Condutores que mais Abastecem */}
+        <ChartCard 
+          title="Top 10 - Condutores que mais Abastecem" 
+          description={`Classificação por ${driverChartMetric === "liters" ? "Volume (Litros - Coluna O)" : "Custo Total (Reais - Coluna T)"}`}
+          className="min-h-[380px]"
+          headerAction={
+            <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200/50 dark:border-slate-700/50" id="driver-metric-toggle-container">
+              <button
+                id="btn-metric-liters-toggle"
+                onClick={() => setDriverChartMetric("liters")}
+                className={`px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                  driverChartMetric === "liters"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                LITROS
+              </button>
+              <button
+                id="btn-metric-cost-toggle"
+                onClick={() => setDriverChartMetric("cost")}
+                className={`px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                  driverChartMetric === "cost"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                CUSTO (R$)
+              </button>
+            </div>
+          }
+        >
+          {activeDriversData.length === 0 ? (
+            <ChartEmptyState title="Dados de Condutores" />
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart 
+                data={activeDriversData} 
+                layout="vertical" 
+                margin={{ top: 10, right: 15, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} strokeOpacity={0.1} />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={130} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  fontSize={8} 
+                  className="font-bold text-slate-600 dark:text-slate-400 truncate"
+                  tickFormatter={(val) => val.length > 20 ? `${val.substring(0, 18)}...` : val}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.04)' }}
+                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(val: number) => {
+                    if (driverChartMetric === "liters") {
+                      return [`${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`, "Volume"];
+                    } else {
+                      return [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Custo"];
+                    }
+                  }}
+                />
+                <Bar 
+                  dataKey={driverChartMetric === "liters" ? "liters" : "cost"} 
+                  name={driverChartMetric === "liters" ? "Volume (L)" : "Custo (R$)"}
+                  fill={driverChartMetric === "liters" ? "#3b82f6" : "#10b981"} 
+                  radius={[0, 4, 4, 0]}
+                  maxBarSize={20}
+                >
+                  {activeDriversData.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={driverChartMetric === "liters" ? "#3b82f6" : "#10b981"} fillOpacity={1 - index * 0.05} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+      </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
         <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos (R$)" className="h-[350px]">
