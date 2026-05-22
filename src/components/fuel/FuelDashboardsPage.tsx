@@ -672,7 +672,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const top10ByAsset = useMemo(() => {
     const map: Record<string, { placa: string; liters: number; cost: number }> = {};
     filteredFuel.forEach(f => {
-      const placa = (f._placa || "N/A").toUpperCase();
+      const placa = String(f._placa || "N/A").toUpperCase();
       if (!map[placa]) map[placa] = { placa, liters: 0, cost: 0 };
       map[placa].liters += f._litros || 0;
       map[placa].cost += f._total || 0;
@@ -682,16 +682,26 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   // 3. Top 10 - Custo por Unidade (Gerência)
   const top10ByUnit = useMemo(() => {
-    const map: Record<string, { unit: string; cost: number }> = {};
+    const map: Record<string, { unit: string; cost: number; vehicles: Set<string> }> = {};
     filteredFuel.forEach(f => {
-      const placa = (f._placa || "").toUpperCase();
+      const placa = (f._placa || f.PLACA || f.COL_5 || "").toString().toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
       const asset = assetsByPlaca.get(placa);
       const unit = asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.Gerencia || "N/A";
       if (!unit) return;
-      if (!map[unit]) map[unit] = { unit, cost: 0 };
+      if (!map[unit]) map[unit] = { unit, cost: 0, vehicles: new Set<string>() };
       map[unit].cost += f._total || 0;
+      if (placa && placa !== "N/A" && placa !== "") {
+        map[unit].vehicles.add(placa);
+      }
     });
-    return Object.values(map).sort((a, b) => b.cost - a.cost).slice(0, 10);
+    return Object.values(map)
+      .map(item => ({
+        unit: item.unit,
+        cost: item.cost,
+        numVehicles: item.vehicles.size
+      }))
+      .sort((a, b) => b.cost - a.cost)
+      .slice(0, 10);
   }, [filteredFuel, assetsByPlaca]);
 
   // 4. Top 10 - Veículos Há Mais Tempo Sem Abastecer
@@ -847,7 +857,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   // Top Condutores (por Litros e por Custo)
   const topDriversData = useMemo(() => {
-    const map: Record<string, { name: string; liters: number; cost: number; count: number }> = {};
+    const map: Record<string, { name: string; liters: number; cost: number; count: number; diretoria: string; gerencia: string }> = {};
     filteredFuel.forEach(f => {
       const name = String(f.COL_11 || f._driver || f.CONDUTOR || f["NOME MOTORISTA"] || "").trim().toUpperCase();
       if (!name || name === "N/A" || name === "NOME MOTORISTA" || name === "CONDUTOR" || name === "NULL" || name === "UNDEFINED" || name === "") return;
@@ -855,12 +865,24 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const liters = f._litros || 0;
       const cost = f._total || 0;
 
+      const placa = String(f._placa || "").toUpperCase();
+      const asset = assetsByPlaca.get(placa);
+      const diretoria = String(f.COL_28 || asset?.DIRETORIA || asset?.Diretoria || "").trim();
+      const gerencia = String(f.COL_29 || asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.Gerencia || "").trim();
+
       if (!map[name]) {
-        map[name] = { name, liters: 0, cost: 0, count: 0 };
+        map[name] = { name, liters: 0, cost: 0, count: 0, diretoria: "", gerencia: "" };
       }
       map[name].liters += liters;
       map[name].cost += cost;
       map[name].count += 1;
+      
+      if (diretoria && (!map[name].diretoria || map[name].diretoria === "N/A")) {
+        map[name].diretoria = diretoria;
+      }
+      if (gerencia && (!map[name].gerencia || map[name].gerencia === "N/A")) {
+        map[name].gerencia = gerencia;
+      }
     });
 
     const list = Object.values(map);
@@ -868,7 +890,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       byLiters: [...list].sort((a, b) => b.liters - a.liters).slice(0, 10),
       byCost: [...list].sort((a, b) => b.cost - a.cost).slice(0, 10)
     };
-  }, [filteredFuel]);
+  }, [filteredFuel, assetsByPlaca]);
 
   // 8. Tabela de Detalhamento por Veículo (Placa, Tipo, Modelo, Titularidade, Ano, Mês 1, Mês 2, Mês 3, Último Odômetro)
   const displayMonths = useMemo(() => {
@@ -1008,6 +1030,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const top10Body = top10ByAsset.map((item, idx) => [
         `#${idx + 1}`,
         item.placa,
+        "1",
         `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
         `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
       ]);
@@ -1015,7 +1038,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       autoTable(doc, {
         startY: 30,
         theme: "striped",
-        head: [["Posição", "Placa do Ativo", "Total de Volume", "Investimento Total"]],
+        head: [["Posição", "Placa do Ativo", "Qtd Veículos (Placa)", "Total de Volume", "Investimento Total"]],
         body: top10Body,
         headStyles: { fillColor: [51, 65, 85] },
         styles: { fontSize: 8.5 },
@@ -1030,13 +1053,14 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const topUnitBody = top10ByUnit.map((item, idx) => [
         `#${idx + 1}`,
         item.unit,
+        String((item as any).numVehicles || 0),
         `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
       ]);
 
       autoTable(doc, {
         startY: finalY + 16,
         theme: "striped",
-        head: [["Posição", "Unidade / Gerência", "Despesa Total"]],
+        head: [["Posição", "Unidade / Gerência", "Qtd Veículos (Placa)", "Despesa Total"]],
         body: topUnitBody,
         headStyles: { fillColor: [51, 65, 85] },
         styles: { fontSize: 8.5 },
@@ -1078,6 +1102,15 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         body: compBody,
         headStyles: { fillColor: [79, 70, 229] },
         styles: { fontSize: 8, cellPadding: 2 },
+        didParseCell: (data) => {
+          if (data.row.section === 'body') {
+            const firstCellText = data.row.raw && (data.row.raw as any)[0];
+            if (firstCellText === 'Maio') {
+              data.cell.styles.textColor = [220, 38, 38]; // Dynamic red color for Maio
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
       });
 
       const finalYPage4 = (doc as any).lastAutoTable.finalY || 135;
@@ -1123,6 +1156,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const driversBody = topDriversData.byLiters.map((item, idx) => [
         `#${idx + 1}`,
         item.name,
+        item.diretoria || "Não Especificada",
+        item.gerencia || "Não Especificada",
         `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
         `R$ ${item.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
         `${item.count} abast.`
@@ -1131,10 +1166,18 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       autoTable(doc, {
         startY: 30,
         theme: "striped",
-        head: [["Posição", "Nome do Condutor (Coluna L)", "Volume (Litros - Coluna O)", "Custo Total (R$ - Coluna T)", "Qtd de Abastecimentos"]],
+        head: [[
+          "Posição", 
+          "Nome do Condutor (Coluna L)", 
+          "Diretoria (Col. AC)", 
+          "Gerência (Col. AD)", 
+          "Volume (Litros - Coluna O)", 
+          "Custo Total (R$ - Coluna T)", 
+          "Qtd de Abastecimentos"
+        ]],
         body: driversBody,
         headStyles: { fillColor: [79, 70, 229] }, // indigo-600
-        styles: { fontSize: 8.5, cellPadding: 2.5 },
+        styles: { fontSize: 8.0, cellPadding: 2.0 },
       });
 
       // Page 6: Visual charts fallback image handler

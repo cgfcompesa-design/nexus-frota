@@ -623,12 +623,21 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
   }, [indicatorData, operationalPlates]);
 
   const costsByTipo = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { value: number; plates: Set<string> }> = {};
     filteredCustosData.forEach(c => {
-      map[c.tipo] = (map[c.tipo] || 0) + c.custo;
+      const name = c.tipo || "Não Especificado";
+      if (!map[name]) map[name] = { value: 0, plates: new Set<string>() };
+      map[name].value += c.custo;
+      if (c.placa) {
+        map[name].plates.add(String(c.placa).toUpperCase().trim());
+      }
     });
     return Object.entries(map)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, item]) => ({
+        name,
+        value: item.value,
+        numAssets: item.plates.size
+      }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10);
   }, [filteredCustosData]);
@@ -665,13 +674,19 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
   }, [filteredCustosData]);
 
   const costsByTam = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { custo: number; count: number }> = {};
     filteredCustosData.forEach(c => {
       const tam = c.tam || "S/D";
-      map[tam] = (map[tam] || 0) + c.custo;
+      if (!map[tam]) map[tam] = { custo: 0, count: 0 };
+      map[tam].custo += c.custo;
+      map[tam].count += 1;
     });
     return Object.entries(map)
-      .map(([tam, custo]) => ({ tam, custo }))
+      .map(([tam, item]) => ({
+        tam,
+        custo: item.custo,
+        count: item.count
+      }))
       .sort((a, b) => b.custo - a.custo);
   }, [filteredCustosData]);
 
@@ -688,13 +703,21 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
   }, [filteredCustosData]);
 
   const costsByGerencia = useMemo(() => {
-    const map: Record<string, number> = {};
+    const map: Record<string, { custo: number; plates: Set<string> }> = {};
     filteredCustosData.forEach(c => {
       const g = c.gerencia || "S/D";
-      map[g] = (map[g] || 0) + c.custo;
+      if (!map[g]) map[g] = { custo: 0, plates: new Set<string>() };
+      map[g].custo += c.custo;
+      if (c.placa) {
+        map[g].plates.add(String(c.placa).toUpperCase().trim());
+      }
     });
     return Object.entries(map)
-      .map(([gerencia, custo]) => ({ gerencia, custo }))
+      .map(([gerencia, item]) => ({
+        gerencia,
+        custo: item.custo,
+        numAssets: item.plates.size
+      }))
       .sort((a, b) => b.custo - a.custo)
       .slice(0, 10);
   }, [filteredCustosData]);
@@ -799,12 +822,13 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
 
     const tipoTableData = costsByTipo.map(item => [
       item.name || "Não Especificado",
+      String((item as any).numAssets || 0),
       formatCurrency(item.value)
     ]);
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [["Tipo de Custo", "Valor Total Gasto"]],
+      head: [["Tipo de Custo", "Quantidade de Ativos", "Valor Total Gasto"]],
       body: tipoTableData,
       theme: "grid",
       headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
@@ -825,13 +849,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     const gerenciaTableData = costsByGerencia.map((item, idx) => [
       `${idx + 1}º`,
       item.gerencia,
+      String((item as any).numAssets || 0),
       formatCurrency(item.custo),
       totalInvestido > 0 ? `${((item.custo / totalInvestido) * 100).toFixed(1)}%` : "0%"
     ]);
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [["Posição", "Unidade (Gerência)", "Custo Total Gasto", "% do Total"]],
+      head: [["Posição", "Unidade (Gerência)", "Quantidade de Ativos", "Custo Total Gasto", "% do Total"]],
       body: gerenciaTableData,
       theme: "grid",
       headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
@@ -913,12 +938,13 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     const tamTableData = costsByTam.map(item => [
       item.tam,
       TAM_DESCRIPTIONS[item.tam] || "Outros",
+      String((item as any).count || 0),
       formatCurrency(item.custo)
     ]);
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [["Sigla TAM", "Descrição da Atividade", "Custo Total"]],
+      head: [["Sigla TAM", "Descrição da Atividade", "Quantidade de Manutenções (Col. AT)", "Custo Total"]],
       body: tamTableData,
       theme: "grid",
       headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
