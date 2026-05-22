@@ -423,100 +423,10 @@ export default function TelemetryDashboard() {
       </div>
 
       {activeTab === "performance" && <RankingView />}
-      {activeTab === "drivers" && <DriversRelation />}
-      
-      {activeTab === "notifications" && (
+      {activeTab === "drivers" && (
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <ChartCard title="Distribuição por Tipo de Notificação" description="Eventos críticos sincronizados">
-              <div style={{ height: '350px', width: '100%', position: 'relative' }} className="flex items-center justify-center overflow-visible">
-                {tiposNotificacaoChart.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" debounce={1}>
-                    <PieChart>
-                      <Pie
-                        data={tiposNotificacaoChart}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={70}
-                        outerRadius={110}
-                        paddingAngle={5}
-                        dataKey="value"
-                        isAnimationActive={false}
-                      >
-                        {tiposNotificacaoChart.map((_, index) => (
-                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(255,255,255,0.2)" strokeWidth={2} />
-                        ))}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
-                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="bg-slate-50 dark:bg-slate-800/50 w-full h-[350px] rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-700">
-                    <PieIcon className="text-slate-300 mb-2" size={40} />
-                    <p className="text-[10px] font-black uppercase text-slate-400">Sem dados para exibição</p>
-                  </div>
-                )}
-              </div>
-            </ChartCard>
-
-            <ChartCard 
-              title="Evolução Temporal" 
-              description="Análise dinâmica por tipo e gravidade"
-            >
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit mb-4">
-                <button
-                  onClick={() => setTimelineView("severity")}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${timelineView === "severity" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  Gravidade
-                </button>
-                <button
-                  onClick={() => setTimelineView("type")}
-                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${timelineView === "type" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                >
-                  Tipo
-                </button>
-              </div>
-
-              <div style={{ height: '280px', width: '100%', position: 'relative' }} className="flex items-center justify-center overflow-visible">
-                {timelineChartData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%" debounce={1}>
-                    <AreaChart data={timelineChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                      <defs>
-                        {COLORS.map((color, i) => (
-                          <linearGradient key={`grad-${i}`} id={`color-${i}`} x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor={color} stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor={color} stopOpacity={0}/>
-                          </linearGradient>
-                        ))}
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                      <XAxis dataKey="mesAno" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} dy={10} />
-                      <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
-                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold'}} />
-                      <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' }} />
-                      {timelineView === "severity" ? (
-                        gravidades.map((g, i) => (
-                          <Area key={g} type="monotone" dataKey={g} stackId="1" stroke={COLORS[i % COLORS.length]} strokeWidth={3} fillOpacity={1} fill={`url(#color-${i % COLORS.length})`} isAnimationActive={false} />
-                        ))
-                      ) : (
-                        tiposNotificacao.slice(0, 5).map((t, i) => (
-                          <Area key={t} type="monotone" dataKey={t} stackId="1" stroke={COLORS[(i + 3) % COLORS.length]} strokeWidth={3} fillOpacity={1} fill={`url(#color-${(i + 3) % COLORS.length})`} isAnimationActive={false} />
-                        ))
-                      )}
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-300">
-                    <Activity size={40} className="mb-2" />
-                    <p className="text-[10px] font-black uppercase tracking-widest">Sem dados históricos</p>
-                  </div>
-                )}
-              </div>
-            </ChartCard>
-          </div>
-
+          <DriversRelation />
+          
           {/* Card/Painel de Operadores de Máquinas */}
           <Card className="border-none shadow-sm overflow-hidden border border-slate-100 dark:border-slate-800">
             <CardHeader className="pb-4 bg-slate-900 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -533,7 +443,7 @@ export default function TelemetryDashboard() {
                   Controle, Alertas de Cursos Obrigatórios e Envio de E-mails ({operatorStats.pendentes} Pendentes de Curso)
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2 text-slate-900">
+              <div className="flex flex-wrap gap-2 text-slate-900 font-black">
                 <div className="bg-slate-800/80 p-2 rounded-xl border border-slate-700/50 flex gap-4 text-white">
                   <div className="text-center px-1">
                     <p className="text-[9px] text-slate-400 font-bold uppercase">Total</p>
@@ -633,7 +543,7 @@ export default function TelemetryDashboard() {
                                     const emails = getEmailsByGerencia(op.gerencia);
                                     const recipient = emails.join(",");
                                     const subject = `Alerta: Pendência de Curso - ${op.nome}`;
-                                    const body = `Prezado(a) Gestor(a),\n\nIdentificamos no nosso painel de controle que o operador ${op.nome} (Matrícula: ${op.matricula}) da gerência ${op.gerencia}, que opera a máquina/equipamento "${op.maquina}", não possui cadastrado nenhum curso de formação obrigatória para operar máquina.\n\nFavor providenciar a regularização informando a conclusão do curso.\n\nAtt,\nCoordenação de Gestão de Frotas - CGF`;
+                                    const body = `Prezados(as) Gestores(as),\n\nSolicitamos, por gentileza, o preenchimento do formulário disponível no link abaixo e incluindo o envio do certificado do curso, para fins de levantamento e contabilização dos condutores que possuem cursos para operação de veículos e equipamentos pesados.\n\n\n\nLink: https://forms.gle/ha3Et4GLwHGGgY6Y9\n\nAtenciosamente,\n\nCGF – Coordenação de Gestão de Frotas\n`;
                                     window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
                                   }}
                                 >
@@ -652,6 +562,102 @@ export default function TelemetryDashboard() {
               </ScrollArea>
             </CardContent>
           </Card>
+        </div>
+      )}
+      
+      {activeTab === "notifications" && (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <ChartCard title="Distribuição por Tipo de Notificação" description="Eventos críticos sincronizados">
+              <div style={{ height: '350px', width: '100%', position: 'relative' }} className="flex items-center justify-center overflow-visible">
+                {tiposNotificacaoChart.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" debounce={1}>
+                    <PieChart>
+                      <Pie
+                        data={tiposNotificacaoChart}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={70}
+                        outerRadius={110}
+                        paddingAngle={5}
+                        dataKey="value"
+                        isAnimationActive={false}
+                      >
+                        {tiposNotificacaoChart.map((_, index) => (
+                          <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} stroke="rgba(255,255,255,0.2)" strokeWidth={2} />
+                        ))}
+                      </Pie>
+                      <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold' }} />
+                      <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="bg-slate-50 dark:bg-slate-800/50 w-full h-[350px] rounded-2xl flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-700">
+                    <PieIcon className="text-slate-300 mb-2" size={40} />
+                    <p className="text-[10px] font-black uppercase text-slate-400">Sem dados para exibição</p>
+                  </div>
+                )}
+              </div>
+            </ChartCard>
+
+            <ChartCard 
+              title="Evolução Temporal" 
+              description="Análise dinâmica por tipo e gravidade"
+            >
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl w-fit mb-4">
+                <button
+                  onClick={() => setTimelineView("severity")}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${timelineView === "severity" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  Gravidade
+                </button>
+                <button
+                  onClick={() => setTimelineView("type")}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${timelineView === "type" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                  Tipo
+                </button>
+              </div>
+
+              <div style={{ height: '280px', width: '100%', position: 'relative' }} className="flex items-center justify-center overflow-visible">
+                {timelineChartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%" debounce={1}>
+                    <AreaChart data={timelineChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        {COLORS.map((color, i) => (
+                          <linearGradient key={`grad-${i}`} id={`color-${i}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={color} stopOpacity={0.3}/>
+                            <stop offset="95%" stopColor={color} stopOpacity={0}/>
+                          </linearGradient>
+                        ))}
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis dataKey="mesAno" axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{fill: '#94a3b8', fontSize: 10, fontWeight: 700}} />
+                      <Tooltip contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', fontWeight: 'bold'}} />
+                      <Legend verticalAlign="top" align="right" iconType="circle" wrapperStyle={{ paddingBottom: '20px', fontSize: '10px', fontWeight: '800', textTransform: 'uppercase' }} />
+                      {timelineView === "severity" ? (
+                        gravidades.map((g, i) => (
+                          <Area key={g} type="monotone" dataKey={g} stackId="1" stroke={COLORS[i % COLORS.length]} strokeWidth={3} fillOpacity={1} fill={`url(#color-${i % COLORS.length})`} isAnimationActive={false} />
+                        ))
+                      ) : (
+                        tiposNotificacao.slice(0, 5).map((t, i) => (
+                          <Area key={t} type="monotone" dataKey={t} stackId="1" stroke={COLORS[(i + 3) % COLORS.length]} strokeWidth={3} fillOpacity={1} fill={`url(#color-${(i + 3) % COLORS.length})`} isAnimationActive={false} />
+                        ))
+                      )}
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-full text-slate-300">
+                    <Activity size={40} className="mb-2" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">Sem dados históricos</p>
+                  </div>
+                )}
+              </div>
+            </ChartCard>
+          </div>
+
+
 
           <div className="pt-8 border-t border-slate-100 dark:border-slate-800">
             <div className="flex items-center space-x-2 mb-6">

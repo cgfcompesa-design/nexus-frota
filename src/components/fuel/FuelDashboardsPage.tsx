@@ -258,6 +258,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const [activeTab, setActiveTab] = useState("dashboards");
   const [driverChartMetric, setDriverChartMetric] = useState<"liters" | "cost">("liters");
   const [assetChartMetric, setAssetChartMetric] = useState<"liters" | "cost">("liters");
+  const [locationChartTab, setLocationChartTab] = useState<"city" | "posto" | "bairro">("city");
+  const [locationChartMetric, setLocationChartMetric] = useState<"liters" | "cost">("liters");
  
   const isLoading = loadingFuel || loadingAssets;
   const hasError = isErrorFuel || isErrorAssets;
@@ -1022,6 +1024,57 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     });
     return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
   }, [filteredFuel, assetsByPlaca]);
+
+  // 6.2. Consumo por Localização (Cidades, Bairros e Estabelecimentos)
+  const top10ByLocation = useMemo(() => {
+    const map: Record<string, { 
+      name: string; 
+      liters: number; 
+      cost: number; 
+      cidade: string; 
+      bairro: string; 
+    }> = {};
+
+    filteredFuel.forEach(f => {
+      let key = "N/A";
+      const cidade = String(f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "N/A").trim();
+      const bairro = String(f._bairro || f.COL_24 || f.BAIRRO || "N/A").trim();
+      const posto = String(f._posto || f._establishment || f.COL_21 || f.POSTO || "N/A").trim();
+
+      if (locationChartTab === "city") {
+        key = cidade;
+      } else if (locationChartTab === "bairro") {
+        key = bairro;
+      } else {
+        key = posto;
+      }
+
+      if (!key || key.toUpperCase() === "N/A" || key === "") {
+        key = "N/A";
+      }
+
+      if (!map[key]) {
+        map[key] = {
+          name: key,
+          liters: 0,
+          cost: 0,
+          cidade: cidade,
+          bairro: bairro
+        };
+      }
+
+      map[key].liters += f._litros || 0;
+      map[key].cost += f._total || 0;
+    });
+
+    const list = Object.values(map).filter(item => item.name !== "N/A" && item.name !== "");
+    
+    if (locationChartMetric === "liters") {
+      return [...list].sort((a, b) => b.liters - a.liters).slice(0, 10);
+    } else {
+      return [...list].sort((a, b) => b.cost - a.cost).slice(0, 10);
+    }
+  }, [filteredFuel, locationChartTab, locationChartMetric]);
 
   // 7. Custo por Tipo de Combustível
   const costByFuelType = useMemo(() => {
@@ -2301,6 +2354,149 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                 <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={45}>
                   {costByType.slice(0, 10).map((_, index) => (
                     <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+
+        {/* Dashboard: Consumo por Localização (Cidades, Bairros e Estabelecimentos) */}
+        <ChartCard 
+          title={`Top 10 - Consumo por ${locationChartTab === "city" ? "Cidade" : locationChartTab === "bairro" ? "Bairro" : "Estabelecimento"}`} 
+          description={`Classificação por ${locationChartMetric === "liters" ? "Volume (Litros)" : "Custo Total (R$)"}`}
+          className="min-h-[380px]"
+          headerAction={
+            <div className="flex flex-wrap items-center gap-1.5" id="location-selectors-group">
+              <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200/50 dark:border-slate-700/50" id="location-tab-toggle-container">
+                <button
+                  id="btn-location-tab-city"
+                  onClick={() => setLocationChartTab("city")}
+                  className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                    locationChartTab === "city"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
+                >
+                  CIDADES
+                </button>
+                <button
+                  id="btn-location-tab-bairro"
+                  onClick={() => setLocationChartTab("bairro")}
+                  className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                    locationChartTab === "bairro"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
+                >
+                  BAIRROS
+                </button>
+                <button
+                  id="btn-location-tab-posto"
+                  onClick={() => setLocationChartTab("posto")}
+                  className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                    locationChartTab === "posto"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
+                >
+                  ESTAB.
+                </button>
+              </div>
+
+              <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200/50 dark:border-slate-700/50" id="location-metric-toggle-container">
+                <button
+                  id="btn-location-metric-liters"
+                  onClick={() => setLocationChartMetric("liters")}
+                  className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                    locationChartMetric === "liters"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
+                >
+                  LITROS
+                </button>
+                <button
+                  id="btn-location-metric-cost"
+                  onClick={() => setLocationChartMetric("cost")}
+                  className={`px-2 py-0.5 text-[8px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                    locationChartMetric === "cost"
+                      ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                      : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                  }`}
+                >
+                  CUSTO
+                </button>
+              </div>
+            </div>
+          }
+        >
+          {top10ByLocation.length === 0 ? (
+            <ChartEmptyState title="Dados de Consumo por Localização" />
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart 
+                data={top10ByLocation} 
+                layout="vertical" 
+                margin={{ top: 10, right: 15, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} strokeOpacity={0.1} />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="name" 
+                  type="category" 
+                  width={120} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  fontSize={9} 
+                  className="font-bold text-slate-600 dark:text-slate-400"
+                  tickFormatter={(val: string) => val.length > 22 ? `${val.substring(0, 20).trim()}...` : val}
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.04)' }}
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload;
+                      return (
+                        <div className="bg-slate-900 border border-slate-800 p-3 rounded-xl shadow-xl text-[11px] text-white">
+                          <p className="font-extrabold uppercase mb-1 border-b border-white/10 pb-1 text-indigo-400 max-w-[250px] break-words">
+                            {data.name}
+                          </p>
+                          <p className="font-bold flex justify-between gap-4 mb-1">
+                            <span className="text-slate-400 font-medium font-bold uppercase tracking-widest text-[8px]">Consumo:</span>
+                            <span className="font-mono text-emerald-400">
+                              {locationChartMetric === "liters" 
+                                ? `${data.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`
+                                : `R$ ${data.cost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                              }
+                            </span>
+                          </p>
+                          {data.cidade && data.cidade !== "N/A" && (
+                            <p className="font-bold flex justify-between gap-4 text-slate-300">
+                              <span className="text-slate-400 font-medium font-bold uppercase tracking-widest text-[8px]">Cidade (Z):</span>
+                              <span>{data.cidade}</span>
+                            </p>
+                          )}
+                          {data.bairro && data.bairro !== "N/A" && (
+                            <p className="font-bold flex justify-between gap-4 text-slate-300">
+                              <span className="text-slate-400 font-medium font-bold uppercase tracking-widest text-[8px]">Bairro (Y):</span>
+                              <span>{data.bairro}</span>
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Bar 
+                  dataKey={locationChartMetric === "liters" ? "liters" : "cost"} 
+                  fill={locationChartMetric === "liters" ? "#9333ea" : "#0891b2"} 
+                  radius={[0, 4, 4, 0]}
+                  maxBarSize={20}
+                >
+                  {top10ByLocation.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={locationChartMetric === "liters" ? "#9333ea" : "#0891b2"} fillOpacity={1 - index * 0.05} />
                   ))}
                 </Bar>
               </BarChart>
