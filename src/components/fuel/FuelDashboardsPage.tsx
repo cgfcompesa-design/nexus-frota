@@ -4,6 +4,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import html2canvas from "html2canvas";
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData } from "@/hooks/useFleetData";
+import { useTelemetryHistory } from "@/hooks/useTelemetryData";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FuelDashboardsFilterBar } from "@/components/dashboards/FuelDashboardsFilterBar";
@@ -170,9 +171,75 @@ const getFormattedDate = (dateString: any): Date | null => {
   } catch { return null; }
 };
 
+const normalizeTelemetryMonthYear = (str: string): string => {
+  if (!str) return "N/A";
+  const normalizedStr = str.toLowerCase().trim();
+  
+  // If it's already in MM/YYYY format
+  if (/^\d{2}\/\d{4}$/.test(normalizedStr)) {
+    return normalizedStr;
+  }
+  
+  const monthNames: Record<string, string> = {
+    'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06',
+    'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
+    'janeiro': '01', 'fevereiro': '02', 'março': '03', 'abril': '04', 'maio': '05',
+    'junho': '06', 'julho': '07', 'agosto': '08', 'setembro': '09', 'outubro': '10',
+    'novembro': '11', 'dezembro': '12'
+  };
+  
+  const cleaned = normalizedStr.replace(/\./g, '');
+  const parts = cleaned.split(/[\/\s-]/);
+  if (parts.length >= 2) {
+    let month = "";
+    let year = "";
+    
+    for (const [name, code] of Object.entries(monthNames)) {
+      if (parts[0].startsWith(name)) {
+        month = code;
+        break;
+      }
+    }
+    
+    if (!month) {
+      for (const [name, code] of Object.entries(monthNames)) {
+        if (parts[1].startsWith(name)) {
+          month = code;
+          break;
+        }
+      }
+    }
+    
+    const lastPart = parts[parts.length - 1];
+    if (/^\d+$/.test(lastPart)) {
+      year = lastPart;
+      if (year.length === 2) {
+        year = "20" + year;
+      }
+    }
+    
+    if (month && year) {
+      return `${month}/${year}`;
+    }
+  }
+  
+  const match = normalizedStr.match(/(\d{1,2})[\/\s-](\d{2,4})/);
+  if (match) {
+    const month = match[1].padStart(2, '0');
+    let year = match[2];
+    if (year.length === 2) {
+      year = "20" + year;
+    }
+    return `${month}/${year}`;
+  }
+  
+  return "N/A";
+};
+
 const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) => {
   const { data: fuel = [], isLoading: loadingFuel, isError: isErrorFuel, refetch: refetchFuel } = useFuelData();
   const { data: assets = [], isLoading: loadingAssets, isError: isErrorAssets, refetch: refetchAssets } = useAssets();
+  const { data: telemetryHistory = [] } = useTelemetryHistory();
   
   // Filter States
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
@@ -189,6 +256,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const [selectedCidades, setSelectedCidades] = useState<string[]>([]);
   const [selectedTitularidades, setSelectedTitularidades] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("dashboards");
+  const [driverChartMetric, setDriverChartMetric] = useState<"liters" | "cost">("liters");
+  const [assetChartMetric, setAssetChartMetric] = useState<"liters" | "cost">("liters");
  
   const isLoading = loadingFuel || loadingAssets;
   const hasError = isErrorFuel || isErrorAssets;
@@ -331,6 +400,52 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     });
   }, [sanitizedFuelData, assetsByPlaca, dateFrom, dateTo, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, selectedPropriedades, selectedCidades, selectedTitularidades]);
 
+  const fuelFilteredWithoutDate = useMemo(() => {
+    return sanitizedFuelData.filter((f) => {
+      const pRaw = f._placa || f.PLACA || (f.__raw && f.__raw[5]) || "";
+      if (!pRaw) return false;
+      const placa = String(pRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+      
+      const asset = assetsByPlaca.get(placa);
+      
+      const fuelType = f._fuelType || "N/A";
+      const model = asset?.MODELO || asset?.Modelo || f._vehicleModel || "N/A";
+      const diretoria = asset?.DIRETORIA || asset?.Diretoria || "N/A";
+      const gerencia = asset?.GERENCIA || asset?.["GER\u00CANCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || f._unit || "N/A";
+      const tipo = asset?.TIPO || asset?.Tipo || asset?.["TIPO VEICULO"] || f._assetType || "N/A";
+
+      const controleAuto = asset?.["CONTROLE DE AUTONOMIA"] || asset?.["CONTROLE AUTONOMIA"] || (f as any).COL_43 || "";
+      const propriedade = asset?.PROPRIEDADE || asset?.Propriedade || asset?.["PROPRIEDADE"] || (asset?.__raw && asset?.__raw[10]) || "N/A";
+      const cidade = f._cidade || f.COL_25 || f.CIDADE || f.MUNICÍPIO || f.MUNICIPIO || "N/A";
+      const titularidade = asset?.TITULARIDADE || asset?.["TITULARIDADE"] || (asset?.__raw && asset?.__raw[27]) || "N/A";
+
+      if (searchPlaca && !placa.includes(searchPlaca.toUpperCase().trim())) return false;
+      if (selectedGerencias.length > 0 && !selectedGerencias.map(g => String(g).trim()).includes(String(gerencia).trim())) return false;
+      if (selectedFuelTypes.length > 0 && !selectedFuelTypes.map(ft => String(ft).trim().toUpperCase()).includes(String(fuelType).trim().toUpperCase())) return false;
+      if (selectedVehicleModels.length > 0 && !selectedVehicleModels.map(m => String(m).trim()).includes(String(model).trim())) return false;
+      if (selectedDirectorias.length > 0 && !selectedDirectorias.map(d => String(d).trim()).includes(String(diretoria).trim())) return false;
+      if (selectedTipos.length > 0 && !selectedTipos.map(t => String(t).trim()).includes(String(tipo).trim())) return false;
+      if (selectedTipoControleAutonomia.length > 0 && !selectedTipoControleAutonomia.map(c => String(c).trim()).includes(String(controleAuto).trim())) return false;
+      if (selectedPropriedades.length > 0 && !selectedPropriedades.map(p => String(p).trim().toUpperCase()).includes(String(propriedade).trim().toUpperCase())) return false;
+      if (selectedCidades.length > 0 && !selectedCidades.map(c => String(c).trim().toUpperCase()).includes(String(cidade).trim().toUpperCase())) return false;
+      if (selectedTitularidades.length > 0 && !selectedTitularidades.map(t => String(t).trim().toUpperCase()).includes(String(titularidade).trim().toUpperCase())) return false;
+
+      return true;
+    });
+  }, [sanitizedFuelData, assetsByPlaca, searchPlaca, selectedGerencias, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedTipos, selectedTipoControleAutonomia, selectedPropriedades, selectedCidades, selectedTitularidades]);
+
+  const platesInFuelWithoutDate = useMemo(() => {
+    const map = new Map<string, any[]>();
+    fuelFilteredWithoutDate.forEach(f => {
+      const p = String(f._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
+      if (p) {
+        if (!map.has(p)) map.set(p, []);
+        map.get(p)?.push(f);
+      }
+    });
+    return map;
+  }, [fuelFilteredWithoutDate]);
+
   const formatMonthLabel = (m: string) => {
     if (!m || !m.includes('/')) return m;
     const [month, year] = m.split('/');
@@ -372,6 +487,38 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     const dynamic = assets.map(a => a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27])).filter(Boolean).map(t => String(t).toUpperCase().trim());
     return Array.from(new Set(["TITULAR", "RESERVA", "N/A", ...dynamic])).filter(Boolean).sort() as string[];
   }, [assets]);
+
+  // Lookup map of telemetry data by plate and month
+  const telemetryByPlateAndMonth = useMemo(() => {
+    const map = new Map<string, Record<string, number>>();
+    telemetryHistory.forEach(row => {
+      const placa = String(row["Placa"] || row["placa"] || row._placa || row.PLACA || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      if (!placa) return;
+
+      const rawMonth = row["Mês/Ano"] || row["Mês/ano"] || row["mês/ano"] || row._mesAno || row["MÊS/ANO"] || row["MES/ANO"];
+      const normalizedMonth = normalizeTelemetryMonthYear(rawMonth);
+      const displacement = parseNum(row["Distância (Km)"] || row["Distancia (Km)"] || row["Distância"] || row["Distancia"] || row._deslocamento || row["DESLOCAMENTO_TELEMETRIA"] || row["Deslocamento Telemetria"] || row["DESLOCAMENTO"]);
+
+      if (!map.has(placa)) {
+        map.set(placa, {});
+      }
+      const plateMap = map.get(placa)!;
+      plateMap[normalizedMonth] = (plateMap[normalizedMonth] || 0) + displacement;
+    });
+    return map;
+  }, [telemetryHistory]);
+
+  const getTelemetryDisplacementForPlate = (placa: string, months?: string[]): number => {
+    const p = String(placa).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+    const plateMap = telemetryByPlateAndMonth.get(p);
+    if (!plateMap) return 0;
+
+    if (months && months.length > 0) {
+      return months.reduce((sum: number, m: string) => sum + (plateMap[m] || 0), 0);
+    }
+
+    return (Object.values(plateMap) as any[]).reduce((sum: number, val: any) => sum + (Number(val) || 0), 0);
+  };
 
   // Metrics
   const metrics = useMemo(() => {
@@ -581,7 +728,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   // Veículo com maior consumo por tipo
   const topConsumidoresPorTipo = useMemo(() => {
-    const groups: Record<string, Record<string, { liters: number, cost: number, count: number, model: string }>> = {};
+    const groups: Record<string, Record<string, { liters: number, cost: number, count: number, model: string, kms: number }>> = {};
     const driversByTipo: Record<string, Record<string, number>> = {};
     
     filteredFuel.forEach(f => {
@@ -596,15 +743,17 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       
       const litros = f._litros || 0;
       const custo = f._total || 0;
+      const kmTrip = f._kmRodados || f.KM_RODADOS || 0;
       
       if (!groups[tipo]) groups[tipo] = {};
       if (!groups[tipo][placa]) {
-        groups[tipo][placa] = { liters: 0, cost: 0, count: 0, model };
+        groups[tipo][placa] = { liters: 0, cost: 0, count: 0, model, kms: 0 };
       }
       
       groups[tipo][placa].liters += litros;
       groups[tipo][placa].cost += custo;
       groups[tipo][placa].count += 1;
+      groups[tipo][placa].kms += kmTrip;
 
       // Group drivers by type of active based on Column L (f.COL_11 or _driver)
       const driver = String(f.COL_11 || f._driver || f.CONDUTOR || f["NOME MOTORISTA"] || "").trim().toUpperCase();
@@ -621,6 +770,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       liters: number;
       cost: number;
       count: number;
+      kmsTicket: number;
+      kmsTelemetry: number;
       diretoria: string;
       gerencia: string;
       driverMaisAbasteceu: string;
@@ -628,7 +779,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
     Object.keys(groups).forEach(tipo => {
       let maxPlaca = "";
-      let maxStats = { liters: 0, cost: 0, count: 0, model: "N/A" };
+      let maxStats = { liters: 0, cost: 0, count: 0, model: "N/A", kms: 0 };
       
       Object.keys(groups[tipo]).forEach(placa => {
         if (groups[tipo][placa].liters > maxStats.liters) {
@@ -658,6 +809,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           liters: maxStats.liters,
           cost: maxStats.cost,
           count: maxStats.count,
+          kmsTicket: maxStats.kms,
+          kmsTelemetry: getTelemetryDisplacementForPlate(maxPlaca, selectedMonthsYears),
           diretoria: asset?.DIRETORIA || asset?.Diretoria || "N/A",
           gerencia: asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A",
           driverMaisAbasteceu: topDriver
@@ -666,7 +819,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     });
 
     return result.sort((a, b) => b.liters - a.liters);
-  }, [filteredFuel, assetsByPlaca]);
+  }, [filteredFuel, assetsByPlaca, selectedMonthsYears, getTelemetryDisplacementForPlate]);
 
   // 2. Top 10 - Consumo por Ativo (Liters and Cost)
   const top10ByAsset = useMemo(() => {
@@ -692,6 +845,35 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     });
     return Object.values(map).sort((a, b) => b.liters - a.liters).slice(0, 10);
   }, [filteredFuel, assetsByPlaca]);
+
+  const top10ByAssetSorted = useMemo(() => {
+    const map: Record<string, { placa: string; liters: number; cost: number; diretoria: string; gerencia: string }> = {};
+    filteredFuel.forEach(f => {
+      const placaStr = String(f._placa || "N/A").toUpperCase();
+      const placaNorm = placaStr.replace(/[^A-Z0-9]/gi, "").trim();
+      const asset = assetsByPlaca.get(placaNorm);
+      const diretoria = asset?.DIRETORIA || asset?.Diretoria || "N/A";
+      const gerencia = asset?.GERENCIA || asset?.["GER\u00CANCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A";
+
+      if (!map[placaStr]) {
+        map[placaStr] = { 
+          placa: placaStr, 
+          liters: 0, 
+          cost: 0, 
+          diretoria, 
+          gerencia 
+        };
+      }
+      map[placaStr].liters += f._litros || 0;
+      map[placaStr].cost += f._total || 0;
+    });
+    const list = Object.values(map);
+    if (assetChartMetric === "liters") {
+      return [...list].sort((a, b) => b.liters - a.liters).slice(0, 10);
+    } else {
+      return [...list].sort((a, b) => b.cost - a.cost).slice(0, 10);
+    }
+  }, [filteredFuel, assetsByPlaca, assetChartMetric]);
 
   // 3. Top 10 - Custo por Unidade (Gerência)
   const top10ByUnit = useMemo(() => {
@@ -916,7 +1098,6 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
   const chartsContainerRef = useRef<HTMLDivElement>(null);
   const [isExportingPDF, setIsExportingPDF] = useState(false);
   const [tableScrollWidth, setTableScrollWidth] = useState(1500);
-  const [driverChartMetric, setDriverChartMetric] = useState<"liters" | "cost">("liters");
 
   const handleExportPDF = async () => {
     setIsExportingPDF(true);
@@ -1013,18 +1194,20 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         item.diretoria,
         item.gerencia,
         item.driverMaisAbasteceu || "Sem dados",
+        `${item.count} abast.`,
+        item.kmsTicket > 0 ? `${item.kmsTicket.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-",
+        item.kmsTelemetry > 0 ? `${item.kmsTelemetry.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-",
         `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
         `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
-        `${item.count} abast.`
       ]);
 
       autoTable(doc, {
         startY: 30,
         theme: "grid",
-        head: [["Tipo de Ativo", "Placa", "Modelo", "Diretoria", "Gerência", "Condutor Principal", "Vol. Abastecido", "Custo Total", "Abastecimentos"]],
+        head: [["Tipo de Ativo", "Placa", "Modelo", "Diretoria", "Gerência", "Condutor Principal", "Abast.", "Desloc. Ticket", "Desloc. Telem.", "Vol. Abastecido", "Custo Total"]],
         body: topTipoBody,
         headStyles: { fillColor: [79, 70, 229] }, // indigo-600
-        styles: { fontSize: 7.0 }, // slightly smaller font to fit additional columns beautifully
+        styles: { fontSize: 5.5 }, // slightly smaller font to fit additional columns beautifully in landscape/portrait
       });
 
       // Page 3: Rankings Top list
@@ -1295,7 +1478,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       })
       .map(a => {
         const placa = String(a.PLACA || a.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
-        const assetFuel = platesInFilteredFuel.get(placa) || [];
+        const assetFuel = platesInFuelWithoutDate.get(placa) || [];
         
         // Get last odometer from filtered data
         let lastOdo = 0;
@@ -1311,17 +1494,23 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         });
 
         // Calculate stats for each month
-        const monthStats: Record<string, { kms: number, liters: number, cost: number }> = {};
+        const monthStats: Record<string, { kms: number, telemetryKms: number, liters: number, cost: number }> = {};
         displayMonths.forEach(m => {
           const mTransactions = assetFuel.filter(f => String(f._monthYear || "").trim() === String(m).trim());
           const kms = mTransactions.reduce((sum, f) => sum + (f._kmRodados || f.KM_RODADOS || 0), 0);
           const liters = mTransactions.reduce((sum, f) => sum + (f._litros || 0), 0);
           const cost = mTransactions.reduce((sum, f) => sum + (f._total || 0), 0);
-          monthStats[m] = { kms, liters, cost };
+
+          // Fetch telemetry kms for this month 'm' and plate 'placa'
+          const p = String(placa).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+          const plateMap = telemetryByPlateAndMonth.get(p);
+          const telemetryKms = plateMap ? (plateMap[m] || 0) : 0;
+
+          monthStats[m] = { kms, telemetryKms, liters, cost };
         });
 
         const lastMonth = displayMonths.length > 0 ? displayMonths[displayMonths.length - 1] : "";
-        const currentMonthStats = lastMonth ? (monthStats[lastMonth] || { kms: 0, liters: 0, cost: 0 }) : { kms: 0, liters: 0, cost: 0 };
+        const currentMonthStats = lastMonth ? (monthStats[lastMonth] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 }) : { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
 
         return {
           ...a,
@@ -1338,7 +1527,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           lastOdo
         };
       });
-  }, [assets, fuel, filteredFuel, displayMonths, searchPlaca, selectedGerencias, selectedDirectorias, selectedFuelTypes, selectedVehicleModels, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears]);
+  }, [assets, fuel, filteredFuel, platesInFuelWithoutDate, displayMonths, searchPlaca, selectedGerencias, selectedDirectorias, selectedFuelTypes, selectedVehicleModels, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, telemetryByPlateAndMonth]);
 
   React.useEffect(() => {
     const updateWidth = () => {
@@ -1448,7 +1637,11 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         "Último Odômetro": row.lastOdo,
       };
       displayMonths.forEach(m => {
-        item[`Soma KM ${formatMonthLabel(m)}`] = row.monthSumKms[m];
+        const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
+        item[`Km Ticket ${formatMonthLabel(m)}`] = stats.kms;
+        item[`Km Telemetria ${formatMonthLabel(m)}`] = stats.telemetryKms;
+        item[`L ${formatMonthLabel(m)}`] = stats.liters;
+        item[`Custo R$ ${formatMonthLabel(m)}`] = stats.cost;
       });
       return item;
     });
@@ -1810,6 +2003,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 py-2.5">Gerência</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-indigo-500 py-2.5">Condutor que Mais Abasteceu</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-center py-2.5">Abastecimentos</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Desloc. Ticket</TableHead>
+                    <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Desloc. Telemetria</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Litros</TableHead>
                     <TableHead className="text-xs font-bold uppercase tracking-wider text-slate-500 text-right py-2.5">Custo Total</TableHead>
                   </TableRow>
@@ -1843,6 +2038,12 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                         <Badge variant="outline" className="bg-indigo-50/50 text-indigo-700 border-indigo-100 dark:bg-indigo-950/20 dark:text-indigo-300 dark:border-indigo-900 font-bold text-[11px] px-2 py-0">
                           {item.count} abast.
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right font-semibold font-mono text-xs text-slate-600 py-2">
+                        {item.kmsTicket > 0 ? `${item.kmsTicket.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-"}
+                      </TableCell>
+                      <TableCell className="text-right font-semibold font-mono text-xs text-indigo-600 py-2">
+                        {item.kmsTelemetry > 0 ? `${item.kmsTelemetry.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-"}
                       </TableCell>
                       <TableCell className="text-right font-semibold font-mono text-xs text-blue-600 py-2">
                         {item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L
@@ -1976,43 +2177,134 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       </div>
 
       <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
-        <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos (R$)" className="h-[350px]">
-          {top10ByUnit.length === 0 ? (
-            <ChartEmptyState title="Gastos por Gerência" />
+        {/* Dashboard: Veículos que mais Abastecem */}
+        <ChartCard 
+          title="Top 10 - Veículos que mais Abastecem" 
+          description={`Classificação por ${assetChartMetric === "liters" ? "Volume (Litros - Coluna O)" : "Custo Total (Reais - Coluna T)"}`}
+          className="min-h-[380px]"
+          headerAction={
+            <div className="flex rounded-lg bg-slate-100 dark:bg-slate-800 p-0.5 border border-slate-200/50 dark:border-slate-700/50" id="asset-metric-toggle-container">
+              <button
+                id="btn-asset-metric-liters"
+                onClick={() => setAssetChartMetric("liters")}
+                className={`px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                  assetChartMetric === "liters"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                LITROS
+              </button>
+              <button
+                id="btn-asset-metric-cost"
+                onClick={() => setAssetChartMetric("cost")}
+                className={`px-3 py-1 text-[9px] font-black uppercase rounded-md transition-all duration-200 cursor-pointer ${
+                  assetChartMetric === "cost"
+                    ? "bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-400 shadow-sm font-bold"
+                    : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                }`}
+              >
+                CUSTO (R$)
+              </button>
+            </div>
+          }
+        >
+          {top10ByAssetSorted.length === 0 ? (
+            <ChartEmptyState title="Dados de Veículos" />
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={top10ByUnit} layout="vertical" margin={{ left: 30, right: 30 }}>
-                  <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                  <XAxis type="number" hide />
-                  <YAxis dataKey="unit" type="category" width={140} axisLine={false} tickLine={false} fontSize={9} />
-                  <Tooltip formatter={(val: number) => `R$ ${val.toLocaleString('pt-BR')}`} />
-                  <Bar dataKey="cost" radius={[0, 4, 4, 0]}>
-                    {top10ByUnit.map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart 
+                data={top10ByAssetSorted} 
+                layout="vertical" 
+                margin={{ top: 10, right: 15, left: 10, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} strokeOpacity={0.1} />
+                <XAxis type="number" hide />
+                <YAxis 
+                  dataKey="placa" 
+                  type="category" 
+                  width={90} 
+                  axisLine={false} 
+                  tickLine={false} 
+                  fontSize={10} 
+                  className="font-bold text-slate-600 dark:text-slate-400"
+                />
+                <Tooltip 
+                  cursor={{ fill: 'rgba(99, 102, 241, 0.04)' }}
+                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                  itemStyle={{ color: '#fff' }}
+                  formatter={(val: number) => {
+                    if (assetChartMetric === "liters") {
+                      return [`${val.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`, "Volume"];
+                    } else {
+                      return [`R$ ${val.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, "Custo"];
+                    }
+                  }}
+                />
+                <Bar 
+                  dataKey={assetChartMetric === "liters" ? "liters" : "cost"} 
+                  name={assetChartMetric === "liters" ? "Volume (L)" : "Custo (R$)"}
+                  fill={assetChartMetric === "liters" ? "#3b82f6" : "#10b981"} 
+                  radius={[0, 4, 4, 0]}
+                  maxBarSize={20}
+                >
+                  {top10ByAssetSorted.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={assetChartMetric === "liters" ? "#3b82f6" : "#10b981"} fillOpacity={1 - index * 0.05} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </ChartCard>
 
-        <ChartCard title="Custo por Tipo de Ativo (Top 10)" description="Maiores gastos por categoria" className="h-[350px]">
+        {/* Dashboard: Top 10 - Gerências por Custo */}
+        <ChartCard title="Top 10 - Gerências por Custo" description="Unidades com maiores gastos (R$)" className="min-h-[380px]">
+          {top10ByUnit.length === 0 ? (
+            <ChartEmptyState title="Gastos por Gerência" />
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={top10ByUnit} layout="vertical" margin={{ top: 10, right: 15, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} strokeOpacity={0.1} />
+                <XAxis type="number" hide />
+                <YAxis dataKey="unit" type="category" width={140} axisLine={false} tickLine={false} fontSize={9} className="font-bold text-slate-600 dark:text-slate-400" />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                  formatter={(val: number) => `R$ ${val.toLocaleString('pt-BR')}`} 
+                />
+                <Bar dataKey="cost" radius={[0, 4, 4, 0]} maxBarSize={20}>
+                  {top10ByUnit.map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </ChartCard>
+      </div>
+
+      <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+        {/* Dashboard: Custo por Tipo de Ativo (Top 10) */}
+        <ChartCard title="Custo por Tipo de Ativo (Top 10)" description="Maiores gastos por categoria" className="min-h-[380px]">
           {costByType.length === 0 ? (
             <ChartEmptyState title="Custo por Tipo" />
           ) : (
-            <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={costByType.slice(0, 10)}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} />
-                  <YAxis axisLine={false} tickLine={false} fontSize={10} />
-                  <Tooltip cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} formatter={(val: number) => `R$ ${val.toLocaleString('pt-BR')}`} />
-                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                    {costByType.slice(0, 10).map((_, index) => (
-                      <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
-                    ))}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart data={costByType.slice(0, 10)} margin={{ top: 15, right: 15, left: 10, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.1} />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} fontSize={10} className="font-bold text-slate-600" />
+                <YAxis axisLine={false} tickLine={false} fontSize={10} />
+                <Tooltip 
+                  cursor={{fill: 'rgba(59, 130, 246, 0.05)'}} 
+                  contentStyle={{ backgroundColor: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                  formatter={(val: number) => `R$ ${val.toLocaleString('pt-BR')}`} 
+                />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={45}>
+                  {costByType.slice(0, 10).map((_, index) => (
+                    <Cell key={`cell-${index}`} fill={SHADES_OF_BLUE[index % SHADES_OF_BLUE.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
           )}
         </ChartCard>
       </div>
@@ -2154,16 +2446,23 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                     </TableCell>
                     <TableCell className="text-center p-1 text-[10px]">{row.ano}</TableCell>
                     {displayMonths.map(m => {
-                      const stats = row.monthStats?.[m] || { kms: 0, liters: 0, cost: 0 };
+                      const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
                       return (
                         <TableCell key={m} className="text-center py-1.5 px-2 border-x whitespace-pre-wrap">
                           <div className="flex flex-col space-y-0.5 items-center justify-center text-[10px] leading-tight">
                             {stats.kms > 0 ? (
-                              <span className="font-bold text-slate-700 dark:text-slate-300">
-                                {stats.kms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km
+                              <span className="font-bold text-slate-700 dark:text-slate-300" title="Deslocamento Ticket">
+                                {stats.kms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km (Tkt)
                               </span>
                             ) : (
                               <span className="text-slate-400">-</span>
+                            )}
+                            {stats.telemetryKms > 0 ? (
+                              <span className="font-semibold text-indigo-600 dark:text-indigo-400" title="Deslocamento Telemetria">
+                                {stats.telemetryKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km (Tel)
+                              </span>
+                            ) : (
+                              <span className="text-indigo-400/60" title="Deslocamento Telemetria">- (Tel)</span>
                             )}
                             {stats.liters > 0 ? (
                               <span className="font-semibold text-blue-600 dark:text-blue-400">
