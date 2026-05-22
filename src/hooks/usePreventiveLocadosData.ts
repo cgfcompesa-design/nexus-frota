@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchPreventiveMaintenanceData } from "../services/fleetService";
+import { fetchPreventiveLocadosData } from "../services/fleetService";
 
 export interface PreventiveLocado {
   placa: string;
@@ -14,9 +14,9 @@ export function usePreventiveLocadosData() {
   return useQuery({
     queryKey: ["preventive-locados"],
     queryFn: async () => {
-      const data = await fetchPreventiveMaintenanceData();
+      const data = await fetchPreventiveLocadosData();
       return data.map(item => ({
-        placa: item.PLACA || "",
+        placa: String(item.PLACA || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim(),
         odometroRevisao: item["ODÔMETRO REVISÃO"] || item["ODOMETRO REVISAO"] || "",
         revisaoPrevista: item["REVISÃO PREVISTA"] || item["REVISAO PREVISTA"] || "",
         dataRevisao: item["DATA REVISÃO"] || item["DATA REVISAO"] || "",

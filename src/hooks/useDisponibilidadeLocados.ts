@@ -5,11 +5,20 @@ const ASSETS_API = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFg3m2gRlhF
 
 const EXCLUDED_PROPRIEDADES = [
   "COMPESA",
-  "COMPESA - IPA",
+  "COMPESAIPA",
   "SERVITIUM",
   "OTL",
   "CONSORCIO"
 ];
+
+const normalizeString = (str: string) => {
+  return str
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/gi, "")
+    .trim();
+};
 
 const fetchCSVWithRetry = async (url: string, retries = 3): Promise<string> => {
   for (let i = 0; i < retries; i++) {
@@ -64,13 +73,14 @@ export const useVeiculosLocadosDisponiveis = () => {
         
         const values = parseCsvLine(line);
         
-        const propriedade = (values[10] || "").toUpperCase().trim();
+        const propriedade = values[10] || "";
         const titularidade = (values[27] || "").toUpperCase().trim();
         const statusOperacional = (values[23] || "").toUpperCase().trim();
         
         // Filtrar: Status Operacional = OPERACIONAL, Propriedade não está na lista de exclusão, Titularidade = TITULAR
         const isOperacional = statusOperacional === "OPERACIONAL";
-        const isPropriedadeValida = !EXCLUDED_PROPRIEDADES.some(p => propriedade === p.toUpperCase());
+        const normProp = normalizeString(propriedade);
+        const isPropriedadeValida = normProp && !EXCLUDED_PROPRIEDADES.includes(normProp);
         const isTitular = titularidade === "TITULAR";
         
         if (isOperacional && isPropriedadeValida && isTitular) {
@@ -89,15 +99,27 @@ export const useDisponibilidadeLocados = () => {
   const { data: veiculosDisponiveis = 0, isLoading: isLoadingVeiculos } = useVeiculosLocadosDisponiveis();
   const { data: locados = [], isLoading: isLoadingLocados } = useLocadosData();
   
-  const totalDiasParados = locados.reduce((sum, item) => sum + item.diasParados, 0);
+  // Total de dias parados (numerador de indisponibilidade):
+  // TotalDiasParados = Σ (Dias Parados de cada linha com placa válida)
+  const totalDiasParados = locados.reduce((sum, item) => {
+    const rawPlaca = String(item.placa || "").trim();
+    const cleanPlaca = rawPlaca.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    
+    // A plate in Brazil is valid if it has exactly 7 alphanumeric characters
+    const isPlacaValida = cleanPlaca.length === 7;
+    
+    if (isPlacaValida) {
+      return sum + (item.diasParados || 0);
+    }
+    return sum;
+  }, 0);
   
-  // Cálculo: (Total de Veículos Disponíveis - Dias Total Parados) / Total de Veículos Disponíveis * 100
-  // Nota: O cálculo considera que cada dia parado representa 1 "unidade" de indisponibilidade
+  // Disponibilidade = ((Veículos − TotalDiasParados) / Veículos) × 100
   const disponibilidade = veiculosDisponiveis > 0 
     ? ((veiculosDisponiveis - totalDiasParados) / veiculosDisponiveis) * 100 
     : 0;
   
-  // Garantir que não seja negativo
+  // DisponibilidadeFinal = MAX(0, Disponibilidade)
   const disponibilidadeFinal = Math.max(0, disponibilidade);
   
   return {

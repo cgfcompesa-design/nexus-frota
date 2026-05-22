@@ -10,6 +10,7 @@ const REGULARIZACAO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KE
 const TITULOS_DESPESAS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KEh8BbV2ta5a_GLcfuYDenLmG7q-g_zGjGER1NVL0mPZwgu3dnCMB0pMQ82YLqEN9oaWYyu6INdo/pub?gid=573776615&single=true&output=csv';
 const MAINTENANCE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1765787451&single=true&output=csv';
 const PREVENTIVE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=57968629&single=true&output=csv';
+const PREVENTIVE_LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_A1EB7zQfuUlE4LCa_PbXGmtPHoXTyibIStoSW0T8Pe4jense43xIP4uRbgS77KFUKyM5FEX5w99N/pub?gid=698675285&single=true&output=csv';
 const FUEL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?gid=1282350705&single=true&output=csv';
 const HISTORICO_MANUTENCAO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT3pRYxrmBebjhyQCfcApeQwfwnL2XZdNPxFCvyXUEQ3LW7epLEz0emED0BKFpiivo371IJ6pz3l4m_/pub?gid=449761634&single=true&output=csv';
 const ORCAMENTOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1278375363&single=true&output=csv';
@@ -126,6 +127,31 @@ export async function fetchMaintenanceData(): Promise<any[]> {
 
 export async function fetchPreventiveMaintenanceData(): Promise<any[]> {
   const rawRows = await fetchCsv(PREVENTIVE_URL);
+  // Header on line 4 (index 3), data from line 5 (index 4)
+  if (rawRows.length <= 3) return [];
+  const headers = rawRows[3];
+  const dataRows = rawRows.slice(4);
+  return dataRows.map(row => {
+    const obj: any = { __raw: row };
+    row.forEach((val, i) => {
+      obj[`COL_${i}`] = val;
+    });
+    headers.forEach((h, i) => { 
+      if (h) {
+        const key = h.trim().toUpperCase();
+        obj[key] = row[i];
+        const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (normalizedKey !== key) {
+          obj[normalizedKey] = row[i];
+        }
+      }
+    });
+    return obj;
+  });
+}
+
+export async function fetchPreventiveLocadosData(): Promise<any[]> {
+  const rawRows = await fetchCsv(PREVENTIVE_LOCADOS_URL);
   // Header on line 4 (index 3), data from line 5 (index 4)
   if (rawRows.length <= 3) return [];
   const headers = rawRows[3];

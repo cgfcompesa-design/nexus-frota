@@ -396,15 +396,15 @@ const rangeLabels: Record<string, string> = {
           if (rangeKey) {
             (timeRanges as any)[rangeKey]++;
             
-            // Check if Out of Pattern: Weekend OR (Mon-Fri and outside 08:00-17:00)
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-            const isOutsideHours = hour < 8 || hour >= 17;
+            // Check if Out of Pattern: Fueling between 19h and 06h of the next day
+            // After 06h and before 19h, it is NOT out of pattern.
+            const isOutsideHours = hour >= 19 || hour < 6;
             
             const plateClean = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
             const asset = allAssetsMap.get(plateClean);
             const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A";
             const isSpecialPlate = specialHours.some(sh => sh.placa === plateClean) || (asset && (asset as any).OPERACAO_24H);
-            const outOfPattern = (isWeekend || isOutsideHours) && !isSpecialPlate;
+            const outOfPattern = isOutsideHours && !isSpecialPlate;
 
             vehiclesInRanges[rangeKey].push({
               placa: plateClean || "N/A",
@@ -554,7 +554,7 @@ Coordenação de Gestão de Frotas - CGF`;
     const subject = `Solicitação de justificativa de uso de veículos fora do padrão - ${justifyGerencia}`;
     const body = `Prezado Gestor da Unidade (${justifyGerencia}),
 
-Com base no monitoramento do uso dos veículos corporativos, identificamos registros de utilização fora dos parâmetros estabelecidos para uso padrão, que compreende o período de segunda a sexta-feira, das 08h às 17h, com tolerância de 01 (uma) hora para mais ou para menos.
+Com base no monitoramento do uso dos veículos corporativos, identificamos registros de utilização fora dos parâmetros estabelecidos para uso padrão, que compreende o período das 06h às 19h (abastecimentos fora desse intervalo, entre 19h e 06h do dia seguinte, são considerados fora do padrão).
 
 Dessa forma, solicitamos a gentileza de encaminhar a devida justificativa para a utilização dos veículos listados abaixo, considerando os filtros aplicados de data e horário:
 
@@ -1417,7 +1417,7 @@ Coordenação de Gestão de Frotas - CGF`;
                 <div className="space-y-1">
                   <p className="text-[10px] font-black text-indigo-700 dark:text-indigo-400 uppercase">Parametrização</p>
                   <p className="text-[11px] font-bold text-indigo-600/80 leading-relaxed italic">
-                    Serão listados os veículos agrupados por placa da gerência selecionada, solicitando justificativa para uso fora do intervalo 08h-17h (seg-sex).
+                    Serão listados os veículos agrupados por placa da gerência selecionada, solicitando justificativa para uso fora do intervalo permitido (abastecimentos entre 19h e 06h).
                   </p>
                 </div>
               </div>
