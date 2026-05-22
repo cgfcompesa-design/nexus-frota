@@ -670,15 +670,28 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   // 2. Top 10 - Consumo por Ativo (Liters and Cost)
   const top10ByAsset = useMemo(() => {
-    const map: Record<string, { placa: string; liters: number; cost: number }> = {};
+    const map: Record<string, { placa: string; liters: number; cost: number; diretoria: string; gerencia: string }> = {};
     filteredFuel.forEach(f => {
-      const placa = String(f._placa || "N/A").toUpperCase();
-      if (!map[placa]) map[placa] = { placa, liters: 0, cost: 0 };
-      map[placa].liters += f._litros || 0;
-      map[placa].cost += f._total || 0;
+      const placaStr = String(f._placa || "N/A").toUpperCase();
+      const placaNorm = placaStr.replace(/[^A-Z0-9]/gi, "").trim();
+      const asset = assetsByPlaca.get(placaNorm);
+      const diretoria = asset?.DIRETORIA || asset?.Diretoria || "N/A";
+      const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A";
+
+      if (!map[placaStr]) {
+        map[placaStr] = { 
+          placa: placaStr, 
+          liters: 0, 
+          cost: 0, 
+          diretoria, 
+          gerencia 
+        };
+      }
+      map[placaStr].liters += f._litros || 0;
+      map[placaStr].cost += f._total || 0;
     });
     return Object.values(map).sort((a, b) => b.liters - a.liters).slice(0, 10);
-  }, [filteredFuel]);
+  }, [filteredFuel, assetsByPlaca]);
 
   // 3. Top 10 - Custo por Unidade (Gerência)
   const top10ByUnit = useMemo(() => {
@@ -1030,7 +1043,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       const top10Body = top10ByAsset.map((item, idx) => [
         `#${idx + 1}`,
         item.placa,
-        "1",
+        item.diretoria || "N/A",
+        item.gerencia || "N/A",
         `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
         `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
       ]);
@@ -1038,7 +1052,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       autoTable(doc, {
         startY: 30,
         theme: "striped",
-        head: [["Posição", "Placa do Ativo", "Qtd Veículos (Placa)", "Total de Volume", "Investimento Total"]],
+        head: [["Posição", "Placa do Ativo", "Diretoria", "Gerência", "Total de Volume", "Investimento Total"]],
         body: top10Body,
         headStyles: { fillColor: [51, 65, 85] },
         styles: { fontSize: 8.5 },
