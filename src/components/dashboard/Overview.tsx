@@ -316,6 +316,7 @@ export default function Overview() {
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Placa</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">ID Objeto</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Tipo/Modelo</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Propriedade</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-400 tracking-wider">Status</th>
@@ -331,6 +332,9 @@ export default function Overview() {
                       <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-1 rounded text-sm select-all">
                         {item.PLACA || "N/A"}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 text-xs font-mono font-bold text-slate-600 dark:text-slate-300 select-all">
+                      {item.ID_OBJETO || "N/A"}
                     </td>
                     <td className="px-6 py-4">
                       <p className="text-sm font-bold text-slate-700 dark:text-white uppercase leading-none">{item.TIPO}</p>
@@ -459,19 +463,31 @@ export default function Overview() {
                       </div>
                     </div>
 
-                    <div className="bg-indigo-50 dark:bg-indigo-900/10 p-6 rounded-3xl border border-indigo-100/50 dark:border-indigo-800/30">
+                    <div className="bg-indigo-50/50 dark:bg-slate-800/40 p-6 rounded-3xl border border-indigo-100/50 dark:border-slate-800">
                       <div className="flex items-center space-x-2 mb-4">
-                        <Monitor size={18} className="text-indigo-600" />
-                        <h4 className="text-xs font-black uppercase tracking-widest text-indigo-900 dark:text-indigo-100">INFORMAÇÕES DO EQUIPAMENTO</h4>
+                        <Monitor size={18} className="text-indigo-600 dark:text-indigo-400" />
+                        <h4 className="text-xs font-black uppercase tracking-widest text-indigo-950 dark:text-slate-200">IDENTIFICAÇÃO DO ATIVO</h4>
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">Combustível</p>
-                          <p className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset["COMBUSTÍVEL"] || selectedAsset.COMBUSTIVEL || "-"}</p>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-indigo-100/30 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">ID Objeto</span>
+                          <span className="text-sm font-black text-indigo-700 dark:text-indigo-400 font-mono select-all">{selectedAsset.ID_OBJETO || "N/A"}</span>
                         </div>
-                        <div>
-                          <p className="text-[10px] font-bold text-slate-400 uppercase leading-none mb-1">Marca/Modelo</p>
-                          <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate uppercase">{selectedAsset.MARCA} {selectedAsset.MODELO}</p>
+                        <div className="flex justify-between items-center border-b border-indigo-100/30 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Marca/Modelo</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.MARCA} {selectedAsset.MODELO}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-indigo-100/30 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Ano</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.ANO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-indigo-100/30 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Chassi</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase font-mono select-all">{selectedAsset.CHASSI || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">CNH Mínima</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.CNH_MINIMA || "N/A"}</span>
                         </div>
                       </div>
                     </div>
@@ -499,12 +515,55 @@ export default function Overview() {
                       </div>
                     </div>
 
+                    <div className="bg-slate-50 dark:bg-slate-800/30 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
+                      <div className="flex items-center space-x-2 mb-4 text-indigo-600 dark:text-indigo-400">
+                        <Truck size={18} />
+                        <h4 className="text-xs font-black uppercase tracking-widest text-slate-800 dark:text-slate-200">SISTEMA DE COMBUSTÍVEL & CONSUMO</h4>
+                      </div>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Combustível Principal</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset["COMBUSTÍVEL"] || selectedAsset.COMBUSTIVEL || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Autonomia Padrão</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.AUTONOMIA_PADRAO_VAL ? `${selectedAsset.AUTONOMIA_PADRAO_VAL} KM/L` : "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Capacidade do Tanque</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.CAPACIDADE_TANQUE_VAL ? `${selectedAsset.CAPACIDADE_TANQUE_VAL} L` : "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Combustível Secundário</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.COMBUSTIVEL_SECUNDARIO || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Autonomia Secundário</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.AUTONOMIA_SECUNDARIO_VAL ? `${selectedAsset.AUTONOMIA_SECUNDARIO_VAL} KM/L` : "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Capacidade Tanque Secundário</span>
+                          <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.CAPACIDADE_TANQUE_SECUNDARIO_VAL ? `${selectedAsset.CAPACIDADE_TANQUE_SECUNDARIO_VAL} L` : "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Abastecimento Arla?</span>
+                          <span className={`text-xs font-black px-2 py-0.5 rounded-full uppercase ${
+                            String(selectedAsset.ARLA || "").toUpperCase().includes("SIM")
+                              ? "bg-emerald-100 text-emerald-600"
+                              : "bg-slate-100 text-slate-600"
+                          }`}>
+                            {selectedAsset.ARLA || "NÃO"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-3xl border border-slate-100 dark:border-slate-800">
                       <p className="text-[10px] font-bold text-slate-400 uppercase mb-2 leading-none">Status Operacional</p>
                       <div className="flex items-center space-x-2">
                         <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
                         <span className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tight">
-                          {selectedAsset["STATUS OPERACIONAL"]}
+                          {selectedAsset.STATUS_OPERACIONAL || selectedAsset["STATUS OPERACIONAL"] || "OPERACIONAL"}
                         </span>
                       </div>
                     </div>

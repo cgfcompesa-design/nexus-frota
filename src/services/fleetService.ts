@@ -482,7 +482,18 @@ export async function fetchFleetData(): Promise<Asset[]> {
       "AUTONOMIA PADRÃO (KM/LITRO OU HORA/LITRO)": parseNum(autonomiaVal),
       "AUTONOMIA SECUNDÁRIA": parseNum(autonomiaSecundariaVal),
       "CAPACIDADE DO TANQUE": parseNum(capacidadeVal),
-      OPERACAO_24H: operacao24h === 'SIM'
+      OPERACAO_24H: operacao24h === 'SIM',
+      // Explicit additional requested columns:
+      ID_OBJETO: String(row[20] || item["ID OBJETO"] || item["ID_OBJETO"] || "").trim(),
+      ANO: String(row[8] || item["ANO"] || item["ANO MODELO"] || "").trim(),
+      CHASSI: String(row[19] || item["CHASSI"] || "").trim(),
+      ARLA: String(row[26] || item["ABASTECIMENTO ARLA"] || item["ARLA"] || "").trim(),
+      AUTONOMIA_PADRAO_VAL: parseNum(autonomiaVal),
+      CAPACIDADE_TANQUE_VAL: parseNum(capacidadeVal),
+      COMBUSTIVEL_SECUNDARIO: String(row[32] || item["COMBUSTÍVEL SECUNDÁRIO"] || item["COMBUSTIVEL SECUNDARIO"] || "").trim(),
+      AUTONOMIA_SECUNDARIO_VAL: parseNum(autonomiaSecundariaVal),
+      CAPACIDADE_TANQUE_SECUNDARIO_VAL: parseNum(row[34] || item["CAPACIDADE TANQUE SECUNDÁRIO"] || item["CAPACIDADE TANQUE SECUNDARIO"] || 0),
+      CNH_MINIMA: String(row[36] || item["CNH MÍNIMA"] || item["CNH MINIMA"] || "").trim()
     };
   }).filter(Boolean) as Asset[];
 }

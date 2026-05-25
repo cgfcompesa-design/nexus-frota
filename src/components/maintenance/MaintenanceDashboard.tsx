@@ -524,13 +524,10 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         <TabsList className="bg-slate-50 dark:bg-slate-800 p-1 rounded-xl">
           <TabsTrigger value="disponibilidade" className="text-[10px] font-black uppercase tracking-widest px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-indigo-600 shadow-sm">Disponibilidade Operacional</TabsTrigger>
           <TabsTrigger value="preventiva" className="text-[10px] font-black uppercase tracking-widest px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-indigo-600 shadow-sm">Cumprimento de Plano Preventivo</TabsTrigger>
-          {userRole !== 'Visualizador' && (
-            <TabsTrigger value="backlog" className="text-[10px] font-black uppercase tracking-widest px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-indigo-600 shadow-sm">Gestão do Backlog</TabsTrigger>
-          )}
         </TabsList>
 
         <TabsContent value="disponibilidade" className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-4">
+          <div className="grid gap-6 md:grid-cols-3">
             <MetricCard 
               title="Disponibilidade Frota" 
               value={`${metrics.disponibilidade}%`} 
@@ -551,14 +548,6 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
               value={metrics.operacionais} 
               description="Ativos em trânsito"
               icon={<CheckCircle className="text-emerald-500" size={24} />} 
-              centered 
-            />
-            <MetricCard 
-              title="Ordens Backlog" 
-              value={metrics.backlogTotal} 
-              icon={<ClipboardList className="text-slate-500" size={20} />} 
-              description="Aguardando liberação"
-              colorScheme="primary"
               centered 
             />
           </div>
@@ -737,10 +726,6 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
               </ScrollArea>
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="backlog" className="mt-6">
-          <BacklogDashboard data={controleOperacional} />
         </TabsContent>
       </Tabs>
     </div>

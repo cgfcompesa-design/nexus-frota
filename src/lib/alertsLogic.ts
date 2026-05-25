@@ -43,12 +43,13 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
   const alerts: AlertItem[] = [];
 
   maintenanceData.forEach((item, idx) => {
-    const placa = String(item.PLACA || item.placa || item.COL_1 || "").toUpperCase().trim();
+    const placa = String(item.PLACA || item.placa || item.COL_0 || item.COL_1 || "").toUpperCase().trim();
     if (!placa || placa.length < 5) return;
 
     const info = getSharedAssetInfo(placa, assets);
     // Keys often observed in the google sheets for preventive
-    const nextDateRaw = item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || 
+    const nextDateRaw = item["PRÓXIMA REVISÃO"] || item["PROXIMA REVISAO"] || item.COL_14 ||
+                        item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || 
                         item["DATA VALIDADE"] || item["VALIDADE"] || item["DATA"] || 
                         item["VENCIMENTO"] || item.COL_10 || item.COL_11 || item.COL_5 || item.COL_6;
     
