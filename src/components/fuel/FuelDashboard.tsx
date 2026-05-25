@@ -1280,7 +1280,7 @@ Coordenação de Gestão de Frotas - CGF`;
 
     const plaquesRanking = enrichedData
       .map(v => ({ ...v, totalAlerts: v.alerts.size }))
-      .filter(v => v.totalAlerts > 0)
+      .filter(v => v.totalAlerts > 0 && assetsByPlaca.has(v.placa))
       .sort((a, b) => b.totalAlerts - a.totalAlerts)
       .slice(0, 10);
 
@@ -1293,7 +1293,7 @@ Coordenação de Gestão de Frotas - CGF`;
         if (placa.startsWith("MAQ")) return acc;
         
         const v = vehicleMap.get(placa);
-        if (v && v.alerts.size > 0) {
+        if (v && v.alerts.size > 0 && assetsByPlaca.has(placa)) {
           acc[condutor] = (acc[condutor] || 0) + v.alerts.size;
         }
         return acc;
@@ -1356,6 +1356,7 @@ Coordenação de Gestão de Frotas - CGF`;
   const alertsByUnit = useMemo(() => {
     const map = new Map<string, any>();
     fuelAnalysis.desvios.forEach(d => {
+      if (!assetsByPlaca.has(d.placa)) return; // APENAS veículos frota!
       const asset = assetsByPlaca.get(d.placa);
       const unit = asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A";
       if (!map.has(unit)) {
