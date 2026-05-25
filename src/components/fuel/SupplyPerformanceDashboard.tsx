@@ -96,6 +96,12 @@ const rangeLabels: Record<string, string> = {
   const [inconsistencyGerencia, setInconsistencyGerencia] = useState("");
   const [selectedInconsistency, setSelectedInconsistency] = useState<any>(null);
 
+  // Estados de busca para os seletores de gerência/unidade
+  const [searchEmailGerencia, setSearchEmailGerencia] = useState("");
+  const [searchJustifyGerencia, setSearchJustifyGerencia] = useState("");
+  const [searchInconsistencyGerencia, setSearchInconsistencyGerencia] = useState("");
+  const [searchGroupedInconsistencyGerencia, setSearchGroupedInconsistencyGerencia] = useState("");
+
   const { getEmailsByGerencia, contactsData, isLoading: isContactsLoading } = useContactsData();
 
   // Consolidação da lista de unidades (Ativos + Contatos) de forma normalizada
@@ -122,6 +128,26 @@ const rangeLabels: Record<string, string> = {
 
     return Array.from(map.values()).sort((a, b) => a.localeCompare(b));
   }, [assets, contactsData]);
+
+  const normalizeText = (text: string) => {
+    return String(text || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  };
+
+  const filteredEmailUnits = useMemo(() => {
+    return (unitList || []).filter(g => normalizeText(g).includes(normalizeText(searchEmailGerencia)));
+  }, [unitList, searchEmailGerencia]);
+
+  const filteredJustifyUnits = useMemo(() => {
+    return (unitList || []).filter(g => normalizeText(g).includes(normalizeText(searchJustifyGerencia)));
+  }, [unitList, searchJustifyGerencia]);
+
+  const filteredInconsistencyUnits = useMemo(() => {
+    return (unitList || []).filter(g => normalizeText(g).includes(normalizeText(searchInconsistencyGerencia)));
+  }, [unitList, searchInconsistencyGerencia]);
+
+  const filteredGroupedInconsistencyUnits = useMemo(() => {
+    return (unitList || []).filter(g => normalizeText(g).includes(normalizeText(searchGroupedInconsistencyGerencia)));
+  }, [unitList, searchGroupedInconsistencyGerencia]);
 
   const getCCEmails = () => "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
 
@@ -409,7 +435,7 @@ const rangeLabels: Record<string, string> = {
             vehiclesInRanges[rangeKey].push({
               placa: plateClean || "N/A",
               range: rangeKey,
-              data: rawDate,
+              data: txDate,
               dataStr: (txDate && isValid(txDate)) ? format(txDate, "dd/MM/yyyy") : "N/A",
               horaStr: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
               motorista: raw[11] || "N/A",
@@ -450,7 +476,8 @@ const rangeLabels: Record<string, string> = {
 
   const filteredTimeVehicles = timeAndDayAnalysis.vehicles.filter(v => {
     const matchesSearch = v.placa.toUpperCase().includes(searchTermTime.toUpperCase()) || 
-                         v.motorista.toUpperCase().includes(searchTermTime.toUpperCase());
+                         v.motorista.toUpperCase().includes(searchTermTime.toUpperCase()) ||
+                         String(v.gerencia || "").toUpperCase().includes(searchTermTime.toUpperCase());
     const matchesTimeRange = selectedTimeRangeFilter === "ALL" || v.range === selectedTimeRangeFilter;
     const matchesPattern = selectedPatternFilter === "ALL" || 
                           (selectedPatternFilter === "OUT" && v.outOfPattern) ||
@@ -1306,14 +1333,29 @@ Coordenação de Gestão de Frotas - CGF`;
           <div className="py-4 space-y-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Gerência / Unidade</label>
-              <Select value={emailGerencia} onValueChange={setEmailGerencia}>
+              <Select value={emailGerencia} onValueChange={(val) => {
+                setEmailGerencia(val);
+                setSearchEmailGerencia("");
+              }}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
                   <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Gerência..."} />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  {unitList.map(g => (
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                    <Input 
+                      placeholder="Pesquisar gerência..." 
+                      className="h-8 text-[11px] focus-visible:ring-indigo-500 border-slate-200 dark:border-slate-800 uppercase"
+                      value={searchEmailGerencia}
+                      onChange={(e) => setSearchEmailGerencia(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {filteredEmailUnits.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
+                  {filteredEmailUnits.length === 0 && (
+                    <div className="p-2 text-center text-xs text-slate-400 font-bold uppercase">Nenhum resultado</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1377,14 +1419,29 @@ Coordenação de Gestão de Frotas - CGF`;
           <div className="py-4 space-y-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Unidade Responsável</label>
-              <Select value={justifyGerencia} onValueChange={setJustifyGerencia}>
+              <Select value={justifyGerencia} onValueChange={(val) => {
+                setJustifyGerencia(val);
+                setSearchJustifyGerencia("");
+              }}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
                   <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade..."} />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  {unitList.map(g => (
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                    <Input 
+                      placeholder="Pesquisar unidade..." 
+                      className="h-8 text-[11px] focus-visible:ring-indigo-500 border-slate-200 dark:border-slate-800 uppercase"
+                      value={searchJustifyGerencia}
+                      onChange={(e) => setSearchJustifyGerencia(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {filteredJustifyUnits.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
+                  {filteredJustifyUnits.length === 0 && (
+                    <div className="p-2 text-center text-xs text-slate-400 font-bold uppercase">Nenhum resultado</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1448,16 +1505,31 @@ Coordenação de Gestão de Frotas - CGF`;
           <div className="py-4 space-y-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Unidade Responsável</label>
-              <Select value={inconsistencyGerencia} onValueChange={setInconsistencyGerencia}>
+              <Select value={inconsistencyGerencia} onValueChange={(val) => {
+                setInconsistencyGerencia(val);
+                setSearchInconsistencyGerencia("");
+              }}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase text-left">
                   <div className="truncate pr-4">
                     <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade..."} />
                   </div>
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  {unitList.map(g => (
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                    <Input 
+                      placeholder="Pesquisar unidade..." 
+                      className="h-8 text-[11px] focus-visible:ring-indigo-500 border-slate-200 dark:border-slate-800 uppercase"
+                      value={searchInconsistencyGerencia}
+                      onChange={(e) => setSearchInconsistencyGerencia(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {filteredInconsistencyUnits.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
+                  {filteredInconsistencyUnits.length === 0 && (
+                    <div className="p-2 text-center text-xs text-slate-400 font-bold uppercase">Nenhum resultado</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -1524,14 +1596,29 @@ Coordenação de Gestão de Frotas - CGF`;
           <div className="py-4 space-y-4">
             <div className="space-y-2">
               <label className="text-[10px] font-black uppercase text-slate-500 ml-1">Unidade Responsável</label>
-              <Select value={groupedInconsistencyGerencia} onValueChange={setGroupedInconsistencyGerencia}>
+              <Select value={groupedInconsistencyGerencia} onValueChange={(val) => {
+                setGroupedInconsistencyGerencia(val);
+                setSearchGroupedInconsistencyGerencia("");
+              }}>
                 <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
                   <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade..."} />
                 </SelectTrigger>
-                <SelectContent className="max-h-[200px]">
-                  {unitList.map(g => (
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                    <Input 
+                      placeholder="Pesquisar unidade..." 
+                      className="h-8 text-[11px] focus-visible:ring-indigo-500 border-slate-200 dark:border-slate-800 uppercase"
+                      value={searchGroupedInconsistencyGerencia}
+                      onChange={(e) => setSearchGroupedInconsistencyGerencia(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {filteredGroupedInconsistencyUnits.map(g => (
                     <SelectItem key={g} value={g} className="text-xs uppercase font-bold">{g}</SelectItem>
                   ))}
+                  {filteredGroupedInconsistencyUnits.length === 0 && (
+                    <div className="p-2 text-center text-xs text-slate-400 font-bold uppercase">Nenhum resultado</div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
