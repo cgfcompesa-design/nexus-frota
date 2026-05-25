@@ -1,15 +1,16 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ClipboardCheck, Fuel, Settings, Activity, Wrench, Gauge, Car, ChevronDown, ChevronRight, GitBranch, FileCheck, ClipboardList, ExternalLink, ArrowLeft, Download, FileSpreadsheet, Network } from "lucide-react";
+import { ClipboardCheck, Fuel, Settings, Activity, Wrench, Gauge, Car, ChevronDown, ChevronRight, GitBranch, FileCheck, ClipboardList, ExternalLink, ArrowLeft, Download, FileSpreadsheet, Network, Mail, Send, ImageIcon, X, Check, Loader2, Info } from "lucide-react";
 import Organograma from "@/components/Organograma";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import { cn } from "@/lib/utils";
+import { useContactsData } from "@/hooks/useContactsData";
 
 const vehicles = [
   { marca: "FORD", ano: 2014, modelo: "CARGO 2423" },
@@ -588,6 +589,67 @@ function PropriosMenu({ vehicles, uniqueMarcas }: { vehicles: { marca: string; a
 export default function GerenciamentoAtividades({ onBack }: { onBack: () => void }) {
   const cgfLogo = "/src/assets/images/regenerated_image_1778593500523.png";
 
+  const { contactsData = [], isLoading: isContactsLoading } = useContactsData();
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  
+  // Form states
+  const [emailTitle, setEmailTitle] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [selectedGestores, setSelectedGestores] = useState<string[]>([]);
+  const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [attachedImageName, setAttachedImageName] = useState<string | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [showSuccessScreen, setShowSuccessScreen] = useState(false);
+  const [gestoresSearch, setGestoresSearch] = useState("");
+
+  const ccEmails = [
+    "gadveiculos@compesa.com.br",
+    "gadlocados@compesa.com.br",
+    "gadmonitoramento@compesa.com.br",
+    "gadinfracoes@compesa.com.br",
+    "gadabastecimento@compesa.com.br",
+    "gestaofrota@compesa.com.br"
+  ];
+
+  // Select all handler
+  const isAllSelected = contactsData.length > 0 && selectedGestores.length === contactsData.length;
+  
+  const handleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedGestores([]);
+    } else {
+      setSelectedGestores(contactsData.map((c: any) => c.gerencia));
+    }
+  };
+
+  const toggleSelectGestor = (gerencia: string) => {
+    setSelectedGestores(prev => 
+      prev.includes(gerencia)
+        ? prev.filter(g => g !== gerencia)
+        : [...prev, gerencia]
+    );
+  };
+
+  const filteredGestores = useMemo(() => {
+    if (!contactsData) return [];
+    return contactsData.filter((c: any) => 
+      String(c.gerencia).toLowerCase().includes(gestoresSearch.toLowerCase()) ||
+      String(c.emails).toLowerCase().includes(gestoresSearch.toLowerCase())
+    );
+  }, [contactsData, gestoresSearch]);
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachedImage(reader.result as string);
+        setAttachedImageName(file.name);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
@@ -616,9 +678,18 @@ export default function GerenciamentoAtividades({ onBack }: { onBack: () => void
             <p className="text-indigo-500 text-[10px] font-black uppercase tracking-widest mt-1">SLA, Distribuição e Fluxos CGF</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-          <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sistema Operacional Online</span>
+        <div className="flex items-center gap-4">
+          <Button 
+            onClick={() => setIsEmailModalOpen(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 font-black uppercase text-[10px] tracking-widest rounded-2xl h-12 shadow-md shadow-indigo-100 dark:shadow-none transition-all hover:scale-[1.02] active:scale-[0.98] px-5"
+          >
+            <Mail className="h-4 w-4" />
+            <span>Enviar E-mail Informativo</span>
+          </Button>
+          <div className="hidden sm:flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-4 h-12 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 tracking-widest leading-none">Status: Online</span>
+          </div>
         </div>
       </header>
 
@@ -754,6 +825,326 @@ export default function GerenciamentoAtividades({ onBack }: { onBack: () => void
           ))}
         </Tabs>
       </main>
+
+      {/* Enviar E-mail Informativo Modal */}
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* Background overlay */}
+          <div 
+            onClick={() => {
+              if (!isSending) setIsEmailModalOpen(false);
+            }}
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+          />
+          
+          {/* Container */}
+          <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header of Modal */}
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/20">
+              <div className="flex items-center space-x-3">
+                <div className="bg-indigo-600 p-2.5 rounded-2xl text-white shadow-lg shadow-indigo-200 dark:shadow-none">
+                  <Mail size={22} className="text-white" />
+                </div>
+                <div className="text-left">
+                  <h2 className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">E-mail Informativo</h2>
+                  <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Enviar comunicados para a base de gestores</p>
+                </div>
+              </div>
+              <button 
+                disabled={isSending}
+                onClick={() => setIsEmailModalOpen(false)} 
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-all disabled:opacity-20"
+              >
+                <X size={18} className="text-slate-500" />
+              </button>
+            </div>
+            
+            {/* Success screen or edit compose form */}
+            {showSuccessScreen ? (
+              <div className="flex-1 overflow-y-auto p-12 flex flex-col items-center justify-center text-center space-y-6">
+                <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-full flex items-center justify-center shadow-lg transition-transform scale-110">
+                  <Check size={40} className="stroke-[3]" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Iniciativa Enviada</h3>
+                  <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-relaxed max-w-md">
+                    O e-mail foi transmitido com sucesso para os gestores selecionados e canais de monitoramento.
+                  </p>
+                </div>
+                
+                {/* Simple detail breakdown of what was sent */}
+                <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-100 dark:border-slate-800 p-6 rounded-2xl text-left w-full max-w-md space-y-3">
+                  <p className="text-[9px] font-black uppercase text-indigo-500 tracking-widest">RESUMO DO COMPARTILHAMENTO</p>
+                  <div>
+                    <span className="text-[9px] uppercase font-bold text-slate-400 block">Título / Assunto</span>
+                    <span className="text-sm font-black text-slate-700 dark:text-slate-200">{emailTitle || "(Sem Título)"}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Destinatários</span>
+                      <span className="text-sm font-black text-slate-700 dark:text-slate-200">{selectedGestores.length} gestores</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] uppercase font-bold text-slate-400 block">Anexo Imagem</span>
+                      <span className="text-sm font-black text-slate-700 dark:text-slate-200">{attachedImage ? "Sim" : "Não"}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <Button 
+                  onClick={() => {
+                    setShowSuccessScreen(false);
+                    setIsEmailModalOpen(false);
+                    // Clear state
+                    setEmailTitle("");
+                    setEmailBody("");
+                    setSelectedGestores([]);
+                    setAttachedImage(null);
+                    setAttachedImageName(null);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest px-8 py-4 rounded-2xl shadow-lg"
+                >
+                  Concluir Envio
+                </Button>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+                <div className="grid md:grid-cols-2 gap-8 items-start">
+                  
+                  {/* Left Column: Form Details */}
+                  <div className="space-y-5 text-left">
+                    {/* Email Title Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Título / Assunto do E-mail</label>
+                      <input 
+                        type="text"
+                        value={emailTitle}
+                        onChange={(e) => setEmailTitle(e.target.value)}
+                        placeholder="Digite o título do comunicado..."
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Email Body Input */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Texto / Corpo do E-mail</label>
+                      <textarea 
+                        value={emailBody}
+                        onChange={(e) => setEmailBody(e.target.value)}
+                        rows={4}
+                        placeholder="Escreva a mensagem informativa principal do comunicado..."
+                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none resize-none custom-scrollbar text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Image Upload attachment */}
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Anexar Imagem (Exibe no Corpo)</label>
+                      <div className="space-y-3">
+                        {!attachedImage ? (
+                          <label className="block border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-950/30 rounded-3xl p-6 text-center cursor-pointer transition-all">
+                            <input 
+                              type="file"
+                              accept="image/*"
+                              onChange={handleImageChange}
+                              className="hidden"
+                            />
+                            <ImageIcon className="mx-auto text-slate-300 dark:text-slate-755 mb-2 h-8 w-8" />
+                            <span className="text-xs font-black uppercase text-slate-450 tracking-wider">Selecionar Imagem</span>
+                            <span className="block text-[9px] font-bold text-slate-500/80 uppercase mt-1">Solte sua imagem aqui ou clique</span>
+                          </label>
+                        ) : (
+                          <div className="relative border border-slate-100 dark:border-slate-800 p-3 rounded-2xl bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                              <img 
+                                src={attachedImage} 
+                                alt="Visual de Anexo" 
+                                className="w-12 h-12 rounded-xl object-cover border border-slate-200 dark:border-slate-850"
+                              />
+                              <div className="text-left">
+                                <p className="text-xs font-black text-slate-700 dark:text-slate-200 max-w-[180px] truncate">{attachedImageName || "Imagem Anexa"}</p>
+                                <p className="text-[9px] font-bold text-indigo-500 uppercase">Imagens no corpo do e-mail</p>
+                              </div>
+                            </div>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setAttachedImage(null);
+                                setAttachedImageName(null);
+                              }}
+                              className="text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase border border-transparent hover:border-rose-100"
+                            >
+                              Remover
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* carbon copy preview list */}
+                    <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 p-4 rounded-2xl">
+                      <div className="flex items-center space-x-1.5 text-indigo-500 mb-2">
+                        <Info size={14} />
+                        <span className="text-[9px] font-black uppercase tracking-widest text-indigo-900 dark:text-indigo-400">Possíveis Contatos em Cópia (CC):</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ccEmails.map((cc, i) => (
+                          <span key={i} className="bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 font-mono text-[8px] font-bold px-2 py-0.5 rounded border border-indigo-100/30 dark:border-slate-850 select-all">
+                            {cc}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Base de Gestores selectable */}
+                  <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 flex flex-col h-full space-y-4">
+                    <div className="flex items-center justify-between border-b border-indigo-100/10 pb-3">
+                      <div className="text-left">
+                        <h3 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight">Base de Gestores</h3>
+                        <p className="text-[9px] font-bold text-slate-440 uppercase tracking-widest">Selecione os destinatários</p>
+                      </div>
+                      
+                      {/* Select All Toggle */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={handleSelectAll}
+                        className="h-9 px-3 hover:bg-indigo-50 dark:hover:bg-indigo-950/35 border border-slate-200 dark:border-slate-800 text-indigo-600 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-xl hover:text-indigo-700"
+                      >
+                        {isAllSelected ? "Deselecionar" : "Selecionar Todos"}
+                      </Button>
+                    </div>
+
+                    {/* Search Gestor */}
+                    <div className="relative">
+                      <input 
+                        type="text"
+                        value={gestoresSearch}
+                        onChange={(e) => setGestoresSearch(e.target.value)}
+                        placeholder="Busca por Gerência..."
+                        className="w-full pl-4 pr-10 py-2 bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm text-slate-800 dark:text-white"
+                      />
+                    </div>
+
+                    {/* Gestores List */}
+                    {isContactsLoading ? (
+                      <div className="h-[240px] flex flex-col items-center justify-center p-12 text-center text-slate-400">
+                        <Loader2 className="h-6 w-6 animate-spin text-indigo-500 mb-3" />
+                        <p className="text-[9px] font-black uppercase tracking-widest animate-pulse">Sincronizando Gestores...</p>
+                      </div>
+                    ) : filteredGestores.length === 0 ? (
+                      <div className="h-[240px] flex flex-col items-center justify-center p-12 text-center text-slate-400 border border-dashed border-slate-200 dark:border-slate-800 rounded-2xl">
+                        <p className="text-[9px] font-black uppercase tracking-widest">Nenhum gestor encontrado</p>
+                        <p className="text-[9px] font-bold uppercase text-slate-500 mt-1">Experimente outro termo</p>
+                      </div>
+                    ) : (
+                      <div className="h-[240px] overflow-y-auto custom-scrollbar space-y-2 pr-1 text-left">
+                        {filteredGestores.map((gestor: any, i: number) => {
+                          const isSelected = selectedGestores.includes(gestor.gerencia);
+                          return (
+                            <div 
+                              key={i}
+                              onClick={() => toggleSelectGestor(gestor.gerencia)}
+                              className={`flex items-start justify-between p-3 rounded-2xl cursor-pointer border transition-all ${
+                                isSelected 
+                                  ? "bg-indigo-50/50 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-900/45 shadow-sm" 
+                                  : "bg-white border-slate-100 hover:border-slate-200 hover:bg-slate-50 dark:bg-slate-900 dark:border-slate-800"
+                              }`}
+                            >
+                              <div className="space-y-1 text-left flex-1 min-w-0 pr-3">
+                                <span className="inline-block bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[8.5px] px-2 py-0.5 rounded font-mono uppercase tracking-widest">
+                                  {gestor.gerencia || "DESCONHECIDO"}
+                                </span>
+                                <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400 truncate mt-1">
+                                  {gestor.emails || "(Vazio)"}
+                                </p>
+                              </div>
+                              <div className={`w-5 h-5 rounded-lg border flex items-center justify-center transition-all flex-shrink-0 ${
+                                isSelected 
+                                  ? "border-indigo-600 bg-indigo-600 text-white" 
+                                  : "border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900"
+                              }`}>
+                                {isSelected && <Check size={12} className="stroke-[3]" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    
+                    {/* Counter selected indicator */}
+                    <div className="pt-2 border-t border-indigo-100/10 flex justify-between items-center text-[10px] font-black uppercase text-slate-400">
+                      <span>Selecionados:</span>
+                      <span className="text-indigo-600 dark:text-indigo-400">{selectedGestores.length} de {contactsData.length}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Visual template mock preview */}
+                {emailBody && (
+                  <div className="border border-indigo-150/10 p-5 rounded-2xl bg-indigo-50/10 dark:bg-slate-850/20 text-left space-y-3">
+                    <span className="text-[9px] font-black uppercase text-indigo-500 tracking-widest block leading-none">PREVIEW DO E-MAIL:</span>
+                    <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm space-y-4">
+                      <div className="border-b border-slate-100 dark:border-slate-800 pb-3">
+                        <p className="text-sm font-black text-slate-800 dark:text-white">{emailTitle || "(Sem título)"}</p>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">De: cgf.compesa@gmail.com | Para: {selectedGestores.length === 0 ? "Nenhum selecionado" : selectedGestores.join(", ")}</p>
+                      </div>
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-bold whitespace-pre-wrap">{emailBody}</p>
+                      {attachedImage && (
+                        <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[220px] flex items-center justify-center bg-slate-50 dark:bg-slate-950">
+                          <img src={attachedImage} alt="Corpo Visual" className="object-contain max-h-[220px]" />
+                        </div>
+                      )}
+                      <div className="border-t border-slate-50 dark:border-slate-800 pt-3 text-center">
+                        <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">INFORMATIVO EXTRAÍDO DO SISTEMA DE GESTÃO NEXUS BI</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Modal footer controls */}
+            {!showSuccessScreen && (
+              <div className="p-6 border-t border-slate-100 dark:border-slate-800 flex justify-end items-center space-x-3 bg-slate-50/50 dark:bg-slate-800/20">
+                <button 
+                  type="button"
+                  disabled={isSending}
+                  onClick={() => setIsEmailModalOpen(false)} 
+                  className="px-6 py-3 border border-slate-200 dark:border-slate-800 rounded-2xl text-[10px] font-black uppercase text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all disabled:opacity-20"
+                >
+                  Cancelar
+                </button>
+                <Button
+                  type="button"
+                  disabled={isSending || selectedGestores.length === 0 || !emailTitle.trim()}
+                  onClick={() => {
+                    setIsSending(true);
+                    setTimeout(() => {
+                      setIsSending(false);
+                      setShowSuccessScreen(true);
+                    }, 1500);
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2 font-black uppercase text-[10px] tracking-widest rounded-2xl px-8 h-12 transition-all disabled:opacity-30 flex items-center justify-center shadow-lg"
+                >
+                  {isSending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                      <span>Enviando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 text-white" />
+                      <span>Enviar Comunicado</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -9,11 +9,13 @@ interface OverviewFilterBarProps {
   selectedDiretoria: string;
   selectedGerencia: string;
   selectedCriticidade: string;
+  selectedTitularidade: string;
   onSearchPlacaChange: (value: string) => void;
   onTipoChange: (value: string) => void;
   onDiretoriaChange: (value: string) => void;
   onGerenciaChange: (value: string) => void;
   onCriticidadeChange: (value: string) => void;
+  onTitularidadeChange: (value: string) => void;
   onClearFilters: () => void;
 }
 
@@ -24,11 +26,13 @@ export const OverviewFilterBar = ({
   selectedDiretoria,
   selectedGerencia,
   selectedCriticidade,
+  selectedTitularidade,
   onSearchPlacaChange,
   onTipoChange,
   onDiretoriaChange,
   onGerenciaChange,
   onCriticidadeChange,
+  onTitularidadeChange,
   onClearFilters,
 }: OverviewFilterBarProps) => {
   const tipos = Array.from(new Set(assets.map(a => a.TIPO).filter(Boolean))).sort();
@@ -59,7 +63,7 @@ export const OverviewFilterBar = ({
         </button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="space-y-1">
           <label className="text-[10px] font-black uppercase text-slate-400 px-1 tracking-widest">Tipo</label>
           <select
@@ -113,6 +117,21 @@ export const OverviewFilterBar = ({
             {criticidades.map((c) => (
               <option key={c} value={c}>Nível {c}</option>
             ))}
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-[10px] font-black uppercase text-indigo-500 px-1 tracking-widest">Titularidade</label>
+          <select
+            value={selectedTitularidade}
+            onChange={(e) => onTitularidadeChange(e.target.value)}
+            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none appearance-none font-bold text-indigo-600 dark:text-indigo-400"
+          >
+            <option value="all_eligible">Titular / N/A (Elegíveis)</option>
+            <option value="TITULAR">Apenas TITULAR</option>
+            <option value="N_A">Apenas N/A</option>
+            <option value="RESERVA">Apenas RESERVA</option>
+            <option value="all">Todos (Com Reserva)</option>
           </select>
         </div>
       </div>

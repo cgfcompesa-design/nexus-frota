@@ -26,6 +26,7 @@ export default function Overview() {
   const [selectedDiretoria, setSelectedDiretoria] = useState<string>("all");
   const [selectedGerencia, setSelectedGerencia] = useState<string>("all");
   const [selectedCriticidade, setSelectedCriticidade] = useState<string>("all");
+  const [selectedTitularidade, setSelectedTitularidade] = useState<string>("all_eligible");
   
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
@@ -60,6 +61,18 @@ export default function Overview() {
       const statusStr = (asset.STATUS_OPERACIONAL || "").toUpperCase().trim();
       if (statusStr !== 'OPERACIONAL') return false;
 
+      const tit = (asset.TITULARIDADE || "").toUpperCase().trim();
+      let matchesTitularidade = true;
+      if (selectedTitularidade === "all_eligible") {
+        matchesTitularidade = tit !== "RESERVA";
+      } else if (selectedTitularidade === "TITULAR") {
+        matchesTitularidade = tit === "TITULAR";
+      } else if (selectedTitularidade === "N_A") {
+        matchesTitularidade = tit === "N/A" || tit === "";
+      } else if (selectedTitularidade === "RESERVA") {
+        matchesTitularidade = tit === "RESERVA";
+      }
+
       const placa = String(asset.PLACA || asset.placa || "").toUpperCase();
       const matchesPlaca = !searchPlaca || placa.includes(searchPlaca.toUpperCase());
       const matchesTipo = selectedTipo === "all" || asset.TIPO === selectedTipo;
@@ -67,14 +80,14 @@ export default function Overview() {
       const matchesGerencia = selectedGerencia === "all" || (asset.GERENCIA || asset["GERÊNCIA"]) === selectedGerencia;
       const matchesCriticidade = selectedCriticidade === "all" || (asset.CRITICIDADE || asset.criticidade) === selectedCriticidade;
       
-      return matchesPlaca && matchesTipo && matchesDiretoria && matchesGerencia && matchesCriticidade;
+      return matchesPlaca && matchesTipo && matchesDiretoria && matchesGerencia && matchesCriticidade && matchesTitularidade;
     });
-  }, [assets, searchPlaca, selectedTipo, selectedDiretoria, selectedGerencia, selectedCriticidade]);
+  }, [assets, searchPlaca, selectedTipo, selectedDiretoria, selectedGerencia, selectedCriticidade, selectedTitularidade]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchPlaca, selectedTipo, selectedDiretoria, selectedGerencia, selectedCriticidade]);
+  }, [searchPlaca, selectedTipo, selectedDiretoria, selectedGerencia, selectedCriticidade, selectedTitularidade]);
 
   const totalAssets = filteredAssets.length;
   const ativosProprios = filteredAssets.filter(a => a.PROPRIEDADE_TIPO === 'Próprio').length;
@@ -112,6 +125,7 @@ export default function Overview() {
     setSelectedDiretoria("all");
     setSelectedGerencia("all");
     setSelectedCriticidade("all");
+    setSelectedTitularidade("all_eligible");
     setCurrentPage(1);
   };
 
@@ -169,11 +183,13 @@ export default function Overview() {
           selectedDiretoria={selectedDiretoria}
           selectedGerencia={selectedGerencia}
           selectedCriticidade={selectedCriticidade}
+          selectedTitularidade={selectedTitularidade}
           onSearchPlacaChange={setSearchPlaca}
           onTipoChange={setSelectedTipo}
           onDiretoriaChange={setSelectedDiretoria}
           onGerenciaChange={setSelectedGerencia}
           onCriticidadeChange={setSelectedCriticidade}
+          onTitularidadeChange={setSelectedTitularidade}
           onClearFilters={handleClearFilters}
         />
       </div>
@@ -485,9 +501,19 @@ export default function Overview() {
                           <span className="text-xs font-bold text-slate-400 uppercase">Chassi</span>
                           <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase font-mono select-all">{selectedAsset.CHASSI || "N/A"}</span>
                         </div>
-                        <div className="flex justify-between items-center pb-2">
+                        <div className="flex justify-between items-center border-b border-indigo-100/30 dark:border-slate-800 pb-2">
                           <span className="text-xs font-bold text-slate-400 uppercase">CNH Mínima</span>
                           <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase">{selectedAsset.CNH_MINIMA || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2">
+                          <span className="text-xs font-bold text-slate-400 uppercase">Titularidade</span>
+                          <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full uppercase ${
+                            String(selectedAsset.TITULARIDADE || "").toUpperCase() === "RESERVA"
+                              ? "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                              : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-400"
+                          }`}>
+                            {selectedAsset.TITULARIDADE || "N/A"}
+                          </span>
                         </div>
                       </div>
                     </div>
