@@ -524,6 +524,9 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         <TabsList className="bg-slate-50 dark:bg-slate-800 p-1 rounded-xl">
           <TabsTrigger value="disponibilidade" className="text-[10px] font-black uppercase tracking-widest px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-indigo-600 shadow-sm">Disponibilidade Operacional</TabsTrigger>
           <TabsTrigger value="preventiva" className="text-[10px] font-black uppercase tracking-widest px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-indigo-600 shadow-sm">Cumprimento de Plano Preventivo</TabsTrigger>
+          {(userRole === 'Master' || userRole === 'Gestão') && (
+            <TabsTrigger value="backlog" className="text-[10px] font-black uppercase tracking-widest px-6 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700 data-[state=active]:text-indigo-600 shadow-sm">Gestão Backlog</TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="disponibilidade" className="space-y-6">
@@ -727,6 +730,12 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
             </CardContent>
           </Card>
         </TabsContent>
+
+        {(userRole === 'Master' || userRole === 'Gestão') && (
+          <TabsContent value="backlog" className="space-y-6 animate-in fade-in-50 duration-200">
+            <BacklogDashboard data={controleOperacional} />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );
