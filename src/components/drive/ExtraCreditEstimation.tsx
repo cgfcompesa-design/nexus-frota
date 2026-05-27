@@ -22,6 +22,7 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
 
   const [selectedDiretoria, setSelectedDiretoria] = useState<string>("all");
   const [selectedGerencia, setSelectedGerencia] = useState<string>("all");
+  const [searchPlaca, setSearchPlaca] = useState<string>("");
   const [selectedCities, setSelectedCities] = useState<Record<string, string>>({});
   const [estimations, setEstimations] = useState<EstimationState>({});
 
@@ -170,13 +171,16 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
 
   // 4. Data for the table
   const filteredAssetsData = useMemo(() => {
-    if (selectedDiretoria === "all" && selectedGerencia === "all") return [];
-
     return assets
       .filter(a => {
         const matchesDir = selectedDiretoria === "all" || (a.DIRETORIA || "N/A") === selectedDiretoria;
         const matchesGer = selectedGerencia === "all" || (a.GERENCIA || a["GERÊNCIA"] || "N/A") === selectedGerencia;
-        return matchesDir && matchesGer;
+        
+        const plateStr = (a.PLACA || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const searchClean = (searchPlaca || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const matchesPlaca = !searchClean || plateStr.includes(searchClean);
+
+        return matchesDir && matchesGer && matchesPlaca;
       })
       .map(a => {
         const placa = (a.PLACA || "").toUpperCase();
@@ -216,7 +220,7 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
           monthSums
         };
       });
-  }, [assets, fuelItems, selectedDiretoria, selectedGerencia, last3Months]);
+  }, [assets, fuelItems, selectedDiretoria, selectedGerencia, last3Months, searchPlaca]);
 
   const handleInputChange = (placa: string, value: string) => {
     setEstimations(prev => ({ ...prev, [placa]: value }));
@@ -320,7 +324,7 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
 
       <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
         <CardHeader className="border-b border-slate-100 dark:border-slate-800 p-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <Building2 size={12} className="text-indigo-500" />
@@ -352,28 +356,27 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-3">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <Search size={12} className="text-indigo-500" />
+                Buscar Placa
+              </Label>
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                <Input
+                  value={searchPlaca}
+                  onChange={(e) => setSearchPlaca(e.target.value)}
+                  placeholder="Digite a placa..."
+                  className="rounded-2xl h-12 bg-slate-50 border-none shadow-inner font-bold text-slate-700 uppercase pl-10 focus-visible:ring-indigo-500 text-xs"
+                />
+              </div>
+            </div>
           </div>
         </CardHeader>
         
         <CardContent className="p-0">
-          {(selectedDiretoria === "all" && selectedGerencia === "all") ? (
-            <div className="p-20 text-center space-y-4">
-              <div className="flex justify-center">
-                <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center">
-                  <Search className="w-10 h-10 text-slate-300" />
-                </div>
-              </div>
-              <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest italic">Inicie sua estimativa</h3>
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Selecione uma Diretoria ou Gerência para visualizar a lista de ativos
-              </p>
-            </div>
-          ) : filteredAssetsData.length === 0 ? (
-            <div className="p-20 text-center">
-              <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Nenhum ativo encontrado para os filtros selecionados</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                   <TableRow className="border-none hover:bg-transparent">
@@ -422,7 +425,22 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredAssetsData.map(v => {
+                  {filteredAssetsData.length === 0 ? (
+                    <TableRow className="hover:bg-transparent">
+                      <TableCell colSpan={6} className="py-20 text-center">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                            <Search className="w-8 h-8 text-slate-300" />
+                          </div>
+                          <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest italic">Nenhum ativo encontrado</h3>
+                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                            Tente buscar por outra placa ou selecionar uma diretoria/gerência
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredAssetsData.map(v => {
                     const estimativeValue = estimations[v.placa] || "";
                     const estimativeNum = parseNum(estimativeValue);
                     
@@ -548,11 +566,11 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
                         </TableCell>
                       </TableRow>
                     );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
       

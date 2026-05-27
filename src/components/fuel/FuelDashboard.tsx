@@ -45,6 +45,7 @@ import {
 } from "recharts";
 import { FuelJustificationsTab } from "./FuelJustificationsTab";
 import { FuelAlertConfigTab } from "./FuelAlertConfigTab";
+import AbastTelemetriaTab from "./AbastTelemetriaTab";
 import {
   Tabs,
   TabsContent,
@@ -1418,6 +1419,12 @@ Coordenação de Gestão de Frotas - CGF`;
             >
               Configurações
             </TabsTrigger>
+            <TabsTrigger 
+              value="abast-telemetria" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Abastecimento x Telemetria
+            </TabsTrigger>
             {(userRole === 'Master' || userRole === 'Gestão') && (
               <TabsTrigger 
                 value="maq-report" 
@@ -2048,6 +2055,12 @@ Coordenação de Gestão de Frotas - CGF`;
               <h2 className="text-lg font-bold uppercase tracking-tight">Configuração de Alertas de Auditoria</h2>
             </div>
             <FuelAlertConfigTab />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="abast-telemetria" className="space-y-6 mt-0">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+            <AbastTelemetriaTab fuel={fuel} assets={assets} />
           </div>
         </TabsContent>
 
