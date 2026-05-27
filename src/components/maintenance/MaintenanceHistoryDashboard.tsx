@@ -106,11 +106,12 @@ const TAM_DESCRIPTIONS: Record<string, string> = {
   VCI: "Vistoria Carroceria Inmetro",
   CHM: "Checklist Manutenção",
   AET: "AET Guindaste",
+  MPD: "Manutenção Preditiva",
 };
 
 // Based on user: "desconsiderando manutenções programadas (preventivas/planejadas)"
-const PROGRAMMED_TAMS = ["MPV", "MCP", "TAC", "GNV", "CIV", "VCI", "CHM", "AET", "MCI"];
-const PREVENTIVE_TAMS = ["MPV", "TAC", "GNV", "CIV", "VCI", "CHM", "AET"];
+const PROGRAMMED_TAMS = ["MPV", "MCP", "TAC", "GNV", "CIV", "VCI", "CHM", "AET", "MCI", "MPD"];
+const PREVENTIVE_TAMS = ["MPV", "TAC", "GNV", "CIV", "VCI", "CHM", "AET", "MPD"];
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#a4de6c', '#d0ed57'];
 
@@ -766,6 +767,26 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     });
   }, [costsByPlate, filteredCustosData]);
 
+  const qtdOsPorPlacaFiltrada = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    filteredCustosData.forEach(c => {
+      const p = (c.placa || "").toUpperCase().trim();
+      const os = c.ordemServico || "";
+      if (p && os) {
+        if (!map.has(p)) {
+          map.set(p, new Set<string>());
+        }
+        map.get(p)!.add(os);
+      }
+    });
+    return Array.from(map.entries())
+      .map(([placa, osSet]) => ({
+        placa,
+        qtdOS: osSet.size
+      }))
+      .sort((a, b) => b.qtdOS - a.qtdOS);
+  }, [filteredCustosData]);
+
   const countsByTipoAtivo = useMemo(() => {
     const map: Record<string, number> = {};
     indicatorData.forEach(i => {
@@ -858,6 +879,55 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     });
 
     let currentY = (doc as any).lastAutoTable.finalY + 12;
+
+    // Helper for inline chart drawing
+    const drawPdfHorizontalChart = (title: string, data: any[], valueKey: string, labelKey: string, startY: number) => {
+      doc.setFontSize(11);
+      doc.setTextColor(30, 64, 175);
+      doc.text(title, 14, startY);
+      
+      const maxVal = Math.max(...data.map(d => d[valueKey] || 0), 1);
+      let currentDrawY = startY + 5;
+      
+      data.slice(0, 5).forEach((item, index) => {
+        const val = item[valueKey] || 0;
+        const label = item[labelKey] || "N/A";
+        // Calculate scaled width (max 100mm)
+        const barWidth = (val / maxVal) * 100;
+        
+        doc.setFontSize(7.5);
+        doc.setTextColor(60);
+        // Map label to long description if it's a TAM key
+        const displayLabel = labelKey === "tam" ? `${label} - ${TAM_DESCRIPTIONS[label] || 'Outros'}` : label;
+        const finalLabel = displayLabel.length > 38 ? displayLabel.substring(0, 35) + "..." : displayLabel;
+        doc.text(`${finalLabel}:`, 14, currentDrawY + 3);
+        
+        // Background grey bar
+        doc.setFillColor(243, 244, 246);
+        doc.rect(65, currentDrawY, 100, 4, "F");
+        
+        // Colored bar - alternating color
+        const colors = [
+          [59, 130, 246],  // Blue
+          [16, 185, 129],  // Emerald
+          [245, 158, 11],  // Amber
+          [239, 68, 68],   // Red
+          [99, 102, 241],  // Indigo
+        ];
+        const col = colors[index % colors.length];
+        doc.setFillColor(col[0], col[1], col[2]);
+        doc.rect(65, currentDrawY, Math.max(barWidth, 1), 4, "F");
+        
+        // Value
+        doc.setFontSize(7.5);
+        doc.setTextColor(80);
+        doc.text(formatCurrency(val), 170, currentDrawY + 3);
+        
+        currentDrawY += 8;
+      });
+      
+      return currentDrawY + 4;
+    };
 
     // Table: Custo de Manutenção por Tipo
     doc.setFontSize(12);
@@ -1011,7 +1081,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       const osCount = osCountByPlacaMonth.get(uniqueKey) || 0;
       return [
         service.placa,
-        service.tam || "S/D",
+        `${service.tam || "S/D"} - ${TAM_DESCRIPTIONS[service.tam] || "Outros"}`,
         formatCurrency(service.custo),
         service.nOrcamento || "N/A",
         service.descricao || "N/A",
@@ -1021,28 +1091,81 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [["Placa", "TAM (Tipo Atividade de Manutenção)", "Custo", "Nº Orçamento", "Descrição", "QTD OS's"]],
+      head: [["Placa", "Atividade (TAM)", "Custo", "Nº Orçamento", "Descrição", "QTD OS's"]],
       body: top10PdfTableData,
       theme: "grid",
       headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8 },
       bodyStyles: { fontSize: 7.5 },
       columnStyles: {
         0: { cellWidth: 18 },
-        1: { cellWidth: 32 },
+        1: { cellWidth: 42 },
         2: { cellWidth: 22 },
-        3: { cellWidth: 23 },
-        4: { cellWidth: 72 },
+        3: { cellWidth: 20 },
+        4: { cellWidth: 65 },
         5: { cellWidth: 15 }
       }
     });
 
-    currentY = (doc as any).lastAutoTable.finalY + 12;
-    if (currentY > 250) {
+    // NESTED CHART PAGE (Visual Representation of Charts - requested "tanto excel quanto PDF")
+    doc.addPage();
+    currentY = 20;
+    
+    doc.setFontSize(14);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Vistas Gráficas de Custos e Desempenho", 14, currentY);
+    
+    // Draw horizontal bar chart 1: Custo por Tipo
+    currentY = drawPdfHorizontalChart("Custos por Tipo de Manutenção", costsByTipo, "value", "name", currentY + 8);
+    
+    if (currentY > 180) {
+      doc.addPage();
+      currentY = 20;
+    }
+    
+    // Draw horizontal bar chart 2: Custo por TAM
+    currentY = drawPdfHorizontalChart("Custos Consolidados por Atividade (TAM)", costsByTam.slice(0, 8), "custo", "tam", currentY + 10);
+
+    if (currentY > 180) {
       doc.addPage();
       currentY = 20;
     }
 
-    // Table: Registros de Manutenção (Histórico)
+    // Draw horizontal bar chart 3: Top 10 Placas de Maiores Custos
+    currentY = drawPdfHorizontalChart("Top 5 Ativos de Maiores Custos (Placa)", costsByPlate.slice(0, 5), "custo", "placa", currentY + 10);
+
+    // NEW PAGE: Table QTD de OS's por Placa (TABELA À PARTE)
+    doc.addPage();
+    currentY = 20;
+
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Quantidade de Serviços (OS) por Veículo (Placa) no Período", 14, currentY);
+
+    const qstPlacaPdfData = qtdOsPorPlacaFiltrada.slice(0, 40).map(item => [
+      item.placa,
+      String(item.qtdOS)
+    ]);
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Placa", "Quantidade de Ordens de Serviço (OS)"]],
+      body: qstPlacaPdfData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5 },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { cellWidth: 80, halign: 'center' },
+        1: { cellWidth: 80, halign: 'center' }
+      }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 230) {
+      doc.addPage();
+      currentY = 20;
+    }
+
+    // Table: Registros de Manutenção (Histórico) - com TAM estendido
     doc.setFontSize(12);
     doc.setTextColor(30, 64, 175);
     doc.text("Registros de Manutenção - Histórico (Top 30)", 14, currentY);
@@ -1051,14 +1174,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       item.ordemServico,
       item.placa,
       item.estabelecimento || "N/A",
-      item.tam,
+      `${item.tam || "S/D"} - ${TAM_DESCRIPTIONS[item.tam] || "Outros"}`,
       formatCurrency(parseFloat(item.total) || 0),
       item.dataConclusaoOS
     ]);
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [["Ordem Serv.", "Placa", "Local / Oficina", "TAM", "Total Gasto", "Data Conclusão"]],
+      head: [["Ordem Serv.", "Placa", "Local / Oficina", "Atividade (TAM)", "Total Gasto", "Data Conclusão"]],
       body: mntTableData,
       theme: "grid",
       headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8 },
@@ -1066,12 +1189,12 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     });
 
     currentY = (doc as any).lastAutoTable.finalY + 12;
-    if (currentY > 250) {
+    if (currentY > 230) {
       doc.addPage();
       currentY = 20;
     }
 
-    // Table: Registros de Custos Detalhados
+    // Table: Registros de Custos Detalhados - com TAM estendido
     doc.setFontSize(12);
     doc.setTextColor(30, 64, 175);
     doc.text("Registros de Custos Detalhados (Top 30)", 14, currentY);
@@ -1080,14 +1203,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       c.placa,
       c.tipo,
       c.mesAno,
-      c.tam,
+      `${c.tam || "S/D"} - ${TAM_DESCRIPTIONS[c.tam] || "Outros"}`,
       formatCurrency(c.custo),
       c.gerencia,
     ]);
 
     autoTable(doc, {
       startY: currentY + 4,
-      head: [["Placa", "Tipo Manut.", "Mês/Ano", "TAM", "Custo Total", "Gerência"]],
+      head: [["Placa", "Tipo Manut.", "Mês/Ano", "Atividade (TAM)", "Custo Total", "Gerência"]],
       body: costTableData,
       theme: "grid",
       headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8 },
@@ -1103,6 +1226,13 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     const orcadoAcumulado = filteredCustosData.reduce((acc, c) => acc + c.custoOrcado, 0);
     const mediaPorOS = filteredCustosData.length > 0 ? totalInvestido / filteredCustosData.length : 0;
 
+    // Helper to generate the text-based bar charts (Gráficos no Excel)
+    const getExcelBar = (value: number, max: number) => {
+      if (!max || max <= 0 || !value || value <= 0) return "░░░░░░░░░░";
+      const filled = Math.min(10, Math.round((value / max) * 10));
+      return "█".repeat(filled) + "░".repeat(10 - filled);
+    };
+
     // Sheet 1: Resumo Financeiro
     const resumoData = [
       { "Indicador Financeiro": "Montante Investido em Manutenção", "Valor": formatCurrency(totalInvestido) },
@@ -1111,20 +1241,24 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       { "Indicador Financeiro": "Qtd. Orçamentos", "Valor": String(orcamentosMap.size) }
     ];
 
-    // Sheet 2: Custo por Tipo
+    // Sheet 2: Custo por Tipo (com Gráfico de Proporção)
+    const maxCustoTipo = Math.max(...costsByTipo.map(item => item.value || 0), 1);
     const custoTipoData = costsByTipo.map(item => ({
       "Tipo de Custo": item.name || "Não Especificado",
       "Quantidade de Ativos": item.numAssets || 0,
-      "Valor Total Gasto": item.value
+      "Valor Total Gasto": formatCurrency(item.value),
+      "Gráfico (Proporção)": getExcelBar(item.value, maxCustoTipo)
     }));
 
-    // Sheet 3: Unidades com Maior Custo
+    // Sheet 3: Unidades com Maior Custo (com Gráfico de Proporção)
+    const maxCustoGerencia = Math.max(...costsByGerencia.map(item => item.custo || 0), 1);
     const gerenciaTableData = costsByGerencia.map((item, idx) => ({
       "Posição": `${idx + 1}º`,
       "Unidade (Gerência)": item.gerencia,
       "Quantidade de Ativos": item.numAssets || 0,
-      "Custo Total Gasto": item.custo,
-      "% do Total": totalInvestido > 0 ? `${((item.custo / totalInvestido) * 100).toFixed(1)}%` : "0%"
+      "Custo Total Gasto": formatCurrency(item.custo),
+      "% do Total": totalInvestido > 0 ? `${((item.custo / totalInvestido) * 100).toFixed(1)}%` : "0%",
+      "Gráfico (Proporção)": getExcelBar(item.custo, maxCustoGerencia)
     }));
 
     // Sheet 4: Comparativo Mensal (Real vs Orçado)
@@ -1135,10 +1269,12 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
       monthlyTotalMap[c.mesAno].count += 1;
     });
+
     const monthsRef: Record<string, number> = {
       jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
       jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
     };
+
     const monthlyTotalsList = Object.values(monthlyTotalMap)
       .map(item => ({
         mesAno: item.mesAno,
@@ -1154,24 +1290,27 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
         if (numAnoA !== numAnoB) return numAnoA - numAnoB;
         return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
       });
+
     const periodTableData = monthlyTotalsList.map(item => {
       const desvio = item.real - item.orcado;
       const desvioPercent = item.orcado > 0 ? `${((desvio / item.orcado) * 100).toFixed(1)}%` : "0.0%";
       return {
         "Mês/Ano": item.mesAno,
-        "Custo Orçado": item.orcado,
-        "Custo Realizado": item.real,
-        "Desvio (R$)": desvio,
+        "Custo Orçado": formatCurrency(item.orcado),
+        "Custo Realizado": formatCurrency(item.real),
+        "Desvio (R$)": formatCurrency(desvio),
         "Desvio (%)": desvioPercent
       };
     });
 
-    // Sheet 5: Custo Consolidado por Atividade (TAM)
+    // Sheet 5: Custo Consolidado por Atividade (TAM) (com Gráfico de Proporção)
+    const maxCustoTam = Math.max(...costsByTam.map(item => item.custo || 0), 1);
     const tamTableData = costsByTam.map(item => ({
       "Sigla TAM": item.tam,
       "Descrição da Atividade": TAM_DESCRIPTIONS[item.tam] || "Outros",
       "Quantidade de Manutenções (Col. AT)": item.count || 0,
-      "Custo Total": item.custo
+      "Custo Total": formatCurrency(item.custo),
+      "Gráfico (Proporção)": getExcelBar(item.custo, maxCustoTam)
     }));
 
     // Sheet 6: TOP 10 Veículos de Maiores Custos (Serviços)
@@ -1180,32 +1319,39 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       const osCount = osCountByPlacaMonth.get(uniqueKey) || 0;
       return {
         "Placa": service.placa,
-        "TAM (Tipo Atividade de Manutenção)": service.tam,
-        "Descrição TAM": TAM_DESCRIPTIONS[service.tam] || "Outros",
-        "Custo": service.custo,
+        "TAM (Tipo Atividade de Manutenção)": `${service.tam || "S/D"} - ${TAM_DESCRIPTIONS[service.tam] || "Outros"}`,
+        "Custo": formatCurrency(service.custo),
         "Nº Orçamento": service.nOrcamento || "N/A",
         "Descrição": service.descricao || "N/A",
         "QTD de OS's (Mês/Ano)": osCount
       };
     });
 
-    // Sheet 7: Registros de Manutenção (Histórico Completo)
+    // Sheet 7: QTD de OS's por Placa (TABELA À PARTE)
+    const maxQtdOS = Math.max(...qtdOsPorPlacaFiltrada.map(item => item.qtdOS || 0), 1);
+    const qtdOsExcelData = qtdOsPorPlacaFiltrada.map(item => ({
+      "Placa": item.placa,
+      "Quantidade de OS's (Período)": item.qtdOS,
+      "Gráfico (Proporção)": getExcelBar(item.qtdOS, maxQtdOS)
+    }));
+
+    // Sheet 8: Registros de Manutenção (Histórico Completo)
     const mntFullData = filteredData.map(item => ({
       "Ordem Serv.": item.ordemServico,
       "Placa": item.placa,
       "Local / Oficina": item.estabelecimento || "N/A",
-      "TAM": item.tam,
-      "Total Gasto": parseFloat(item.total) || 0,
+      "TAM": `${item.tam || "S/D"} - ${TAM_DESCRIPTIONS[item.tam] || "Outros"}`,
+      "Total Gasto": formatCurrency(parseFloat(item.total) || 0),
       "Data Conclusão": item.dataConclusaoOS
     }));
 
-    // Sheet 8: Registros de Custos Detalhados (Completo)
+    // Sheet 9: Registros de Custos Detalhados (Completo)
     const costsDetailsFullData = filteredCustosData.map(c => ({
       "Placa": c.placa,
       "Tipo Manut.": c.tipo,
       "Mês/Ano": c.mesAno,
-      "TAM": c.tam,
-      "Custo Total": c.custo,
+      "TAM": `${c.tam || "S/D"} - ${TAM_DESCRIPTIONS[c.tam] || "Outros"}`,
+      "Custo Total": formatCurrency(c.custo),
       "Gerência": c.gerencia,
       "Diretoria": c.diretoria,
       "Nº Orçamento": c.nOrcamento || "N/A",
@@ -1219,6 +1365,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       { data: periodTableData, sheetName: "Comparativo Mensal" },
       { data: tamTableData, sheetName: "Custo por TAM" },
       { data: top10ExcelData, sheetName: "TOP 10 Ativos Serviços" },
+      { data: qtdOsExcelData, sheetName: "QTD OS por Placa" },
       { data: mntFullData, sheetName: "Histórico de Manutenções" },
       { data: costsDetailsFullData, sheetName: "Custos Detalhados Completos" }
     ], `Painel_Custos_Manutencao_Completo_${format(new Date(), 'yyyyMMdd')}`);
@@ -1932,9 +2079,9 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
             </ChartCard>
           </div>
 
-          {/* Lista detalhada dos serviços realizados no Top 10 Ativos */}
-          <div className="grid grid-cols-1 gap-6">
-            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
+          {/* Lista detalhada dos serviços realizados no Top 10 Ativos + Tabela de QTD OS's por Placa */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-2 border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
               <CardHeader className="py-4 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
                 <CardTitle className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
                   <Wrench className="h-4 w-4 text-rose-500" />
@@ -1951,20 +2098,17 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                       <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-right">Custo</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Nº Orçamento</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3">Descrição</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Qtd OS (Mês/Ano)</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {top10AssetsServices.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground font-semibold">
+                        <TableCell colSpan={5} className="py-8 text-center text-xs text-muted-foreground font-semibold">
                           Nenhum serviço encontrado para os ativos do Top 10 com os filtros atuais.
                         </TableCell>
                       </TableRow>
                     ) : (
                       top10AssetsServices.map((service, idx) => {
-                        const uniqueKey = `${service.placa}_${service.mesAno}`; 
-                        const osCount = osCountByPlacaMonth.get(uniqueKey) || 0;
                         return (
                           <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                             <TableCell className="text-xs font-bold text-slate-900 dark:text-slate-100 text-center">{service.placa}</TableCell>
@@ -1972,10 +2116,45 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                             <TableCell className="text-xs font-black text-rose-600 dark:text-rose-400 text-right">{formatCurrency(service.custo)}</TableCell>
                             <TableCell className="text-xs font-semibold text-slate-600 dark:text-slate-400 text-center">{service.nOrcamento || 'N/A'}</TableCell>
                             <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350 max-w-[250px] truncate" title={service.descricao}>{service.descricao || 'N/A'}</TableCell>
-                            <TableCell className="text-xs font-bold text-indigo-600 dark:text-indigo-400 text-center">{osCount}</TableCell>
                           </TableRow>
                         );
                       })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-1 border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
+              <CardHeader className="py-4 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="text-sm font-bold text-indigo-800 dark:text-indigo-450 uppercase tracking-wider flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-indigo-500" />
+                  QTD de OS's por Placa (Período)
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Serviços por veículo no intervalo selecionado</p>
+              </CardHeader>
+              <CardContent className="p-0 overflow-auto max-h-[400px]">
+                <Table>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Placa</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">QTD de OS's (Mês/Ano)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {qtdOsPorPlacaFiltrada.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={2} className="py-8 text-center text-xs text-muted-foreground font-semibold">
+                          Não há serviços registrados.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      qtdOsPorPlacaFiltrada.slice(0, 50).map((row, idx) => (
+                        <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                          <TableCell className="text-xs font-bold text-slate-900 dark:text-slate-100 text-center">{row.placa}</TableCell>
+                          <TableCell className="text-xs font-black text-indigo-600 dark:text-indigo-450 text-center">{row.qtdOS}</TableCell>
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
