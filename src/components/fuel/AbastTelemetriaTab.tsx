@@ -627,6 +627,18 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
       const motoristaA = limparMotorista(rawDriverA);
       const postoA = String(f["NOME POSTO"] || f._posto || f["NOME ESTABELECIMENTO"] || "N/A").trim().toUpperCase();
 
+      const rawRaw = (f as any).__raw || (f as any)._raw || [];
+      const enderecoPosto = String(f["ENDERECO"] || f["ENDEREÇO"] || f._endereco || rawRaw[23] || "").trim();
+      const bairroPosto = String(f["BAIRRO"] || f._bairro || rawRaw[24] || "").trim();
+      const cidadePosto = String(f["CIDADE"] || f._cidade || rawRaw[25] || "").trim();
+
+      // Concatenar informações do endereço para cruzamento
+      const partesPosto = [enderecoPosto, bairroPosto, cidadePosto]
+        .map(p => p.trim())
+        .filter(p => p && p.toUpperCase() !== "N/A" && p.toUpperCase() !== "N_A" && p.toUpperCase() !== "NULL" && p !== "-");
+      
+      const enderecoCompletoPosto = partesPosto.join(", ").trim().toUpperCase();
+
       if (!dataA) return;
 
       let melhorDiff = 999999;
@@ -708,7 +720,8 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
         }
 
         // REGRA 3 - DIVERGÊNCIA DE ENDEREÇO
-        if (!enderecoCompativel(enderecoT, postoA)) {
+        const localComparacao = enderecoCompletoPosto || postoA;
+        if (!enderecoCompativel(enderecoT, localComparacao)) {
           deviations.push({
             placa: placaA,
             dataAbast: dataA.toLocaleString('pt-BR'),
@@ -717,7 +730,7 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
             difMin: melhorDiff.toFixed(1),
             motoristaTelem: matchedTR.motorista || "N/A",
             ignicao,
-            obs: `TELEMETRIA EM: ${enderecoT} / TICKET NO POSTO: ${postoA}`,
+            obs: `TELEMETRIA EM: ${enderecoT} / POSTO EM: ${localComparacao}`,
             litros: f["LITROS"],
             posto: postoA,
             motoristaAbast: rawDriverA
