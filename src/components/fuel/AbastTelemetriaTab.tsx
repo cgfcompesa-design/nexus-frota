@@ -18,8 +18,20 @@ import {
   Sparkles,
   RefreshCw,
   SlidersHorizontal,
-  Info
+  Info,
+  Mail,
+  Send,
+  Users
 } from "lucide-react";
+import { useContactsData } from "@/hooks/useContactsData";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,12 +324,69 @@ function parseTelemetryHtml(fileName: string, htmlText: string): {
 }
 
 export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: any[], assets: any[] }) {
+  const { getEmailsByGerencia } = useContactsData();
+
   const [selectedPlaca, setSelectedPlaca] = useState<string>("all");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [strictDrivers, setStrictDrivers] = useState<boolean>(false);
   const [loadingFile, setLoadingFile] = useState<boolean>(false);
+
+  // Email Notification Modal States
+  const [emailModalOpen, setEmailModalOpen] = useState<boolean>(false);
+  const [selectedRowForEmail, setSelectedRowForEmail] = useState<DeviationItem | null>(null);
+  const [emailGerencia, setEmailGerencia] = useState<string>("");
+  const [emailDestinatarios, setEmailDestinatarios] = useState<string>("");
+  const [emailSubject, setEmailSubject] = useState<string>("");
+  const [emailBody, setEmailBody] = useState<string>("");
+
+  const handleOpenEmailModal = (row: DeviationItem) => {
+    const cleanPlaca = limparPlaca(row.placa);
+    const asset = assets.find(a => limparPlaca(a.PLACA || a.placa) === cleanPlaca);
+    
+    const gerenciaName = asset?.GERENCIA || asset?.gerencia || asset?.["GERÊNCIA"] || "FROTA CENTRAL";
+    const marca = asset?.MARCA || asset?.marca || "N/A";
+    const modelo = asset?.MODELO || asset?.modelo || "N/A";
+    
+    const emailsList = getEmailsByGerencia(gerenciaName);
+    const emailsToUse = emailsList.join("; ");
+    
+    const subject = `Solicitação de Esclarecimentos - Inconsistências Identificadas em Relatório de Abastecimento x Telemetria, veículo ${row.placa}`;
+    
+    const desvioTxt = `Desvio identificado: ${row.desvio}
+Data do Abastecimento: ${row.dataAbast}
+Posto: ${row.posto || "N/A"}
+Detalhe do Cruzamento: ${row.obs}`;
+
+    const bodyText = `Prezado(a) Gestor(a),
+
+Ao analisarmos o relatório em anexo, identificamos inconsistência relacionada ao veículo de placa ${row.placa}, marca ${marca}, modelo ${modelo}, que necessita de esclarecimentos.
+
+A ocorrência apontada é a seguinte:
+- ${desvioTxt}
+
+Diante do exposto, solicitamos, por gentileza, o envio dos devidos esclarecimentos acerca da ocorrência apresentada no relatório, no prazo de até 2 (dois) dias úteis.
+Informamos que, em caso de ausência de retorno dentro do prazo estabelecido, o cartão de abastecimento poderá ser bloqueado.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas - CGF`;
+
+    setSelectedRowForEmail(row);
+    setEmailGerencia(gerenciaName);
+    setEmailDestinatarios(emailsToUse || "");
+    setEmailSubject(subject);
+    setEmailBody(bodyText);
+    setEmailModalOpen(true);
+  };
+
+  const handleSendEmail = () => {
+    const cc = "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
+    const mailto = `mailto:${encodeURIComponent(emailDestinatarios)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}&cc=${encodeURIComponent(cc)}`;
+    window.location.href = mailto;
+    setEmailModalOpen(false);
+    toast.success("Notificação enviada para o cliente de e-mail!");
+  };
   
   // Telemetry parsed files state
   const [telemetryFiles, setTelemetryFiles] = useState<Array<{
@@ -1224,15 +1293,16 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto">Data Abast.</TableHead>
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto">Status</TableHead>
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto">Desvio</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto">Dif (Min)</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto">Ignicação</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto text-center">Dif (Min)</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto text-center">Ignicação</TableHead>
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto">Observação do Cruzamento / Endereço</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 h-auto text-center">Notificar</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {finalFilteredResults.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={7} className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">
+                            <TableCell colSpan={8} className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">
                               Nenhum cruzamento encontrado para esta seleção.
                             </TableCell>
                           </TableRow>
@@ -1331,6 +1401,17 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
                                 <TableCell className="text-xs font-medium text-slate-500 leading-snug max-w-[240px]">
                                   {row.obs}
                                 </TableCell>
+                                <TableCell className="text-center py-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handleOpenEmailModal(row)}
+                                    className="h-8 w-8 p-0 border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-950/40 rounded-full"
+                                    title="Notificar Responsável"
+                                  >
+                                    <Mail className="h-3.5 w-3.5" />
+                                  </Button>
+                                </TableCell>
                               </TableRow>
                             );
                           })
@@ -1355,6 +1436,103 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
           )}
         </div>
       </div>
+
+      {/* Dialog para envio de e-mail ao gestor responsável */}
+      <Dialog open={emailModalOpen} onOpenChange={setEmailModalOpen}>
+        <DialogContent className="max-w-2xl bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden max-h-[90vh] flex flex-col">
+          <DialogHeader className="pb-3 border-b border-slate-100 dark:border-slate-805">
+            <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+              <Mail className="h-5 w-5" />
+              <DialogTitle className="text-sm font-black uppercase tracking-wider">
+                Enviar Notificação de Divergência
+              </DialogTitle>
+            </div>
+            <DialogDescription className="text-xs text-slate-500 font-medium mt-1">
+              Envie uma solicitação formal de esclarecimentos direto para a gerência responsável pelo ativo.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 overflow-y-auto flex-1 pr-1">
+            <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-100 dark:border-slate-850">
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-widest">Placa do Veículo</span>
+                <span className="text-xs font-black text-slate-800 dark:text-slate-200">{selectedRowForEmail?.placa}</span>
+              </div>
+              <div>
+                <span className="text-[9px] font-black uppercase text-slate-400 block tracking-widest">Gerência Responsável</span>
+                <span className="text-xs font-black text-indigo-600 dark:text-indigo-400">{emailGerencia}</span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center justify-between">
+                <span>E-mails dos Destinatários (separados por ponto e vírgula)</span>
+                {emailDestinatarios ? (
+                  <Badge variant="outline" className="bg-emerald-50 text-emerald-700 text-[8px] font-bold py-0 h-4 uppercase">
+                    Unidade Identificada
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-amber-50 text-amber-700 text-[8px] font-bold py-0 h-4 uppercase">
+                    E-mail não cadastrado
+                  </Badge>
+                )}
+              </Label>
+              <Input
+                type="text"
+                value={emailDestinatarios}
+                onChange={(e) => setEmailDestinatarios(e.target.value)}
+                placeholder="Insira os e-mails separados por ponto e vírgula (;)"
+                className="rounded-2xl h-11 border-slate-200 dark:border-slate-800 text-xs font-bold bg-slate-50 dark:bg-slate-950 p-3"
+              />
+              {!emailDestinatarios && (
+                <p className="text-[10px] text-amber-500 font-semibold leading-relaxed">
+                  ⚠️ Nenhum e-mail de gestor associado à gerência "{emailGerencia}". Por favor, digite manualmente acima.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Assunto do E-mail</Label>
+              <Input
+                type="text"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                className="rounded-2xl h-11 border-slate-200 dark:border-slate-800 text-xs font-bold bg-slate-50 dark:bg-slate-950 p-3"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">Corpo do E-mail</Label>
+              <textarea
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                rows={11}
+                className="w-full rounded-2xl border border-slate-200 dark:border-slate-800 text-xs font-medium bg-slate-50 dark:bg-slate-950 p-4 focus:ring-2 focus:ring-indigo-550 focus:outline-none dark:text-slate-350 resize-y"
+              />
+            </div>
+            
+            <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-dotted border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 font-medium">
+              💡 <span className="font-bold">Nota de Cópia:</span> Este e-mail enviará automaticamente cópia oculta (CC) para as gerências de logística da COMPESA (<span className="font-bold">gadabastecimento</span> e <span className="font-bold">gadmonitoramento</span>).
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 shrink-0">
+            <Button
+              variant="ghost"
+              onClick={() => setEmailModalOpen(false)}
+              className="rounded-2xl text-xs font-bold h-11 border-transparent hover:bg-slate-100 dark:hover:bg-slate-800 uppercase tracking-wide text-slate-600 dark:text-slate-400"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              className="rounded-2xl text-xs font-black h-11 bg-indigo-600 hover:bg-indigo-700 text-white shadow-md gap-2 px-5 uppercase tracking-wide"
+            >
+              <Send className="h-4.5 w-4.5" /> Enviar E-mail
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
