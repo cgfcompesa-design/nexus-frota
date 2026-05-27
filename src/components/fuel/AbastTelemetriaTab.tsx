@@ -201,20 +201,168 @@ interface DeviationItem {
   motoristaAbast?: string;
 }
 
+function formatDateToInputString(date: Date): string {
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function parseTelemetryHtml(fileName: string, htmlText: string): {
+  fileName: string;
+  placa: string;
+  periodo: string;
+  rows: TelemetryRow[];
+} | null {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlText, "text/html");
+
+  // 1. Identify Placa from report head
+  let filePlaca = "";
+  const bTags = Array.from(doc.getElementsByTagName("b"));
+  
+  // Look for exact matches in bold tags
+  for (const b of bTags) {
+    const txt = b.textContent?.trim() || "";
+    if (/^[A-Z]{3}\d[A-Z0-9]\d{2}$|^[A-Z]{3}\d{4}$/i.test(txt)) {
+      filePlaca = txt.toUpperCase();
+      break;
+    }
+  }
+  
+  if (!filePlaca) {
+    const bodyText = doc.body.textContent || "";
+    const match = bodyText.match(/Placa:\s*([A-Z]{3}[A-Z0-9]{4})/i) || bodyText.match(/PCA\d{4}|[A-Z]{3}-?\d{4}/i);
+    if (match) {
+      filePlaca = match[0].replace(/Placa:\s*/i, "").replace("-", "").toUpperCase().trim();
+    }
+  }
+
+  // 2. Identify Period / Date
+  let filePeriod = "";
+  for (const b of bTags) {
+    if (b.previousSibling && b.previousSibling.nodeValue && b.previousSibling.nodeValue.includes("Período:")) {
+      filePeriod = b.textContent?.trim() || "";
+      break;
+    }
+  }
+
+  // 3. Parse positioning rows
+  const trs = Array.from(doc.querySelectorAll("tr[id]"));
+  const telemetryRows: TelemetryRow[] = [];
+
+  trs.forEach(tr => {
+    const tds = Array.from(tr.querySelectorAll("td"));
+    if (tds.length >= 10) {
+      const dataHoraStr = tds[0]?.textContent?.trim() || "";
+      const dataHora = parseFullDateTime(dataHoraStr);
+      const ig = tds[1]?.textContent?.trim() || "";
+      
+      let endereco = "";
+      const link = tds[2]?.querySelector("a");
+      if (link) {
+        endereco = link.getAttribute("title") || link.textContent?.trim() || tds[2]?.textContent?.trim() || "";
+      } else {
+        endereco = tds[2]?.textContent?.trim() || "";
+      }
+
+      const vel = parseFloat(tds[3]?.textContent?.replace(",", ".").trim() || "0") || 0;
+      const hod = parseFloat(tds[4]?.textContent?.trim() || "0") || 0;
+      const hor = tds[5]?.textContent?.trim() || "";
+      const tx = tds[6]?.textContent?.trim() || "";
+      const motorista = tds[7]?.textContent?.trim() || "";
+      const lat = parseFloat(tds[8]?.textContent?.trim() || "0") || 0;
+      const lng = parseFloat(tds[9]?.textContent?.trim() || "0") || 0;
+
+      const motivoTx = tds[10]?.textContent?.trim() || "";
+      const contador = tds[11]?.textContent?.trim() || "";
+      const tensao = tds[12]?.textContent?.trim() || "";
+      const temp = tds[13]?.textContent?.trim() || "";
+
+      telemetryRows.push({
+        dataHoraStr,
+        dataHora,
+        ig,
+        endereco,
+        vel,
+        hod,
+        hor,
+        tx,
+        motorista,
+        lat,
+        lng,
+        motivoTx,
+        contador,
+        tensao,
+        temp
+      });
+    }
+  });
+
+  if (telemetryRows.length === 0) {
+    return null;
+  }
+
+  return {
+    fileName,
+    placa: filePlaca || "Não Identificada",
+    periodo: filePeriod || "Não Informado",
+    rows: telemetryRows
+  };
+}
+
 export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: any[], assets: any[] }) {
   const [selectedPlaca, setSelectedPlaca] = useState<string>("all");
-  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [strictDrivers, setStrictDrivers] = useState<boolean>(false);
   const [loadingFile, setLoadingFile] = useState<boolean>(false);
   
-  // Telemetry parsed state
-  const [telemetryFile, setTelemetryFile] = useState<{
+  // Telemetry parsed files state
+  const [telemetryFiles, setTelemetryFiles] = useState<Array<{
     fileName: string;
     placa: string;
     periodo: string;
     rows: TelemetryRow[];
-  } | null>(null);
+  }>>([]);
+
+  // Dynamically initialize date range when fueling fuel list loads
+  React.useEffect(() => {
+    if (fuel && fuel.length > 0) {
+      let minDate: Date | null = null;
+      let maxDate: Date | null = null;
+      
+      fuel.forEach(f => {
+        const d = parseFullDateTime(f["DATA TRANSACAO"] || f["DATA"]);
+        if (d) {
+          if (!minDate || d < minDate) minDate = d;
+          if (!maxDate || d > maxDate) maxDate = d;
+        }
+      });
+      
+      if (minDate && maxDate) {
+        setStartDate(formatDateToInputString(minDate));
+        setEndDate(formatDateToInputString(maxDate));
+      }
+    }
+  }, [fuel]);
+
+  // Compute a consolidated virtual telemetryFile state for perfect backwards compatibility
+  const telemetryFile = useMemo(() => {
+    if (telemetryFiles.length === 0) return null;
+    if (telemetryFiles.length === 1) return telemetryFiles[0];
+    
+    const uniquePlacas = Array.from(new Set(telemetryFiles.map(f => f.placa).filter(Boolean)));
+    const samePeriod = telemetryFiles.every(f => f.periodo === telemetryFiles[0].periodo);
+    
+    return {
+      fileName: `${telemetryFiles.length} arquivos carregados`,
+      placa: uniquePlacas.length > 0 ? uniquePlacas.join(", ") : "Não Identificadas",
+      periodo: samePeriod ? telemetryFiles[0].periodo : `${telemetryFiles.length} arquivos com períodos variados`,
+      rows: telemetryFiles.flatMap(f => f.rows)
+    };
+  }, [telemetryFiles]);
 
   // Available Plates for Filter
   const availablePlates = useMemo(() => {
@@ -226,151 +374,66 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
     return Array.from(list).sort();
   }, [fuel]);
 
-  // Available Months for Filter
-  const availableMonths = useMemo(() => {
-    const list = new Set<string>();
-    fuel.forEach(f => {
-      const date = parseFullDateTime(f["DATA TRANSACAO"] || f["DATA"]);
-      if (date) {
-        const m = (date.getMonth() + 1).toString().padStart(2, '0');
-        const y = date.getFullYear();
-        list.add(`${m}/${y}`);
-      }
-    });
-    return Array.from(list).sort((a,b) => {
-      const [ma, ya] = a.split('/').map(Number);
-      const [mb, yb] = b.split('/').map(Number);
-      return ya !== yb ? ya - yb : ma - mb;
-    });
-  }, [fuel]);
-
-  // Handle uploaded HTML parsing
-  const handleHtmlUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle uploaded HTML files parsing
+  const handleHtmlUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
 
     setLoadingFile(true);
-    const reader = new FileReader();
-    reader.onload = (event) => {
+    let parsedCount = 0;
+    const list: Array<{
+      fileName: string;
+      placa: string;
+      periodo: string;
+      rows: TelemetryRow[];
+    }> = [];
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
       try {
-        const htmlText = event.target?.result as string;
-        parseAndSetTelemetry(file.name, htmlText);
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (event) => resolve(event.target?.result as string);
+          reader.onerror = () => reject(new Error("Erro ao ler o arquivo"));
+          reader.readAsText(file);
+        });
+
+        const parsed = parseTelemetryHtml(file.name, text);
+        if (parsed) {
+          list.push(parsed);
+          parsedCount++;
+        }
       } catch (err) {
         console.error(err);
-        toast.error("Erro ao processar o arquivo. Certifique-se de que é o relatório de posição HTML.");
-      } finally {
-        setLoadingFile(false);
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  const parseAndSetTelemetry = (fileName: string, htmlText: string) => {
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(htmlText, "text/html");
-
-    // 1. Identify Placa from report head
-    let filePlaca = "";
-    const bTags = Array.from(doc.getElementsByTagName("b"));
-    
-    // Look for exact matches in bold tags
-    for (const b of bTags) {
-      const txt = b.textContent?.trim() || "";
-      if (/^[A-Z]{3}\d[A-Z0-9]\d{2}$|^[A-Z]{3}\d{4}$/i.test(txt)) {
-        filePlaca = txt.toUpperCase();
-        break;
-      }
-    }
-    
-    if (!filePlaca) {
-      const bodyText = doc.body.textContent || "";
-      const match = bodyText.match(/Placa:\s*([A-Z]{3}[A-Z0-9]{4})/i) || bodyText.match(/PCA\d{4}|[A-Z]{3}-?\d{4}/i);
-      if (match) {
-        filePlaca = match[0].replace(/Placa:\s*/i, "").replace("-", "").toUpperCase().trim();
+        toast.error(`Erro ao processar o arquivo ${file.name}`);
       }
     }
 
-    // 2. Identify Period / Date
-    let filePeriod = "";
-    for (const b of bTags) {
-      if (b.previousSibling && b.previousSibling.nodeValue && b.previousSibling.nodeValue.includes("Período:")) {
-        filePeriod = b.textContent?.trim() || "";
-        break;
-      }
-    }
-
-    // 3. Parse positioning rows
-    const trs = Array.from(doc.querySelectorAll("tr[id]"));
-    const telemetryRows: TelemetryRow[] = [];
-
-    trs.forEach(tr => {
-      const tds = Array.from(tr.querySelectorAll("td"));
-      if (tds.length >= 10) {
-        const dataHoraStr = tds[0]?.textContent?.trim() || "";
-        const dataHora = parseFullDateTime(dataHoraStr);
-        const ig = tds[1]?.textContent?.trim() || "";
-        
-        let endereco = "";
-        const link = tds[2]?.querySelector("a");
-        if (link) {
-          endereco = link.getAttribute("title") || link.textContent?.trim() || tds[2]?.textContent?.trim() || "";
-        } else {
-          endereco = tds[2]?.textContent?.trim() || "";
+    if (list.length > 0) {
+      setTelemetryFiles(prev => {
+        const existingNames = new Set(prev.map(f => f.fileName));
+        const filteredNew = list.filter(nf => !existingNames.has(nf.fileName));
+        if (filteredNew.length === 0) {
+          toast.info("Todos os arquivos selecionados já foram importados anteriormente.");
+          return prev;
         }
-
-        const vel = parseFloat(tds[3]?.textContent?.replace(",", ".").trim() || "0") || 0;
-        const hod = parseFloat(tds[4]?.textContent?.trim() || "0") || 0;
-        const hor = tds[5]?.textContent?.trim() || "";
-        const tx = tds[6]?.textContent?.trim() || "";
-        const motorista = tds[7]?.textContent?.trim() || "";
-        const lat = parseFloat(tds[8]?.textContent?.trim() || "0") || 0;
-        const lng = parseFloat(tds[9]?.textContent?.trim() || "0") || 0;
-
-        const motivoTx = tds[10]?.textContent?.trim() || "";
-        const contador = tds[11]?.textContent?.trim() || "";
-        const tensao = tds[12]?.textContent?.trim() || "";
-        const temp = tds[13]?.textContent?.trim() || "";
-
-        telemetryRows.push({
-          dataHoraStr,
-          dataHora,
-          ig,
-          endereco,
-          vel,
-          hod,
-          hor,
-          tx,
-          motorista,
-          lat,
-          lng,
-          motivoTx,
-          contador,
-          tensao,
-          temp
-        });
-      }
-    });
-
-    if (telemetryRows.length === 0) {
-      toast.error("Nenhuma linha de posicionamento com ID foi encontrada no HTML.");
-      return;
-    }
-
-    setTelemetryFile({
-      fileName,
-      placa: filePlaca || "Não Identificada",
-      periodo: filePeriod || "Não Informado",
-      rows: telemetryRows
-    });
-
-    // Auto-select plate if found in options
-    const matchPlacaClean = limparPlaca(filePlaca);
-    if (matchPlacaClean) {
-      setSelectedPlaca(matchPlacaClean);
-      toast.success(`Relatório importado! Placa ${filePlaca} selecionada automaticamente.`);
+        
+        const updated = [...prev, ...filteredNew];
+        
+        // Auto-select plate of first newly uploaded file
+        const firstWithPlaca = filteredNew.find(f => limparPlaca(f.placa));
+        if (firstWithPlaca) {
+          const matchPlacaClean = limparPlaca(firstWithPlaca.placa);
+          setSelectedPlaca(matchPlacaClean);
+        }
+        
+        return updated;
+      });
+      toast.success(`${parsedCount} arquivo(s) importado(s) com sucesso!`);
     } else {
-      toast.success(`Relatório importado com sucesso! (${telemetryRows.length} posições)`);
+      toast.error("Nenhum arquivo HTML de posicionamento válido foi processado.");
     }
+    setLoadingFile(false);
   };
 
   // LOAD SAMPLE REPORT DATA FOR INSTANT TESTING
@@ -499,39 +562,56 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
       });
     }
 
-    setTelemetryFile({
+    const sampleFile = {
       fileName: "demonstrativo_posicao_PCA7094.html",
       placa: "PCA7094",
       periodo: "19/05/2026 00:00 À 19/05/2026 23:59",
       rows: mockRows
+    };
+
+    setTelemetryFiles(prev => {
+      // Evitar duplicados
+      const filtered = prev.filter(f => f.fileName !== sampleFile.fileName);
+      return [...filtered, sampleFile];
     });
 
     setSelectedPlaca("PCA7094");
-    setSelectedMonth("05/2026");
-    toast.success("Dados demonstrativos carregados com sucesso! Placa PCA7094 selecionada.");
+    setStartDate("2026-05-19");
+    setEndDate("2026-05-19");
+    toast.success("Dados demonstrativos carregados com sucesso! Placa PCA7094 e data 19/05/2026 selecionadas.");
   };
 
   // DATA CROSSING ENGINE (CRUZAMENTO TELEMETRIA x ABASTECIMENTO)
   const crossDataResults = useMemo(() => {
     if (!telemetryFile) return [];
 
-    // Filter fueling base on selected plate and month
-    const targetPlate = limparPlaca(telemetryFile.placa);
-    
-    // We can also allow the user to cross-check based on selected overrides
-    const actualPlacaToCross = selectedPlaca === "all" ? targetPlate : selectedPlaca;
-
+    // Filter fueling base on selected plate and date ranges
     const matchedFuel = fuel.filter(f => {
       const fuelPlaca = limparPlaca(f["PLACA"]);
-      if (fuelPlaca !== actualPlacaToCross) return false;
+      
+      // Filter by selected Placa if specified
+      if (selectedPlaca !== "all" && fuelPlaca !== selectedPlaca) return false;
+      
+      // If "all" is selected but telemetryFile represents a specific single/multiple loaded vehicles,
+      // we only evaluate fuelings of plates that exist in our telemetryFiles
+      if (selectedPlaca === "all") {
+        const loadedPlacas = telemetryFiles.map(tf => limparPlaca(tf.placa)).filter(Boolean);
+        if (loadedPlacas.length > 0 && !loadedPlacas.includes(fuelPlaca)) {
+          return false;
+        }
+      }
 
       const date = parseFullDateTime(f["DATA TRANSACAO"] || f["DATA"]);
       if (!date) return false;
 
-      if (selectedMonth !== "all") {
-        const m = (date.getMonth() + 1).toString().padStart(2, '0');
-        const y = date.getFullYear();
-        if (`${m}/${y}` !== selectedMonth) return false;
+      // Filter by custom start/end dates
+      if (startDate) {
+        const start = new Date(startDate + "T00:00:00");
+        if (date < start) return false;
+      }
+      if (endDate) {
+        const end = new Date(endDate + "T23:59:59");
+        if (date > end) return false;
       }
 
       return true;
@@ -550,10 +630,16 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
       if (!dataA) return;
 
       let melhorDiff = 999999;
-      let melhorIndex = -1;
+      let melhorTRow: TelemetryRow | null = null;
+
+      // Find all telemetry files that match this specific vehicle plate. Fallback to all if none match exactly.
+      const matchingFilesForPlaca = telemetryFiles.filter(tf => limparPlaca(tf.placa) === placaA);
+      const rowsToSearch = matchingFilesForPlaca.length > 0
+        ? matchingFilesForPlaca.flatMap(tf => tf.rows)
+        : telemetryFile.rows;
 
       // Find nearest telemetry record within 10 minutes (TOLERÂNCIA DE 10 MINUTOS)
-      telemetryFile.rows.forEach((tRow, tIdx) => {
+      rowsToSearch.forEach((tRow) => {
         if (!tRow.dataHora) return;
         
         // Difference in minutes
@@ -563,14 +649,14 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
         if (diffMin <= 10) {
           if (diffMin < melhorDiff) {
             melhorDiff = diffMin;
-            melhorIndex = tIdx;
+            melhorTRow = tRow;
           }
         }
       });
 
       // ENCONTROU MATCH?
-      if (melhorIndex >= 0) {
-        const matchedTR = telemetryFile.rows[melhorIndex];
+      if (melhorTRow) {
+        const matchedTR = melhorTRow;
         const vel = matchedTR.vel || 0;
         
         let ignicao = String(matchedTR.ig).trim().toUpperCase();
@@ -742,7 +828,7 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
     });
 
     return deviations;
-  }, [telemetryFile, fuel, selectedPlaca, selectedMonth, strictDrivers]);
+  }, [telemetryFile, telemetryFiles, fuel, selectedPlaca, startDate, endDate, strictDrivers]);
 
   // General statistics from crossings
   const crossedStats = useMemo(() => {
@@ -898,34 +984,69 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
                 <input 
                   type="file" 
                   accept=".html" 
+                  multiple
                   onChange={handleHtmlUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 />
                 <FileCode className="h-10 w-10 text-indigo-400 mx-auto mb-2" />
                 <span className="text-xs font-black text-slate-400 uppercase tracking-widest block mb-1">
-                  Selecione outro arquivo HTML
+                  Selecione arquivos HTML
                 </span>
                 <span className="text-[10px] text-slate-400 block font-bold">
-                  Arraste e solte o arquivo aqui
+                  Arraste e solte ou clique para selecionar múltiplos
                 </span>
               </div>
 
-              {telemetryFile && (
-                <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/50 rounded-2xl p-4 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 block">
-                      Arquivo Pronto
+              {telemetryFiles.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                      Arquivos Carregados ({telemetryFiles.length})
                     </span>
-                    <Badge variant="outline" className="bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-slate-800 text-[9px] font-bold">
-                      {telemetryFile.rows.length} posições
-                    </Badge>
+                    <Button 
+                      variant="ghost" 
+                      onClick={() => {
+                        setTelemetryFiles([]);
+                        toast.success("Todos os arquivos foram removidos!");
+                      }}
+                      className="h-auto p-0 text-[10px] font-black uppercase text-red-500 hover:text-red-700 hover:bg-transparent"
+                    >
+                      Limpar Todos
+                    </Button>
                   </div>
-                  <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">
-                    {telemetryFile.fileName}
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                    Placa identificada no arquivo: <span className="font-extrabold text-slate-800 dark:text-slate-200">{telemetryFile.placa}</span>
-                  </p>
+                  <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                    {telemetryFiles.map((file, idx) => (
+                      <div 
+                        key={idx} 
+                        className="bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 flex items-center justify-between gap-2"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate" title={file.fileName}>
+                            {file.fileName}
+                          </p>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Badge variant="outline" className="bg-emerald-50/50 border-emerald-100 text-emerald-700 text-[8px] font-bold px-1.5 py-0">
+                              {file.placa}
+                            </Badge>
+                            <span className="text-[9px] text-slate-400 font-bold">
+                              • {file.rows.length} posições
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            setTelemetryFiles(prev => prev.filter((_, fIdx) => fIdx !== idx));
+                            toast.success(`Arquivo ${file.fileName} removido.`);
+                          }}
+                          className="h-7 w-7 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20 shrink-0 rounded-full"
+                        >
+                          ✕
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -938,7 +1059,7 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
                 Parâmetros do Cruzamento
               </CardTitle>
               <CardDescription className="text-xs leading-relaxed">
-                Ajuste os filtros de plate e data para o cruzamento.
+                Ajuste os filtros de placa e data para o cruzamento.
               </CardDescription>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
@@ -960,22 +1081,31 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                  <Calendar size={12} className="text-indigo-500" />
-                  Mês/Ano do Abastecimento
-                </Label>
-                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                  <SelectTrigger className="rounded-2xl h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-bold text-xs">
-                    <SelectValue placeholder="Selecione o Mês" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Filtro Livre (Todos os meses)</SelectItem>
-                    {availableMonths.map(month => (
-                      <SelectItem key={month} value={month}>{month}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    <Calendar size={12} className="text-indigo-500" />
+                    Data Inicial
+                  </Label>
+                  <Input 
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="rounded-2xl h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium text-xs p-3"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                    <Calendar size={12} className="text-indigo-500" />
+                    Data Final
+                  </Label>
+                  <Input 
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="rounded-2xl h-11 border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 font-medium text-xs p-3"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
