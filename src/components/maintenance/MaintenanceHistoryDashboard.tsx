@@ -19,7 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { format, parse, isValid, isWithinInterval, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { exportToExcel } from "@/lib/exportToExcel";
+import { exportToExcel, exportToExcelMultiSheet } from "@/lib/exportToExcel";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { toast } from "sonner";
@@ -136,6 +136,9 @@ interface CustoItem {
   custoReal: number;
   gerencia: string;
   diretoria: string;
+  nOrcamento: string;
+  descricao: string;
+  ordemServico: string;
 }
 
 interface IndicatorSourceItem {
@@ -255,7 +258,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     if (custosDetalhesRows.length > 0) {
         for (let i = 1; i < custosDetalhesRows.length; i++) {
           const row = custosDetalhesRows[i];
-          if (!row || row.length < 50) continue;
+          if (!row || row.length < 40) continue;
           
           const diretoria = row[36]?.trim() || "";
           const gerencia = row[37]?.trim() || "";
@@ -271,6 +274,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
           const nOrcamento = row[44]?.trim() || "";
           const ordemServico = row[1]?.trim() || "";
           const dedupeKey = nOrcamento || ordemServico || `row-${i}`;
+          const descricao = row[53]?.trim() || ""; // Column BB is index 53
 
           if (placa) {
             parsedCustos.push({ 
@@ -282,7 +286,10 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
               custoOrcado, 
               custoReal, 
               gerencia, 
-              diretoria 
+              diretoria,
+              nOrcamento,
+              descricao,
+              ordemServico
             });
             
             if (mesAno && tam) {
@@ -722,6 +729,43 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       .slice(0, 10);
   }, [filteredCustosData]);
 
+  const osCountByPlacaMonth = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    custosDetalhesRows.slice(1).forEach((row) => {
+      if (!row || row.length < 5) return;
+      const rawPlate = row[35]?.trim() || row[1]?.trim() || "";
+      const placa = rawPlate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const mesAnoRaw = row[42]?.trim() || "";
+      const mesAno = mesAnoRaw.replace(/\./g, '').replace(/-/g, '/');
+      const os = row[1]?.trim();
+      if (placa && mesAno && os) {
+        const key = `${placa}_${mesAno}`;
+        if (!map.has(key)) map.set(key, new Set<string>());
+        map.get(key)!.add(os);
+      }
+    });
+
+    const counts = new Map<string, number>();
+    map.forEach((osSet, key) => {
+      counts.set(key, osSet.size);
+    });
+    return counts;
+  }, [custosDetalhesRows]);
+
+  const top10AssetsServices = useMemo(() => {
+    const topPlatesArray = costsByPlate.map(c => c.placa);
+    if (topPlatesArray.length === 0) return [];
+
+    const services = filteredCustosData.filter(c => topPlatesArray.includes(c.placa));
+
+    return services.sort((a, b) => {
+      const idxA = topPlatesArray.indexOf(a.placa);
+      const idxB = topPlatesArray.indexOf(b.placa);
+      if (idxA !== idxB) return idxA - idxB;
+      return b.custo - a.custo;
+    });
+  }, [costsByPlate, filteredCustosData]);
+
   const countsByTipoAtivo = useMemo(() => {
     const map: Record<string, number> = {};
     indicatorData.forEach(i => {
@@ -957,6 +1001,47 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       currentY = 20;
     }
 
+    // Table: TOP 10 Maiores Gastos por Ativo - Serviços Realizados
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Top 10 - Maiores Gastos por Ativo (Serviços Realizados)", 14, currentY);
+
+    const top10PdfTableData = top10AssetsServices.map(service => {
+      const uniqueKey = `${service.placa}_${service.mesAno}`; 
+      const osCount = osCountByPlacaMonth.get(uniqueKey) || 0;
+      return [
+        service.placa,
+        service.tam || "S/D",
+        formatCurrency(service.custo),
+        service.nOrcamento || "N/A",
+        service.descricao || "N/A",
+        String(osCount)
+      ];
+    });
+
+    autoTable(doc, {
+      startY: currentY + 4,
+      head: [["Placa", "TAM (Tipo Atividade de Manutenção)", "Custo", "Nº Orçamento", "Descrição", "QTD OS's"]],
+      body: top10PdfTableData,
+      theme: "grid",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8 },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 18 },
+        1: { cellWidth: 32 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 23 },
+        4: { cellWidth: 72 },
+        5: { cellWidth: 15 }
+      }
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+    if (currentY > 250) {
+      doc.addPage();
+      currentY = 20;
+    }
+
     // Table: Registros de Manutenção (Histórico)
     doc.setFontSize(12);
     doc.setTextColor(30, 64, 175);
@@ -1011,6 +1096,134 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
 
     doc.save(`Relatorio_Custos_Manutencao_${now.toISOString().split("T")[0]}.pdf`);
     toast.success("PDF de custos gerado com sucesso!");
+  };
+
+  const handleExportEverythingExcel = () => {
+    const totalInvestido = filteredCustosData.reduce((acc, c) => acc + c.custo, 0);
+    const orcadoAcumulado = filteredCustosData.reduce((acc, c) => acc + c.custoOrcado, 0);
+    const mediaPorOS = filteredCustosData.length > 0 ? totalInvestido / filteredCustosData.length : 0;
+
+    // Sheet 1: Resumo Financeiro
+    const resumoData = [
+      { "Indicador Financeiro": "Montante Investido em Manutenção", "Valor": formatCurrency(totalInvestido) },
+      { "Indicador Financeiro": "Média Financeira por OS", "Valor": formatCurrency(mediaPorOS) },
+      { "Indicador Financeiro": "Custo Orçado Acumulado", "Valor": formatCurrency(orcadoAcumulado) },
+      { "Indicador Financeiro": "Qtd. Orçamentos", "Valor": String(orcamentosMap.size) }
+    ];
+
+    // Sheet 2: Custo por Tipo
+    const custoTipoData = costsByTipo.map(item => ({
+      "Tipo de Custo": item.name || "Não Especificado",
+      "Quantidade de Ativos": item.numAssets || 0,
+      "Valor Total Gasto": item.value
+    }));
+
+    // Sheet 3: Unidades com Maior Custo
+    const gerenciaTableData = costsByGerencia.map((item, idx) => ({
+      "Posição": `${idx + 1}º`,
+      "Unidade (Gerência)": item.gerencia,
+      "Quantidade de Ativos": item.numAssets || 0,
+      "Custo Total Gasto": item.custo,
+      "% do Total": totalInvestido > 0 ? `${((item.custo / totalInvestido) * 100).toFixed(1)}%` : "0%"
+    }));
+
+    // Sheet 4: Comparativo Mensal (Real vs Orçado)
+    const monthlyTotalMap: Record<string, { mesAno: string; real: number; orcado: number; count: number }> = {};
+    filteredCustosData.forEach(c => {
+      if (!monthlyTotalMap[c.mesAno]) monthlyTotalMap[c.mesAno] = { mesAno: c.mesAno, real: 0, orcado: 0, count: 0 };
+      monthlyTotalMap[c.mesAno].real += c.custoReal;
+      monthlyTotalMap[c.mesAno].orcado += c.custoOrcado;
+      monthlyTotalMap[c.mesAno].count += 1;
+    });
+    const monthsRef: Record<string, number> = {
+      jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+      jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+    };
+    const monthlyTotalsList = Object.values(monthlyTotalMap)
+      .map(item => ({
+        mesAno: item.mesAno,
+        real: item.real / (item.count || 1),
+        orcado: item.orcado / (item.count || 1)
+      }))
+      .sort((a, b) => {
+        const partsA = a.mesAno.split('/');
+        const partsB = b.mesAno.split('/');
+        if (partsA.length < 2 || partsB.length < 2) return 0;
+        const numAnoA = parseInt(partsA[1]) || 0;
+        const numAnoB = parseInt(partsB[1]) || 0;
+        if (numAnoA !== numAnoB) return numAnoA - numAnoB;
+        return (monthsRef[partsA[0].toLowerCase()] || 0) - (monthsRef[partsB[0].toLowerCase()] || 0);
+      });
+    const periodTableData = monthlyTotalsList.map(item => {
+      const desvio = item.real - item.orcado;
+      const desvioPercent = item.orcado > 0 ? `${((desvio / item.orcado) * 100).toFixed(1)}%` : "0.0%";
+      return {
+        "Mês/Ano": item.mesAno,
+        "Custo Orçado": item.orcado,
+        "Custo Realizado": item.real,
+        "Desvio (R$)": desvio,
+        "Desvio (%)": desvioPercent
+      };
+    });
+
+    // Sheet 5: Custo Consolidado por Atividade (TAM)
+    const tamTableData = costsByTam.map(item => ({
+      "Sigla TAM": item.tam,
+      "Descrição da Atividade": TAM_DESCRIPTIONS[item.tam] || "Outros",
+      "Quantidade de Manutenções (Col. AT)": item.count || 0,
+      "Custo Total": item.custo
+    }));
+
+    // Sheet 6: TOP 10 Veículos de Maiores Custos (Serviços)
+    const top10ExcelData = top10AssetsServices.map(service => {
+      const uniqueKey = `${service.placa}_${service.mesAno}`; 
+      const osCount = osCountByPlacaMonth.get(uniqueKey) || 0;
+      return {
+        "Placa": service.placa,
+        "TAM (Tipo Atividade de Manutenção)": service.tam,
+        "Descrição TAM": TAM_DESCRIPTIONS[service.tam] || "Outros",
+        "Custo": service.custo,
+        "Nº Orçamento": service.nOrcamento || "N/A",
+        "Descrição": service.descricao || "N/A",
+        "QTD de OS's (Mês/Ano)": osCount
+      };
+    });
+
+    // Sheet 7: Registros de Manutenção (Histórico Completo)
+    const mntFullData = filteredData.map(item => ({
+      "Ordem Serv.": item.ordemServico,
+      "Placa": item.placa,
+      "Local / Oficina": item.estabelecimento || "N/A",
+      "TAM": item.tam,
+      "Total Gasto": parseFloat(item.total) || 0,
+      "Data Conclusão": item.dataConclusaoOS
+    }));
+
+    // Sheet 8: Registros de Custos Detalhados (Completo)
+    const costsDetailsFullData = filteredCustosData.map(c => ({
+      "Placa": c.placa,
+      "Tipo Manut.": c.tipo,
+      "Mês/Ano": c.mesAno,
+      "TAM": c.tam,
+      "Custo Total": c.custo,
+      "Gerência": c.gerencia,
+      "Diretoria": c.diretoria,
+      "Nº Orçamento": c.nOrcamento || "N/A",
+      "Descrição (Coluna BB)": c.descricao || "N/A"
+    }));
+
+    exportToExcelMultiSheet([
+      { data: resumoData, sheetName: "Resumo Financeiro" },
+      { data: custoTipoData, sheetName: "Custo por Tipo" },
+      { data: gerenciaTableData, sheetName: "Custo por Gerência" },
+      { data: periodTableData, sheetName: "Comparativo Mensal" },
+      { data: tamTableData, sheetName: "Custo por TAM" },
+      { data: top10ExcelData, sheetName: "TOP 10 Ativos Serviços" },
+      { data: mntFullData, sheetName: "Histórico de Manutenções" },
+      { data: costsDetailsFullData, sheetName: "Custos Detalhados Completos" }
+    ], `Painel_Custos_Manutencao_Completo_${format(new Date(), 'yyyyMMdd')}`);
+
+    toast.success("Excel consolidado gerado com sucesso!");
   };
 
   if (isLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin mr-2 h-8 w-8 text-primary" /> Carregando Dashboard Otimizado...</div>;
@@ -1087,9 +1300,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
             <TabsTrigger value="custo" className="py-2 px-4 text-xs font-bold uppercase transition-all">Custo de Manutenção</TabsTrigger>
             <TabsTrigger value="lcc" className="py-2 px-4 text-xs font-bold uppercase transition-all">LCC - Ciclo de Vida</TabsTrigger>
           </TabsList>
-          <Button onClick={handleGenerateHistoryPDF} variant="outline" size="sm" className="bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 flex items-center font-bold text-xs uppercase h-9">
-            <FileText className="h-4 w-4 mr-2" /> Exportar para PDF
-          </Button>
+          <div className="flex flex-wrap gap-2 animate-fade-in">
+            <Button onClick={handleGenerateHistoryPDF} variant="outline" size="sm" className="bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-800 dark:bg-rose-950/20 dark:hover:bg-rose-950/30 border-rose-200 dark:border-rose-900/50 flex items-center font-bold text-xs uppercase h-9">
+              <FileText className="h-4 w-4 mr-2" /> Exportar para PDF
+            </Button>
+            <Button onClick={handleExportEverythingExcel} variant="outline" size="sm" className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 hover:text-emerald-800 dark:bg-emerald-950/20 dark:hover:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/50 flex items-center font-bold text-xs uppercase h-9">
+              <Download className="h-4 w-4 mr-2" /> Exportar para Excel
+            </Button>
+          </div>
         </div>
 
         <TabsContent value="lcc" className="space-y-6">
@@ -1712,6 +1930,57 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                 </BarChart>
               </ResponsiveContainer>
             </ChartCard>
+          </div>
+
+          {/* Lista detalhada dos serviços realizados no Top 10 Ativos */}
+          <div className="grid grid-cols-1 gap-6">
+            <Card className="border-none shadow-sm bg-white dark:bg-slate-900 overflow-hidden flex flex-col">
+              <CardHeader className="py-4 bg-slate-50/50 dark:bg-slate-800/30 border-b border-slate-100 dark:border-slate-800">
+                <CardTitle className="text-sm font-bold text-slate-800 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                  <Wrench className="h-4 w-4 text-rose-500" />
+                  Serviços Realizados - TOP 10 Ativos com Maiores Gastos
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Lista detalhada de serviços realizados nos 10 veículos de maiores custos com base nos filtros aplicados</p>
+              </CardHeader>
+              <CardContent className="p-0 overflow-auto max-h-[400px]">
+                <Table>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Placa</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3">Tipo Atividade de Manutenção (TAM)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-right">Custo</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Nº Orçamento</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3">Descrição</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Qtd OS (Mês/Ano)</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {top10AssetsServices.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={6} className="py-8 text-center text-xs text-muted-foreground font-semibold">
+                          Nenhum serviço encontrado para os ativos do Top 10 com os filtros atuais.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      top10AssetsServices.map((service, idx) => {
+                        const uniqueKey = `${service.placa}_${service.mesAno}`; 
+                        const osCount = osCountByPlacaMonth.get(uniqueKey) || 0;
+                        return (
+                          <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <TableCell className="text-xs font-bold text-slate-900 dark:text-slate-100 text-center">{service.placa}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350">{service.tam} - {TAM_DESCRIPTIONS[service.tam] || 'Outros'}</TableCell>
+                            <TableCell className="text-xs font-black text-rose-600 dark:text-rose-400 text-right">{formatCurrency(service.custo)}</TableCell>
+                            <TableCell className="text-xs font-semibold text-slate-600 dark:text-slate-400 text-center">{service.nOrcamento || 'N/A'}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350 max-w-[250px] truncate" title={service.descricao}>{service.descricao || 'N/A'}</TableCell>
+                            <TableCell className="text-xs font-bold text-indigo-600 dark:text-indigo-400 text-center">{osCount}</TableCell>
+                          </TableRow>
+                        );
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
