@@ -589,7 +589,7 @@ function PropriosMenu({ vehicles, uniqueMarcas }: { vehicles: { marca: string; a
 export default function GerenciamentoAtividades({ onBack }: { onBack: () => void }) {
   const cgfLogo = "/src/assets/images/regenerated_image_1778593500523.png";
 
-  const { contactsData = [], isLoading: isContactsLoading } = useContactsData();
+  const { contactsData = [], isLoading: isContactsLoading, getEmailsByGerencia } = useContactsData();
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   
   // Form states
@@ -1121,6 +1121,25 @@ export default function GerenciamentoAtividades({ onBack }: { onBack: () => void
                   disabled={isSending || selectedGestores.length === 0 || !emailTitle.trim()}
                   onClick={() => {
                     setIsSending(true);
+                    
+                    const toEmails = Array.from(
+                      new Set(
+                        selectedGestores.flatMap(g => getEmailsByGerencia ? getEmailsByGerencia(g) : [])
+                      )
+                    );
+                    const to = toEmails.join(";");
+                    const cc = ccEmails.join(";");
+                    const subject = emailTitle;
+                    const body = emailBody;
+                    
+                    const mailto = `mailto:${encodeURIComponent(to)}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+                    
+                    try {
+                      window.location.href = mailto;
+                    } catch (e) {
+                      console.error("Failed to trigger mailto:", e);
+                    }
+                    
                     setTimeout(() => {
                       setIsSending(false);
                       setShowSuccessScreen(true);
