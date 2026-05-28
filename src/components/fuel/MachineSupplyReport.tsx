@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
-import { useFuelData } from "@/hooks/useFleetData";
+import { useFuelData, useAssets } from "@/hooks/useFleetData";
 import { useMachineSupplyAssignments, useSaveMachineAssignment } from "@/hooks/useMachineSupplyAssignments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +76,7 @@ const PROPERTY_OPTIONS = ["PRÓPRIO", "LOCADO"];
 
 const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   const { data: fuel = [], isLoading: loadingFuel } = useFuelData();
+  const { data: assets = [], isLoading: loadingAssets } = useAssets();
   const { data: assignments = [], isLoading: loadingAssignments } = useMachineSupplyAssignments();
   const saveAssignment = useSaveMachineAssignment();
   
@@ -127,11 +128,22 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
   // Filters State
   const [showCharts, setShowCharts] = useState(true);
+  const [dbMetric, setDbMetric] = useState<"litros" | "custo" | "value">("litros");
   const [searchPlaca, setSearchPlaca] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+
+  const isGestaoOrMaster = useMemo(() => {
+    const roleLower = (userRole || "").toLowerCase().trim();
+    return roleLower === "master" || 
+           roleLower === "gestão" || 
+           roleLower === "gestao" || 
+           roleLower === "master_cgf" || 
+           roleLower === "coordenador" || 
+           roleLower === "admin";
+  }, [userRole]);
 
   const handleAccessSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,22 +157,39 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   };
 
   const unitOptions = useMemo(() => {
-    if (isAccessGranted && userUnit && userRole !== 'Master') {
+    if (isAccessGranted && userUnit && !isGestaoOrMaster) {
       return [userUnit];
     }
     const units = new Set<string>();
-    fuel.forEach(f => {
-      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+    
+    // Use base de ativos (assets) where plate starts with MAQ or GER as requested!
+    assets.forEach(a => {
+      const placa = String(a.PLACA || "").toUpperCase().trim();
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (isMaqOrGer) {
-        const u = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
+        const u = String(a.GERENCIA || a["GERÊNCIA"] || "").trim();
         if (u && u !== "N/A" && u !== "null" && u !== "undefined") {
           units.add(u);
         }
       }
     });
+
+    // Fallback if assets list is empty/loading
+    if (units.size === 0) {
+      fuel.forEach(f => {
+        const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+        const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+        if (isMaqOrGer) {
+          const u = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
+          if (u && u !== "N/A" && u !== "null" && u !== "undefined") {
+            units.add(u);
+          }
+        }
+      });
+    }
+
     return Array.from(units).sort();
-  }, [fuel, isAccessGranted, userUnit, userRole]);
+  }, [assets, fuel, isAccessGranted, userUnit, isGestaoOrMaster]);
 
   const monthOptions = useMemo(() => {
     const months = new Set<string>();
@@ -215,43 +244,89 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
     let proprioCount = 0;
     let locadoCount = 0;
     
-    const destinationCounts: Record<string, number> = {};
-    const modelCounts: Record<string, number> = {};
-    
+    // Aggregates for custom metric display
+    const destinationMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
+    const propertyMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
+    const modelMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
+    const plateMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
+
     filteredFuel.forEach(f => {
       const txId = String(f.COL_0 || f._txId || "");
       const a = assignments.find(as => as.transactionId === txId);
       
-      if (a) {
+      const litres = Number(f._litros !== undefined && f._litros !== null ? f._litros : f.COL_14 || 0);
+      const cost = Number(f.COL_19 !== undefined && f.COL_19 !== null && String(f.COL_19).trim() !== "" ? f.COL_19 : f._total || f["VALOR EMISSAO"] || f.VALOR || f.TOTAL || (Number(f.COL_14 || f._litros || 0) * Number(f.COL_15 || f._vlLitro || 0)) || 0);
+
+      const hasAssignment = !!a;
+      if (hasAssignment) {
         const hasDest = !!a.machineryDestination;
         const hasModel = !!a.model;
         const hasProperty = !!a.property;
         const hasTomb = !!a.tombamentoNumber;
-        
         if (hasDest || hasModel || hasProperty || hasTomb) {
           filledCount++;
         }
-        
-        if (a.machineryDestination) {
-          a.machineryDestination.split("; ").filter(Boolean).forEach(dest => {
-            const shortDest = optShortener(dest);
-            destinationCounts[shortDest] = (destinationCounts[shortDest] || 0) + 1;
-          });
-        }
-        
-        if (a.model) {
-          const m = a.model.trim().toUpperCase();
-          if (m) modelCounts[m] = (modelCounts[m] || 0) + 1;
-        }
-        
-        if (a.property) {
-          a.property.split("; ").filter(Boolean).forEach(p => {
-            const normalizedProp = p.trim().toUpperCase();
-            if (normalizedProp === "PRÓPRIO" || normalizedProp === "PROPRIO") proprioCount++;
-            if (normalizedProp === "LOCADO") locadoCount++;
-          });
-        }
       }
+
+      // 1. Destino Maquinário
+      const destString = a?.machineryDestination || "Não Informado";
+      const dests = destString.split("; ").map(d => d.trim()).filter(Boolean);
+      const weight = dests.length > 0 ? dests.length : 1;
+      
+      const destList = dests.length > 0 ? dests : ["Não Informado"];
+      destList.forEach(dest => {
+        const short = optShortener(dest);
+        if (!destinationMap[short]) {
+          destinationMap[short] = { name: short, litros: 0, custo: 0, value: 0 };
+        }
+        destinationMap[short].litros += litres / weight;
+        destinationMap[short].custo += cost / weight;
+        destinationMap[short].value += 1 / weight;
+      });
+
+      // 2. Propriedade
+      const propString = a?.property || "Não Informado";
+      const props = propString.split("; ").map(p => p.trim()).filter(Boolean);
+      const propWeight = props.length > 0 ? props.length : 1;
+      
+      const propList = props.length > 0 ? props : ["Não Informado"];
+      propList.forEach(p => {
+        let normalized = p.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (normalized === "PROPRIO") {
+          normalized = "Próprio";
+          proprioCount++;
+        } else if (normalized === "LOCADO") {
+          normalized = "Locado";
+          locadoCount++;
+        } else {
+          normalized = "Não Informado";
+        }
+
+        if (!propertyMap[normalized]) {
+          propertyMap[normalized] = { name: normalized, litros: 0, custo: 0, value: 0 };
+        }
+        propertyMap[normalized].litros += litres / propWeight;
+        propertyMap[normalized].custo += cost / propWeight;
+        propertyMap[normalized].value += 1 / propWeight;
+      });
+
+      // 3. Modelo
+      const model = (a?.model || "Não Informado").trim().toUpperCase();
+      if (!modelMap[model]) {
+        modelMap[model] = { name: model, litros: 0, custo: 0, value: 0 };
+      }
+      modelMap[model].litros += litres;
+      modelMap[model].custo += cost;
+      modelMap[model].value += 1;
+
+      // 4. Placa
+      const placa = String(f._placa || f.COL_5 || "Desconhecido").toUpperCase().trim();
+      if (!plateMap[placa]) {
+        plateMap[placa] = { name: placa, litros: 0, custo: 0, value: 0 };
+      }
+      plateMap[placa].litros += litres;
+      plateMap[placa].custo += cost;
+      plateMap[placa].value += 1;
     });
 
     function optShortener(text: string) {
@@ -269,15 +344,6 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       return text;
     }
 
-    const destinationChartData = Object.entries(destinationCounts)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    const propertyChartData = [
-      { name: "Próprio", value: proprioCount },
-      { name: "Locado", value: locadoCount }
-    ].filter(item => item.value > 0);
-
     const completenessPercentage = totalSupply > 0 ? Math.round((filledCount / totalSupply) * 100) : 0;
 
     return {
@@ -286,10 +352,40 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       proprioCount,
       locadoCount,
       completenessPercentage,
-      destinationChartData,
-      propertyChartData
+      destinationMap,
+      propertyMap,
+      modelMap,
+      plateMap
     };
   }, [filteredFuel, assignments]);
+
+  const activeDestinationChartData = useMemo(() => {
+    return (Object.values(fillingStats.destinationMap || {}) as Array<{ name: string; litros: number; custo: number; value: number }>)
+      .map(item => ({
+        name: item.name,
+        value: Math.round((item[dbMetric] || 0) * 100) / 100
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [fillingStats, dbMetric]);
+
+  const activePropertyChartData = useMemo(() => {
+    return (Object.values(fillingStats.propertyMap || {}) as Array<{ name: string; litros: number; custo: number; value: number }>)
+      .map(item => ({
+        name: item.name,
+        value: Math.round((item[dbMetric] || 0) * 100) / 100
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [fillingStats, dbMetric]);
+
+  const activePlateChartData = useMemo(() => {
+    return (Object.values(fillingStats.plateMap || {}) as Array<{ name: string; litros: number; custo: number; value: number }>)
+      .map(item => ({
+        name: item.name,
+        value: Math.round((item[dbMetric] || 0) * 100) / 100
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5); // top 5
+  }, [fillingStats, dbMetric]);
 
   const handleExport = () => {
     try {
@@ -499,15 +595,17 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
             <FilterX className="w-3.5 h-3.5" /> Limpar
           </Button>
 
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => setShowCharts(!showCharts)}
-            className="h-9 gap-2 text-[10px] font-black uppercase tracking-widest border-indigo-200 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-50 dark:bg-slate-850 dark:border-slate-800 dark:text-indigo-400"
-          >
-            {showCharts ? <PieIcon className="w-3.5 h-3.5" /> : <BarChart2 className="w-3.5 h-3.5" />}
-            {showCharts ? "Ocultar Estatísticas" : "Estatísticas"}
-          </Button>
+          {isGestaoOrMaster && (
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setShowCharts(!showCharts)}
+              className="h-9 gap-2 text-[10px] font-black uppercase tracking-widest border-indigo-200 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-50 dark:bg-slate-850 dark:border-slate-800 dark:text-indigo-400"
+            >
+              {showCharts ? <PieIcon className="w-3.5 h-3.5" /> : <BarChart2 className="w-3.5 h-3.5" />}
+              {showCharts ? "Ocultar Estatísticas" : "Estatísticas"}
+            </Button>
+          )}
 
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
           
@@ -522,8 +620,45 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
       {/* Main Table */}
       <main className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
-        {showCharts && (
+        {isGestaoOrMaster && showCharts && (
           <div className="mb-6 space-y-6">
+            {/* Metric Selector Panel */}
+            <div className="flex flex-wrap items-center justify-between gap-4 p-4 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+              <div>
+                <h3 className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  <BarChart2 className="w-4 h-4 text-indigo-500" />
+                  Métrica Ativa do Painel de Máquinas
+                </h3>
+                <p className="text-[10px] text-slate-400 uppercase font-semibold mt-0.5">Selecione para alternar entre Litros, Valor em R$ e Quantidade de abastecimentos</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button 
+                  onClick={() => setDbMetric("litros")}
+                  variant={dbMetric === "litros" ? "default" : "outline"}
+                  size="sm"
+                  className={`rounded-lg text-[10px] font-black uppercase tracking-wider ${dbMetric === 'litros' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                >
+                  Consumo (Litros)
+                </Button>
+                <Button 
+                  onClick={() => setDbMetric("custo")}
+                  variant={dbMetric === "custo" ? "default" : "outline"}
+                  size="sm"
+                  className={`rounded-lg text-[10px] font-black uppercase tracking-wider ${dbMetric === 'custo' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                >
+                  Gasto (R$)
+                </Button>
+                <Button 
+                  onClick={() => setDbMetric("value")}
+                  variant={dbMetric === "value" ? "default" : "outline"}
+                  size="sm"
+                  className={`rounded-lg text-[10px] font-black uppercase tracking-wider ${dbMetric === 'value' ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : ''}`}
+                >
+                  Nº de Abastecimentos
+                </Button>
+              </div>
+            </div>
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
@@ -582,22 +717,39 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               {/* Chart 1: Machinery Destinations */}
               <Card className="border border-slate-100 dark:border-slate-800 col-span-1 lg:col-span-2 bg-white dark:bg-slate-900">
                 <CardContent className="p-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                    <BarChart2 className="w-4 h-4 text-indigo-500" />
-                    Destinos de Maquinário Cadastrados (Tipos)
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <BarChart2 className="w-4 h-4 text-indigo-500" />
+                      Maiores Consumos por Destino Maquinário (Tipos)
+                    </span>
+                    <Badge variant="outline" className="bg-indigo-50 text-indigo-600 border-indigo-100 text-[10px] font-black uppercase">
+                      Visualizando: {dbMetric === "custo" ? "R$" : dbMetric === "litros" ? "Litros" : "Nº Abastecimentos"}
+                    </Badge>
                   </h4>
-                  {fillingStats.destinationChartData.length === 0 ? (
+                  {activeDestinationChartData.length === 0 ? (
                     <div className="h-60 flex items-center justify-center text-xs text-muted-foreground font-semibold">
                       Sem dados de "Destino Maquinário" preenchidos no período.
                     </div>
                   ) : (
                     <div className="h-60">
                       <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={fillingStats.destinationChartData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 5 }}>
+                        <BarChart data={activeDestinationChartData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 5 }}>
                           <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} opacity={0.1} />
                           <XAxis type="number" tick={{fontSize: 9}} />
                           <YAxis dataKey="name" type="category" tick={{fontSize: 9, width: 120}} width={120} />
-                          <RechartsTooltip contentStyle={{borderRadius: '12px', fontSize: '10px'}} />
+                          <RechartsTooltip 
+                            formatter={(v: any) => {
+                              const val = Number(v);
+                              if (dbMetric === "custo") {
+                                return [val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), "Custo Total"];
+                              }
+                              if (dbMetric === "litros") {
+                                return [`${val.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`, "Consumo Litros"];
+                              }
+                              return [`${Math.round(val).toLocaleString("pt-BR")} abs.`, "Qtd Abastecimentos"];
+                            }}
+                            contentStyle={{borderRadius: '12px', fontSize: '10px'}} 
+                          />
                           <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={15} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -609,11 +761,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               {/* Chart 2: Property Type */}
               <Card className="border border-slate-100 dark:border-slate-800 col-span-1 bg-white dark:bg-slate-900">
                 <CardContent className="p-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                    <PieIcon className="w-4 h-4 text-amber-500" />
-                    Propriedade (Próprio vs Locado)
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <PieIcon className="w-4 h-4 text-amber-500" />
+                      Tipo de Propriedade (Próprio vs Locado)
+                    </span>
+                    <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-100 text-[10px] font-black uppercase">
+                      {dbMetric === "custo" ? "R$" : dbMetric === "litros" ? "L" : "Qtd"}
+                    </Badge>
                   </h4>
-                  {fillingStats.propertyChartData.length === 0 ? (
+                  {activePropertyChartData.length === 0 ? (
                     <div className="h-60 flex items-center justify-center text-xs text-muted-foreground font-semibold">
                       Sem dados de "Propriedade" vinculados no período.
                     </div>
@@ -623,7 +780,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
                             <Pie
-                              data={fillingStats.propertyChartData}
+                              data={activePropertyChartData}
                               cx="50%"
                               cy="50%"
                               innerRadius={45}
@@ -631,21 +788,140 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                               paddingAngle={5}
                               dataKey="value"
                             >
-                              <Cell fill="#3b82f6" />
-                              <Cell fill="#f59e0b" />
+                              {activePropertyChartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.name === "Próprio" ? "#3b82f6" : "#f59e0b"} />
+                              ))}
                             </Pie>
-                            <RechartsTooltip contentStyle={{borderRadius: '12px', fontSize: '10px'}} />
+                            <RechartsTooltip 
+                              formatter={(v: any) => {
+                                const val = Number(v);
+                                if (dbMetric === "custo") {
+                                  return [val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), "Custo"];
+                                }
+                                if (dbMetric === "litros") {
+                                  return [`${val.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`, "Consumo"];
+                                }
+                                return [`${Math.round(val).toLocaleString("pt-BR")} abs.`, "Quantidade"];
+                              }}
+                              contentStyle={{borderRadius: '12px', fontSize: '10px'}} 
+                            />
                           </PieChart>
                         </ResponsiveContainer>
                       </div>
-                      <div className="flex justify-center gap-6 mt-2">
-                        {fillingStats.propertyChartData.map((item, idx) => (
-                          <div key={item.name} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider">
-                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: idx === 0 ? "#3b82f6" : "#f59e0b" }} />
-                            <span>{item.name}: {item.value}</span>
+                      <div className="flex flex-col gap-1 mt-2">
+                        {activePropertyChartData.map((item, idx) => (
+                          <div key={item.name} className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: item.name === "Próprio" ? "#3b82f6" : "#f59e0b" }} />
+                              <span>{item.name}</span>
+                            </div>
+                            <span className="text-slate-600 dark:text-slate-300 font-bold">
+                              {dbMetric === "custo" 
+                                ? item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                                : dbMetric === "litros"
+                                  ? `${item.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`
+                                  : `${Math.round(item.value).toLocaleString("pt-BR")} abs.`
+                              }
+                            </span>
                           </div>
                         ))}
                       </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Top 5 Plates/Vehicles & Models ("e assim por diante") */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Top Plates */}
+              <Card className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Fuel className="w-4 h-4 text-emerald-500" />
+                      TOP 5 Equipamentos de Maior Consumo (Placa)
+                    </span>
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[10px] font-black uppercase">
+                      Equipamento
+                    </Badge>
+                  </h4>
+                  {activePlateChartData.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados no período.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activePlateChartData.map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-100/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-black flex items-center justify-center text-slate-600 dark:text-slate-300">
+                              {index + 1}
+                            </span>
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                              {item.name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                            {dbMetric === "custo" 
+                              ? item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                              : dbMetric === "litros"
+                                ? `${item.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`
+                                : `${Math.round(item.value).toLocaleString("pt-BR")} abs.`
+                            }
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Top Models */}
+              <Card className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-blue-500" />
+                      Modelos de Máquinas Atendidos (Top 5)
+                    </span>
+                    <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100 text-[10px] font-black uppercase">
+                      Modelo
+                    </Badge>
+                  </h4>
+                  {Object.keys(fillingStats.modelMap).length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados no período.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {(Object.values(fillingStats.modelMap) as Array<{ name: string; litros: number; custo: number; value: number }>)
+                        .map(item => ({
+                          name: item.name || "NÃO INFORMADO",
+                          value: Math.round((item[dbMetric] || 0) * 100) / 100
+                        }))
+                        .sort((a, b) => b.value - a.value)
+                        .slice(0, 5)
+                        .map((item, index) => (
+                          <div key={item.name} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-100/30 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-black flex items-center justify-center text-slate-600 dark:text-slate-300">
+                                {index + 1}
+                              </span>
+                              <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+                                {item.name}
+                              </span>
+                            </div>
+                            <span className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                              {dbMetric === "custo" 
+                                ? item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                                : dbMetric === "litros"
+                                  ? `${item.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`
+                                  : `${Math.round(item.value).toLocaleString("pt-BR")} abs.`
+                              }
+                            </span>
+                          </div>
+                        ))}
                     </div>
                   )}
                 </CardContent>
