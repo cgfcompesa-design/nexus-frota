@@ -1059,6 +1059,25 @@ Coordenação de Gestão de Frotas - CGF`;
     const vehicleMap = new Map<string, any>();
     const today = new Date().getTime();
     
+    // Mapeamento de média de preço por tipo de combustível no conjunto de dados filtrado
+    const fuelTypePricesMap = new Map<string, { sum: number, count: number }>();
+    for (let i = 0; i < filteredFuel.length; i++) {
+      const f = filteredFuel[i] as any;
+      const fuelType = f._fuelType || "N/A";
+      const price = f._vlLitro || 0;
+      if (price > 0 && fuelType !== "ARLA 32" && fuelType !== "N/A") {
+        const curr = fuelTypePricesMap.get(fuelType) || { sum: 0, count: 0 };
+        curr.sum += price;
+        curr.count++;
+        fuelTypePricesMap.set(fuelType, curr);
+      }
+    }
+
+    const fuelTypeAverages = new Map<string, number>();
+    fuelTypePricesMap.forEach((val, key) => {
+      fuelTypeAverages.set(key, val.sum / val.count);
+    });
+    
     // Auxiliar for number parsing
     const parseNum = (val: any) => {
       if (typeof val === 'number') return val;
@@ -1081,6 +1100,19 @@ Coordenação de Gestão de Frotas - CGF`;
       // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
       if (placa.startsWith("MAQ")) continue;
 
+      // Filtrar apenas veículos que possuam Controle Autonomia = "FROTA" (Coluna AR / Índice 43)
+      const asset = assetsByPlaca.get(placa);
+      if (!asset) continue;
+
+      const tipoControleVal = asset["TIPO CONTROLE AUTONOMIA"] || 
+                              asset["CONTROLE DE AUTONOMIA"] || 
+                              asset["CONTROLE AUTONOMIA"] || 
+                              asset.TIPO_CONTROLE_AUTONOMIA || 
+                              (asset.__raw && asset.__raw[43]) || 
+                              "";
+      
+      if (String(tipoControleVal).trim().toUpperCase() !== "FROTA") continue;
+
       const valR = f._valR;
       
       if (valR > 0) {
@@ -1091,7 +1123,6 @@ Coordenação de Gestão de Frotas - CGF`;
       }
 
       if (!vehicleMap.has(placa)) {
-        const asset = assetsByPlaca.get(placa);
         vehicleMap.set(placa, {
           placa,
           propriedade: asset?.PROPRIEDADE || "N/A",
@@ -1240,12 +1271,13 @@ Coordenação de Gestão de Frotas - CGF`;
         }
       }
 
-      if (avgPrecoLitro > 0 && vlLitro > 0 && Math.abs(vlLitro - avgPrecoLitro) / avgPrecoLitro * 100 > fuelAlertConfig.valorLitroDeviationPercent) {
-        const perc = (Math.abs(vlLitro - avgPrecoLitro) / avgPrecoLitro * 100).toFixed(1);
+      const precoMedioParaComp = fuelTypeAverages.get(fuelType) || avgPrecoLitro;
+      if (precoMedioParaComp > 0 && vlLitro > 0 && Math.abs(vlLitro - precoMedioParaComp) / precoMedioParaComp * 100 > fuelAlertConfig.valorLitroDeviationPercent) {
+        const perc = (Math.abs(vlLitro - precoMedioParaComp) / precoMedioParaComp * 100).toFixed(1);
         const d = { 
           placa, 
           tipo: 'Valor/Litro', 
-          descricao: `Cód. Transação: ${f._txId} | Preço: R$ ${vlLitro.toFixed(2)} vs Med: R$ ${avgPrecoLitro.toFixed(2)} (${perc}%)`, 
+          descricao: `Cód. Transação: ${f._txId} | Preço: R$ ${vlLitro.toFixed(2)} vs Med Regional (${fuelType}): R$ ${precoMedioParaComp.toFixed(2)} (${perc}%)`, 
           data: f["DATA TRANSACAO"] 
         };
         desvios.push(d);

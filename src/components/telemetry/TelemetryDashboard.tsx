@@ -428,117 +428,117 @@ export default function TelemetryDashboard() {
           <DriversRelation />
           
           {/* Card/Painel de Operadores de Máquinas */}
-          <Card className="border-none shadow-sm overflow-hidden border border-slate-100 dark:border-slate-800">
-            <CardHeader className="pb-4 bg-slate-900 text-white flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <Card className="border border-slate-100 dark:border-slate-800 shadow-sm overflow-hidden bg-white dark:bg-slate-900 rounded-2xl">
+            <CardHeader className="pb-5 pt-6 px-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50/50 dark:bg-slate-800/10 border-b border-slate-100 dark:border-slate-800/50">
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
-                  <span className="p-1 px-2 rounded-md bg-yellow-500 text-slate-950 font-black text-[9px] uppercase tracking-wider flex items-center gap-1">
-                    <Sparkles size={10} className="animate-pulse" /> NOVO
+                  <span className="p-1 px-1.5 rounded-md bg-indigo-500 text-white font-black text-[8px] uppercase tracking-wider leading-none block w-max animate-pulse">
+                    NOVO
                   </span>
-                  <CardTitle className="text-base font-black uppercase tracking-tighter flex items-center gap-2">
-                    <HardHat size={18} className="text-yellow-400" /> Operadores de Máquina & Equipamentos
+                  <CardTitle className="text-base font-black uppercase tracking-tighter flex items-center gap-2 text-slate-800 dark:text-white">
+                    <HardHat size={18} className="text-indigo-500" /> Operadores de Máquina & Equipamentos
                   </CardTitle>
                 </div>
-                <CardDescription className="text-[10px] text-slate-300 font-bold uppercase">
+                <CardDescription className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tight">
                   Controle, Alertas de Cursos Obrigatórios e Envio de E-mails ({operatorStats.pendentes} Pendentes de Curso)
                 </CardDescription>
               </div>
-              <div className="flex flex-wrap gap-2 text-slate-900 font-black">
-                <div className="bg-slate-800/80 p-2 rounded-xl border border-slate-700/50 flex gap-4 text-white">
-                  <div className="text-center px-1">
-                    <p className="text-[9px] text-slate-400 font-bold uppercase">Total</p>
-                    <p className="text-sm font-black">{operatorStats.total}</p>
+              <div className="flex flex-wrap gap-2">
+                <div className="flex bg-white dark:bg-slate-800/50 p-1.5 rounded-2xl border border-slate-150 dark:border-slate-700/50 gap-4 px-4 shadow-sm">
+                  <div className="text-center">
+                    <p className="text-[8px] text-slate-400 dark:text-slate-500 font-black uppercase">Total</p>
+                    <p className="text-xs font-black text-slate-800 dark:text-slate-100 leading-none mt-1">{operatorStats.total}</p>
                   </div>
-                  <div className="text-center px-1 border-l border-slate-700">
-                    <p className="text-[9px] text-emerald-400 font-bold uppercase">Regular</p>
-                    <p className="text-sm font-black text-emerald-400">{operatorStats.regulares}</p>
+                  <div className="text-center border-l border-slate-200 dark:border-slate-700 pl-4">
+                    <p className="text-[8px] text-emerald-600 dark:text-emerald-400 font-black uppercase">Regular</p>
+                    <p className="text-xs font-black text-emerald-600 dark:text-emerald-400 leading-none mt-1">{operatorStats.regulares}</p>
                   </div>
-                  <div className="text-center px-1 border-l border-slate-700">
-                    <p className="text-[9px] text-rose-400 font-bold uppercase">Pendente</p>
-                    <p className="text-sm font-black text-rose-400">{operatorStats.pendentes}</p>
+                  <div className="text-center border-l border-slate-200 dark:border-slate-700 pl-4">
+                    <p className="text-[8px] text-rose-600 dark:text-rose-400 font-black uppercase">Pendente</p>
+                    <p className="text-xs font-black text-rose-600 dark:text-rose-400 leading-none mt-1">{operatorStats.pendentes}</p>
                   </div>
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-6 space-y-4">
+            <CardContent className="p-6 space-y-5">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
                   <Input
                     placeholder="Filtrar operador, máquina, matrícula ou gerência..."
                     value={operatorSearch}
                     onChange={(e) => setOperatorSearch(e.target.value)}
-                    className="pl-9 h-9 text-[10px] font-bold uppercase bg-slate-50 border-none placeholder:text-slate-400"
+                    className="pl-9 h-10 text-[10.5px] font-bold uppercase bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 placeholder:text-slate-400 focus-visible:ring-1 focus-visible:ring-indigo-500 rounded-xl"
                   />
                 </div>
                 <div>
                   <Select value={operatorStatusFilter} onValueChange={(v) => setOperatorStatusFilter(v as any)}>
-                    <SelectTrigger className="h-9 text-[10px] font-bold uppercase bg-slate-50 border-none">
+                    <SelectTrigger className="h-10 text-[10px] font-black uppercase bg-slate-50/70 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-xl focus:ring-1 focus:ring-indigo-500">
                       <SelectValue placeholder="Situação do Curso" />
                     </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all" className="text-[10px] font-bold uppercase">TODAS AS SITUAÇÕES</SelectItem>
-                      <SelectItem value="pendente" className="text-[10px] font-bold uppercase text-rose-600">PENDENTE (NOME CURSO VAZIO)</SelectItem>
-                      <SelectItem value="regular" className="text-[10px] font-bold uppercase text-emerald-600">REGULAR (CURSO CADASTRADO)</SelectItem>
+                    <SelectContent className="border border-slate-100 dark:border-slate-800 rounded-xl">
+                      <SelectItem value="all" className="text-[10px] font-black uppercase">TODAS AS SITUAÇÕES</SelectItem>
+                      <SelectItem value="pendente" className="text-[10px] font-black uppercase text-rose-650 dark:text-rose-400">PENDENTE (NOME CURSO VAZIO)</SelectItem>
+                      <SelectItem value="regular" className="text-[10px] font-black uppercase text-emerald-655 dark:text-emerald-400">REGULAR (CURSO CADASTRADO)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
               </div>
-
-              <ScrollArea className="h-[300px]">
+ 
+              <ScrollArea className="h-[350px] rounded-xl border border-slate-100 dark:border-slate-800/40 overflow-hidden">
                 {loadingOperators ? (
-                  <div className="flex flex-col items-center justify-center p-8 space-y-2">
+                  <div className="flex flex-col items-center justify-center p-12 space-y-3 h-[348px]">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase">Sincronizando Banco de Dados...</p>
+                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Sincronizando Banco de Dados...</p>
                   </div>
                 ) : filteredOperators.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center p-8 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                    <AlertCircle className="text-slate-300" size={32} />
-                    <p className="text-[10px] font-bold text-slate-400 uppercase mt-2">Nenhum operador encontrado com os filtros atuais</p>
+                  <div className="flex flex-col items-center justify-center p-12 h-[348px] bg-slate-50/10 dark:bg-slate-900/10">
+                    <AlertCircle className="text-slate-300 dark:text-slate-700" size={36} />
+                    <p className="text-[10px] font-black text-slate-400 uppercase mt-3 tracking-widest">Nenhum operador encontrado com os filtros atuais</p>
                   </div>
                 ) : (
                   <Table>
-                    <TableHeader className="bg-slate-50 sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Operador</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Gerência</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Máquina/Equipamento</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest">Curso Obrigatório (Col H)</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-center w-[80px]">Notificar</TableHead>
+                    <TableHeader className="bg-slate-50/80 dark:bg-slate-800/50 sticky top-0 z-10">
+                      <TableRow className="border-b border-slate-100 dark:border-slate-850">
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest h-10 text-slate-500 dark:text-slate-400">Operador</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest h-10 text-slate-500 dark:text-slate-400">Gerência</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest h-10 text-slate-500 dark:text-slate-400">Máquina/Equipamento</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest h-10 text-slate-500 dark:text-slate-400">Curso Obrigatório (Col H)</TableHead>
+                        <TableHead className="text-[9px] font-black uppercase tracking-widest h-10 text-center w-[100px] text-slate-500 dark:text-slate-400">Notificar</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {filteredOperators.map((op, idx) => {
                         const isPendente = !op.curso || String(op.curso).trim() === "" || String(op.curso).trim().toUpperCase() === "N/A" || String(op.curso).trim() === "-";
                         return (
-                          <TableRow key={idx} className={isPendente ? "bg-rose-50/10 hover:bg-rose-50/20" : ""}>
-                            <TableCell className="py-2.5">
+                          <TableRow key={idx} className={`border-b border-slate-50 dark:border-slate-850/50 transition-colors ${isPendente ? "bg-rose-50/20 hover:bg-rose-50/30 dark:bg-rose-950/5 dark:hover:bg-rose-950/10" : "hover:bg-slate-50/50 dark:hover:bg-slate-800/20"}`}>
+                            <TableCell className="py-3">
                               <p className="text-[11px] font-black uppercase leading-tight text-slate-800 dark:text-slate-100">{op.nome}</p>
-                              <p className="text-[9px] font-bold text-slate-400">MAT: {op.matricula || "N/A"}</p>
+                              <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">MAT: {op.matricula || "N/A"}</p>
                             </TableCell>
-                            <TableCell className="py-2.5">
-                              <span className="text-[10px] font-bold text-slate-500 uppercase">{op.gerencia}</span>
+                            <TableCell className="py-3">
+                              <span className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-tight">{op.gerencia}</span>
                             </TableCell>
-                            <TableCell className="py-2.5">
-                              <span className="text-[10px] font-bold text-slate-600 uppercase">{op.maquina || "N/A"}</span>
+                            <TableCell className="py-3">
+                              <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase">{op.maquina || "N/A"}</span>
                             </TableCell>
-                            <TableCell className="py-2.5">
+                            <TableCell className="py-3">
                               {isPendente ? (
-                                <Badge variant="outline" className="bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900 text-[8px] font-black uppercase">
+                                <Badge variant="outline" className="bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/30 text-[8px] font-black uppercase tracking-wide">
                                   PENDENTE • HISTÓRICO VAZIO
                                 </Badge>
                               ) : (
-                                <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900 text-[8px] font-black uppercase max-w-[220px] truncate" title={op.curso}>
+                                <Badge variant="outline" className="bg-indigo-50/50 dark:bg-indigo-950/10 text-indigo-650 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30 text-[8px] font-black uppercase tracking-wide max-w-[220px] truncate" title={op.curso}>
                                   {op.curso}
                                 </Badge>
                               )}
                             </TableCell>
-                            <TableCell className="py-2.5 text-center">
+                            <TableCell className="py-3 text-center">
                               {isPendente ? (
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-8 w-8 p-0 hover:bg-rose-50 dark:hover:bg-rose-950/20 hover:text-rose-600 rounded-xl"
+                                  className="h-8 px-3 hover:bg-rose-100/50 dark:hover:bg-rose-950/40 text-rose-500 hover:text-rose-700 dark:hover:text-rose-350 rounded-xl font-black text-[9px] uppercase tracking-wider flex items-center gap-1.5 mx-auto"
                                   onClick={() => {
                                     const emails = getEmailsByGerencia(op.gerencia);
                                     const recipient = emails.join(",");
@@ -547,10 +547,11 @@ export default function TelemetryDashboard() {
                                     window.location.href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=gadmonitoramento@compesa.com.br`;
                                   }}
                                 >
-                                  <Mail size={14} className="text-rose-500 hover:text-rose-700" />
+                                  <Mail size={12} className="text-rose-500" />
+                                  <span>Notificar</span>
                                 </Button>
                               ) : (
-                                <span className="text-[9px] font-bold text-slate-300">—</span>
+                                <span className="text-[10px] font-bold text-slate-300 dark:text-slate-700">—</span>
                               )}
                             </TableCell>
                           </TableRow>

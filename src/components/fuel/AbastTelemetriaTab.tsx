@@ -825,24 +825,6 @@ Coordenação de Gestão de Frotas - CGF`;
           hasDeviations = true;
         }
 
-        // REGRA 5 - TELEMETRIA SEM MOTORISTA
-        if (!motoristaT) {
-          deviations.push({
-            placa: placaA,
-            dataAbast: dataA.toLocaleString('pt-BR'),
-            status: "SEM DADO",
-            desvio: "TELEMETRIA SEM MOTORISTA",
-            difMin: melhorDiff.toFixed(1),
-            motoristaTelem: matchedTR.motorista || "NÃO IDENTIFICADO",
-            ignicao,
-            obs: "TELEMETRIA REGISTROU PASSAGEM DO CARTÃO SEM RECONHECIMENTO DO MOTORISTA",
-            litros: f["LITROS"],
-            posto: postoA,
-            motoristaAbast: rawDriverA
-          });
-          hasDeviations = true;
-        }
-
         // REGRA 6 - MOTORISTA DIFERENTE
         if (motoristaA && motoristaT) {
           let driversDiffer = false;
@@ -1356,12 +1338,7 @@ Coordenação de Gestão de Frotas - CGF`;
                                   📍 Divergência Endereço
                                 </span>
                               );
-                            } else if (row.desvio === "TELEMETRIA SEM MOTORISTA") {
-                              desvioBadge = (
-                                <span className="text-purple-600 font-extrabold text-[10px] uppercase">
-                                  🔑 Sem Motorista
-                                </span>
-                              );
+
                             } else if (row.desvio === "MOTORISTA DIFERENTE") {
                               desvioBadge = (
                                 <span className="text-rose-700 font-extrabold text-[10px] uppercase">
