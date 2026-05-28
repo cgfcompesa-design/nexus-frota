@@ -768,21 +768,20 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
   }, [costsByPlate, filteredCustosData]);
 
   const qtdOsPorPlacaFiltrada = useMemo(() => {
-    const map = new Map<string, Set<string>>();
+    const map = new Map<string, number>();
     filteredCustosData.forEach(c => {
       const p = (c.placa || "").toUpperCase().trim();
-      const os = c.ordemServico || "";
-      if (p && os) {
-        if (!map.has(p)) {
-          map.set(p, new Set<string>());
+      if (p) {
+        const hasASData = c.nOrcamento && c.nOrcamento.trim() !== "";
+        if (hasASData) {
+          map.set(p, (map.get(p) || 0) + 1);
         }
-        map.get(p)!.add(os);
       }
     });
     return Array.from(map.entries())
-      .map(([placa, osSet]) => ({
+      .map(([placa, count]) => ({
         placa,
-        qtdOS: osSet.size
+        qtdOS: count
       }))
       .sort((a, b) => b.qtdOS - a.qtdOS);
   }, [filteredCustosData]);
@@ -2094,10 +2093,10 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                   <TableHeader className="bg-slate-50 dark:bg-slate-800/50 sticky top-0 z-10">
                     <TableRow>
                       <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Placa</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3">Tipo Atividade de Manutenção (TAM)</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-right">Custo</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Tipo Atividade de Manutenção (TAM)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Custo</TableHead>
                       <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Nº Orçamento</TableHead>
-                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3">Descrição</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 py-3 text-center">Descrição</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -2112,10 +2111,10 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                         return (
                           <TableRow key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                             <TableCell className="text-xs font-bold text-slate-900 dark:text-slate-100 text-center">{service.placa}</TableCell>
-                            <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350">{service.tam} - {TAM_DESCRIPTIONS[service.tam] || 'Outros'}</TableCell>
-                            <TableCell className="text-xs font-black text-rose-600 dark:text-rose-400 text-right">{formatCurrency(service.custo)}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350 text-center">{service.tam} - {TAM_DESCRIPTIONS[service.tam] || 'Outros'}</TableCell>
+                            <TableCell className="text-xs font-black text-rose-600 dark:text-rose-400 text-center">{formatCurrency(service.custo)}</TableCell>
                             <TableCell className="text-xs font-semibold text-slate-600 dark:text-slate-400 text-center">{service.nOrcamento || 'N/A'}</TableCell>
-                            <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350 max-w-[250px] truncate" title={service.descricao}>{service.descricao || 'N/A'}</TableCell>
+                            <TableCell className="text-xs font-medium text-slate-600 dark:text-slate-350 max-w-[250px] truncate text-center mx-auto" title={service.descricao}>{service.descricao || 'N/A'}</TableCell>
                           </TableRow>
                         );
                       })

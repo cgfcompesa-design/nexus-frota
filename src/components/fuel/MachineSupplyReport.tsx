@@ -35,8 +35,23 @@ import {
   Loader2,
   FilterX,
   ChevronDown,
-  Calendar as CalendarIcon
+  Calendar as CalendarIcon,
+  BarChart2,
+  PieChart as PieIcon,
+  CheckSquare
 } from "lucide-react";
+import { 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip as RechartsTooltip, 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell 
+} from "recharts";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { auth, db } from "@/lib/firebase";
@@ -111,6 +126,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   }, []);
 
   // Filters State
+  const [showCharts, setShowCharts] = useState(true);
   const [searchPlaca, setSearchPlaca] = useState("");
   const [selectedUnits, setSelectedUnits] = useState<string[]>([]);
   const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
@@ -134,8 +150,14 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
     }
     const units = new Set<string>();
     fuel.forEach(f => {
-      const u = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
-      if (u && u !== "N/A") units.add(u);
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+      const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+      if (isMaqOrGer) {
+        const u = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
+        if (u && u !== "N/A" && u !== "null" && u !== "undefined") {
+          units.add(u);
+        }
+      }
     });
     return Array.from(units).sort();
   }, [fuel, isAccessGranted, userUnit, userRole]);
@@ -185,6 +207,89 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       return true;
     });
   }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
+
+  // Preenchimento Stats & Graficos
+  const fillingStats = useMemo(() => {
+    let totalSupply = filteredFuel.length;
+    let filledCount = 0;
+    let proprioCount = 0;
+    let locadoCount = 0;
+    
+    const destinationCounts: Record<string, number> = {};
+    const modelCounts: Record<string, number> = {};
+    
+    filteredFuel.forEach(f => {
+      const txId = String(f.COL_0 || f._txId || "");
+      const a = assignments.find(as => as.transactionId === txId);
+      
+      if (a) {
+        const hasDest = !!a.machineryDestination;
+        const hasModel = !!a.model;
+        const hasProperty = !!a.property;
+        const hasTomb = !!a.tombamentoNumber;
+        
+        if (hasDest || hasModel || hasProperty || hasTomb) {
+          filledCount++;
+        }
+        
+        if (a.machineryDestination) {
+          a.machineryDestination.split("; ").filter(Boolean).forEach(dest => {
+            const shortDest = optShortener(dest);
+            destinationCounts[shortDest] = (destinationCounts[shortDest] || 0) + 1;
+          });
+        }
+        
+        if (a.model) {
+          const m = a.model.trim().toUpperCase();
+          if (m) modelCounts[m] = (modelCounts[m] || 0) + 1;
+        }
+        
+        if (a.property) {
+          a.property.split("; ").filter(Boolean).forEach(p => {
+            const normalizedProp = p.trim().toUpperCase();
+            if (normalizedProp === "PRÓPRIO" || normalizedProp === "PROPRIO") proprioCount++;
+            if (normalizedProp === "LOCADO") locadoCount++;
+          });
+        }
+      }
+    });
+
+    function optShortener(text: string) {
+      if (text.includes("GERADOR PEQUENO PORTE")) return "Gerador Pequeno";
+      if (text.includes("GERADOR MÉDIO PORTE") || text.includes("GERADOR MEDIO PORTE")) return "Gerador Médio";
+      if (text.includes("GERADOR GRANDE PORTE")) return "Gerador Grande";
+      if (text.includes("ROÇADEIRA") || text.includes("ROCADEIRA")) return "Roçadeira";
+      if (text.includes("BOMBA SUBMERSA")) return "Bomba Submersa";
+      if (text.includes("COMPRESSOR")) return "Compressor";
+      if (text.includes("MOTOSERRA")) return "Motoserra";
+      if (text.includes("COMPACTADOR")) return "Compactador";
+      if (text.includes("CORTADOR(ES) DE GRAMA") || text.includes("CORTADOR DE GRAMA")) return "Cortador de Grama";
+      if (text.includes("TORRE DE ILUMINAÇÃO") || text.includes("TORRE DE ILUMINACAO")) return "Torre Iluminação";
+      if (text.includes("SOPRADOR DE FOLHAS") || text.includes("SOPRADOR")) return "Soprador Folhas";
+      return text;
+    }
+
+    const destinationChartData = Object.entries(destinationCounts)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    const propertyChartData = [
+      { name: "Próprio", value: proprioCount },
+      { name: "Locado", value: locadoCount }
+    ].filter(item => item.value > 0);
+
+    const completenessPercentage = totalSupply > 0 ? Math.round((filledCount / totalSupply) * 100) : 0;
+
+    return {
+      totalSupply,
+      filledCount,
+      proprioCount,
+      locadoCount,
+      completenessPercentage,
+      destinationChartData,
+      propertyChartData
+    };
+  }, [filteredFuel, assignments]);
 
   const handleExport = () => {
     try {
@@ -394,6 +499,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
             <FilterX className="w-3.5 h-3.5" /> Limpar
           </Button>
 
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => setShowCharts(!showCharts)}
+            className="h-9 gap-2 text-[10px] font-black uppercase tracking-widest border-indigo-200 bg-indigo-50/50 text-indigo-600 hover:bg-indigo-50 dark:bg-slate-850 dark:border-slate-800 dark:text-indigo-400"
+          >
+            {showCharts ? <PieIcon className="w-3.5 h-3.5" /> : <BarChart2 className="w-3.5 h-3.5" />}
+            {showCharts ? "Ocultar Estatísticas" : "Estatísticas"}
+          </Button>
+
           <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1 hidden md:block"></div>
           
           <Button 
@@ -407,6 +522,138 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
 
       {/* Main Table */}
       <main className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
+        {showCharts && (
+          <div className="mb-6 space-y-6">
+            {/* KPI Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="border-none shadow-sm bg-gradient-to-br from-indigo-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Abastecimentos</p>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-1">{fillingStats.totalSupply}</h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-indigo-100 dark:bg-indigo-950 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                    <Fuel className="w-5 h-5" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-gradient-to-br from-emerald-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Fichas Preenchidas</p>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-1">
+                      {fillingStats.filledCount} <span className="text-xs text-muted-foreground font-medium">({fillingStats.completenessPercentage}%)</span>
+                    </h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-emerald-100 dark:bg-emerald-950 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                    <CheckCircle2 className="w-5 h-5" />
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-gradient-to-br from-blue-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Maquinário Próprio</p>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-1">{fillingStats.proprioCount}</h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-blue-100 dark:bg-blue-950 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                    <span className="text-xs font-black">PRP</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-none shadow-sm bg-gradient-to-br from-amber-50/50 to-white dark:from-slate-900/50 dark:to-slate-900">
+                <CardContent className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Maquinário Locado</p>
+                    <h3 className="text-2xl font-black text-slate-800 dark:text-white mt-1">{fillingStats.locadoCount}</h3>
+                  </div>
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                    <span className="text-xs font-black">LOC</span>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Charts Grid */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Chart 1: Machinery Destinations */}
+              <Card className="border border-slate-100 dark:border-slate-800 col-span-1 lg:col-span-2 bg-white dark:bg-slate-900">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                    <BarChart2 className="w-4 h-4 text-indigo-500" />
+                    Destinos de Maquinário Cadastrados (Tipos)
+                  </h4>
+                  {fillingStats.destinationChartData.length === 0 ? (
+                    <div className="h-60 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados de "Destino Maquinário" preenchidos no período.
+                    </div>
+                  ) : (
+                    <div className="h-60">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={fillingStats.destinationChartData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} opacity={0.1} />
+                          <XAxis type="number" tick={{fontSize: 9}} />
+                          <YAxis dataKey="name" type="category" tick={{fontSize: 9, width: 120}} width={120} />
+                          <RechartsTooltip contentStyle={{borderRadius: '12px', fontSize: '10px'}} />
+                          <Bar dataKey="value" fill="#6366f1" radius={[0, 4, 4, 0]} maxBarSize={15} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Chart 2: Property Type */}
+              <Card className="border border-slate-100 dark:border-slate-800 col-span-1 bg-white dark:bg-slate-900">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                    <PieIcon className="w-4 h-4 text-amber-500" />
+                    Propriedade (Próprio vs Locado)
+                  </h4>
+                  {fillingStats.propertyChartData.length === 0 ? (
+                    <div className="h-60 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados de "Propriedade" vinculados no período.
+                    </div>
+                  ) : (
+                    <div className="h-60 flex flex-col justify-between">
+                      <div className="h-44">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={fillingStats.propertyChartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={45}
+                              outerRadius={65}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              <Cell fill="#3b82f6" />
+                              <Cell fill="#f59e0b" />
+                            </Pie>
+                            <RechartsTooltip contentStyle={{borderRadius: '12px', fontSize: '10px'}} />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex justify-center gap-6 mt-2">
+                        {fillingStats.propertyChartData.map((item, idx) => (
+                          <div key={item.name} className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider">
+                            <span className="w-3 h-3 rounded-full" style={{ backgroundColor: idx === 0 ? "#3b82f6" : "#f59e0b" }} />
+                            <span>{item.name}: {item.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+        )}
+
         <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto">
           {loadingFuel || loadingAssignments ? (
             <div className="flex flex-col items-center justify-center p-20 gap-4">
