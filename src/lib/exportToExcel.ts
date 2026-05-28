@@ -7,6 +7,66 @@ export const exportToExcel = (data: any[], fileName: string, sheetName: string) 
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
   
+  // Custom styling and formatting for single sheet export
+  const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:A1");
+  for (let R = range.s.r; R <= range.e.r; ++R) {
+    for (let C = range.s.c; C <= range.e.c; ++C) {
+      const address = XLSX.utils.encode_cell({ r: R, c: C });
+      if (!worksheet[address]) continue;
+      
+      if (!worksheet[address].s) worksheet[address].s = {};
+      
+      if (R === 0) {
+        // Style Header
+        worksheet[address].s = {
+          fill: { fgColor: { rgb: "004a99" } },
+          font: { color: { rgb: "FFFFFF" }, bold: true },
+          alignment: { horizontal: "center", vertical: "center" }
+        };
+      } else {
+        // Data rows: Detect and format currency
+        const headerAddress = XLSX.utils.encode_cell({ r: 0, c: C });
+        const headerCell = worksheet[headerAddress];
+        const headerText = headerCell ? String(headerCell.v).toUpperCase() : "";
+        
+        // General cell alignment
+        worksheet[address].s = {
+          alignment: { horizontal: "center", vertical: "center" }
+        };
+
+        const isCurrencyHeader = (
+          (headerText.includes("CUSTO") ||
+           headerText.includes("VALOR") ||
+           headerText.includes("GASTO") ||
+           headerText.includes("REALIZADO") ||
+           headerText.includes("TOTAL") ||
+           headerText.includes("DESVIO") ||
+           headerText.includes("ORÇADO") ||
+           headerText.includes("R$")) &&
+          !headerText.includes("QTD") &&
+          !headerText.includes("QUANTIDADE")
+        );
+        
+        // Check if value is numeric or can be parsed
+        let cellVal = worksheet[address].v;
+        if (typeof cellVal === "string" && isCurrencyHeader) {
+          const clean = cellVal.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+          const parsed = parseFloat(clean);
+          if (!isNaN(parsed)) {
+            cellVal = parsed;
+          }
+        }
+
+        if (typeof cellVal === "number" && isCurrencyHeader) {
+          worksheet[address].t = "n";
+          worksheet[address].v = cellVal;
+          worksheet[address].z = '"R$"#,##0.00';
+          worksheet[address].s.alignment = { horizontal: "right", vertical: "center" };
+        }
+      }
+    }
+  }
+
   // Write and download
   XLSX.writeFile(workbook, `${fileName}.xlsx`);
 };
@@ -24,7 +84,6 @@ export const exportToExcelMultiSheet = (sheets: SheetData[], fileName: string) =
   sheets.forEach(sheet => {
     if (sheet.data && sheet.data.length > 0) {
       // Ensure sheet name is unique, <= 31 chars and has no illegal characters
-      // Illegal: : \ / ? * [ ]
       let safeName = (sheet.sheetName || 'Sheet')
         .replace(/[:\\/?*[\]]/g, '_')
         .substring(0, 31);
@@ -62,7 +121,7 @@ export const exportToExcelMultiSheet = (sheets: SheetData[], fileName: string) =
       // Add data starting at A4
       XLSX.utils.sheet_add_json(worksheet, sheet.data, { origin: "A4" });
 
-      // Identify header range (row 4)
+      // Identify data range and apply styles
       const range = XLSX.utils.decode_range(worksheet['!ref'] || "A1:A1");
       for (let R = range.s.r; R <= range.e.r; ++R) {
         for (let C = range.s.c; C <= range.e.c; ++C) {
@@ -71,7 +130,7 @@ export const exportToExcelMultiSheet = (sheets: SheetData[], fileName: string) =
           
           if (!worksheet[address].s) worksheet[address].s = {};
           
-          // Header Row (Row 4)
+          // Header Row (Row 4, which is R = 3)
           if (R === 3) {
             worksheet[address].s = {
               fill: { fgColor: { rgb: "004a99" } },
@@ -99,6 +158,46 @@ export const exportToExcelMultiSheet = (sheets: SheetData[], fileName: string) =
             // Alternating rows (subtle blue)
             if (R % 2 !== 0) {
               worksheet[address].s.fill = { fgColor: { rgb: "f0f7ff" } };
+            }
+
+            // Identify header key
+            const headerAddress = XLSX.utils.encode_cell({ r: 3, c: C });
+            const headerCell = worksheet[headerAddress];
+            const headerText = headerCell ? String(headerCell.v).toUpperCase() : "";
+
+            const isCurrencyHeader = (
+              (headerText.includes("CUSTO") ||
+               headerText.includes("VALOR") ||
+               headerText.includes("GASTO") ||
+               headerText.includes("REALIZADO") ||
+               headerText.includes("TOTAL") ||
+               headerText.includes("DESVIO") ||
+               headerText.includes("ORÇADO") ||
+               headerText.includes("R$")) &&
+              !headerText.includes("QTD") &&
+              !headerText.includes("QUANTIDADE")
+            );
+
+            // Row text indicator of quantity to protect counts from being formatted
+            const labelCell = worksheet[XLSX.utils.encode_cell({ r: R, c: 0 })];
+            const labelText = labelCell ? String(labelCell.v).toUpperCase() : "";
+            const isRowQuantityInfo = labelText.includes("QTD") || labelText.includes("QUANTIDADE");
+
+            let cellVal = worksheet[address].v;
+            // Parse numerical string if it was converted from formatted string
+            if (typeof cellVal === "string" && isCurrencyHeader && !isRowQuantityInfo) {
+              const clean = cellVal.replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+              const parsed = parseFloat(clean);
+              if (!isNaN(parsed)) {
+                cellVal = parsed;
+              }
+            }
+
+            if (typeof cellVal === "number" && isCurrencyHeader && !isRowQuantityInfo) {
+              worksheet[address].t = "n";
+              worksheet[address].v = cellVal;
+              worksheet[address].z = '"R$"#,##0.00';
+              worksheet[address].s.alignment = { horizontal: "right", vertical: "center" };
             }
           }
         }

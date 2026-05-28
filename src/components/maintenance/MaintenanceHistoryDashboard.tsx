@@ -830,10 +830,22 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
   };
 
   const handleExport = () => {
+    const parseNum = (val: string | number) => {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      const clean = String(val).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+      const parsed = parseFloat(clean);
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
     const exportData = filteredData.map(i => ({
       OS: i.ordemServico, Placa: i.placa, Estabelecimento: i.estabelecimento, Grupo: i.grupoPeca, Peça: i.peca, MO: i.maoDeObra,
-      'Peça Qtd': i.pecaQuantidade, 'Peça R$': i.pecaTotal, 'MO Qtd': i.maoDeObraQuantidade, 'MO R$': i.maoDeObraTotal,
-      Total: i.total, 'Data Conclusão': i.dataConclusaoOS
+      'Peça Qtd': parseNum(i.pecaQuantidade), 
+      'Peça R$': parseNum(i.pecaTotal), 
+      'MO Qtd': parseNum(i.maoDeObraQuantidade), 
+      'MO R$': parseNum(i.maoDeObraTotal),
+      Total: parseNum(i.total), 
+      'Data Conclusão': i.dataConclusaoOS
     }));
     exportToExcel(exportData, `Historico_Manutencao_${format(new Date(), 'yyyyMMdd')}`, 'Histórico');
   };
@@ -1234,10 +1246,10 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
 
     // Sheet 1: Resumo Financeiro
     const resumoData = [
-      { "Indicador Financeiro": "Montante Investido em Manutenção", "Valor": formatCurrency(totalInvestido) },
-      { "Indicador Financeiro": "Média Financeira por OS", "Valor": formatCurrency(mediaPorOS) },
-      { "Indicador Financeiro": "Custo Orçado Acumulado", "Valor": formatCurrency(orcadoAcumulado) },
-      { "Indicador Financeiro": "Qtd. Orçamentos", "Valor": String(orcamentosMap.size) }
+      { "Indicador Financeiro": "Montante Investido em Manutenção", "Valor": totalInvestido },
+      { "Indicador Financeiro": "Média Financeira por OS", "Valor": mediaPorOS },
+      { "Indicador Financeiro": "Custo Orçado Acumulado", "Valor": orcadoAcumulado },
+      { "Indicador Financeiro": "Qtd. Orçamentos", "Valor": orcamentosMap.size }
     ];
 
     // Sheet 2: Custo por Tipo (com Gráfico de Proporção)
@@ -1245,7 +1257,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     const custoTipoData = costsByTipo.map(item => ({
       "Tipo de Custo": item.name || "Não Especificado",
       "Quantidade de Ativos": item.numAssets || 0,
-      "Valor Total Gasto": formatCurrency(item.value),
+      "Valor Total Gasto": item.value || 0,
       "Gráfico (Proporção)": getExcelBar(item.value, maxCustoTipo)
     }));
 
@@ -1255,7 +1267,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       "Posição": `${idx + 1}º`,
       "Unidade (Gerência)": item.gerencia,
       "Quantidade de Ativos": item.numAssets || 0,
-      "Custo Total Gasto": formatCurrency(item.custo),
+      "Custo Total Gasto": item.custo || 0,
       "% do Total": totalInvestido > 0 ? `${((item.custo / totalInvestido) * 100).toFixed(1)}%` : "0%",
       "Gráfico (Proporção)": getExcelBar(item.custo, maxCustoGerencia)
     }));
@@ -1295,9 +1307,9 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       const desvioPercent = item.orcado > 0 ? `${((desvio / item.orcado) * 100).toFixed(1)}%` : "0.0%";
       return {
         "Mês/Ano": item.mesAno,
-        "Custo Orçado": formatCurrency(item.orcado),
-        "Custo Realizado": formatCurrency(item.real),
-        "Desvio (R$)": formatCurrency(desvio),
+        "Custo Orçado": item.orcado,
+        "Custo Realizado": item.real,
+        "Desvio (R$)": desvio,
         "Desvio (%)": desvioPercent
       };
     });
@@ -1308,7 +1320,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       "Sigla TAM": item.tam,
       "Descrição da Atividade": TAM_DESCRIPTIONS[item.tam] || "Outros",
       "Quantidade de Manutenções (Col. AT)": item.count || 0,
-      "Custo Total": formatCurrency(item.custo),
+      "Custo Total": item.custo || 0,
       "Gráfico (Proporção)": getExcelBar(item.custo, maxCustoTam)
     }));
 
@@ -1319,7 +1331,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       return {
         "Placa": service.placa,
         "TAM (Tipo Atividade de Manutenção)": `${service.tam || "S/D"} - ${TAM_DESCRIPTIONS[service.tam] || "Outros"}`,
-        "Custo": formatCurrency(service.custo),
+        "Custo": service.custo || 0,
         "Nº Orçamento": service.nOrcamento || "N/A",
         "Descrição": service.descricao || "N/A",
         "QTD de OS's (Mês/Ano)": osCount
@@ -1335,14 +1347,23 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     }));
 
     // Sheet 8: Registros de Manutenção (Histórico Completo)
-    const mntFullData = filteredData.map(item => ({
-      "Ordem Serv.": item.ordemServico,
-      "Placa": item.placa,
-      "Local / Oficina": item.estabelecimento || "N/A",
-      "TAM": `${item.tam || "S/D"} - ${TAM_DESCRIPTIONS[item.tam] || "Outros"}`,
-      "Total Gasto": formatCurrency(parseFloat(item.total) || 0),
-      "Data Conclusão": item.dataConclusaoOS
-    }));
+    const mntFullData = filteredData.map(item => {
+      const parseNum = (val: string | number) => {
+        if (typeof val === 'number') return val;
+        if (!val) return 0;
+        const clean = String(val).replace(/[R$\s]/g, '').replace(/\./g, '').replace(',', '.');
+        const parsed = parseFloat(clean);
+        return isNaN(parsed) ? 0 : parsed;
+      };
+      return {
+        "Ordem Serv.": item.ordemServico,
+        "Placa": item.placa,
+        "Local / Oficina": item.estabelecimento || "N/A",
+        "TAM": `${item.tam || "S/D"} - ${TAM_DESCRIPTIONS[item.tam] || "Outros"}`,
+        "Total Gasto": parseNum(item.total),
+        "Data Conclusão": item.dataConclusaoOS
+      };
+    });
 
     // Sheet 9: Registros de Custos Detalhados (Completo)
     const costsDetailsFullData = filteredCustosData.map(c => ({
@@ -1350,7 +1371,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       "Tipo Manut.": c.tipo,
       "Mês/Ano": c.mesAno,
       "TAM": `${c.tam || "S/D"} - ${TAM_DESCRIPTIONS[c.tam] || "Outros"}`,
-      "Custo Total": formatCurrency(c.custo),
+      "Custo Total": c.custo || 0,
       "Gerência": c.gerencia,
       "Diretoria": c.diretoria,
       "Nº Orçamento": c.nOrcamento || "N/A",
