@@ -23,6 +23,7 @@ interface MaintenanceFilterBarProps {
   selectedStatusRevisao: string;
   selectedStatusControle: string;
   selectedMesAno: string;
+  selectedCriticidade: string;
   searchPlaca: string;
   onDiretoriaChange: (value: string) => void;
   onGerenciaChange: (value: string) => void;
@@ -33,6 +34,7 @@ interface MaintenanceFilterBarProps {
   onStatusRevisaoChange: (value: string) => void;
   onStatusControleChange: (value: string) => void;
   onMesAnoChange: (value: string) => void;
+  onCriticidadeChange: (value: string) => void;
   onSearchPlacaChange: (value: string) => void;
   onClearFilters: () => void;
 }
@@ -57,6 +59,7 @@ export const MaintenanceFilterBar = ({
   selectedStatusRevisao,
   selectedStatusControle,
   selectedMesAno,
+  selectedCriticidade,
   searchPlaca,
   onDiretoriaChange,
   onGerenciaChange,
@@ -67,6 +70,7 @@ export const MaintenanceFilterBar = ({
   onStatusRevisaoChange,
   onStatusControleChange,
   onMesAnoChange,
+  onCriticidadeChange,
   onSearchPlacaChange,
   onClearFilters,
 }: MaintenanceFilterBarProps) => {
@@ -210,6 +214,21 @@ export const MaintenanceFilterBar = ({
               {mesesAnos.map((m) => (
                 <SelectItem key={m} value={m}>{m}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-1.5">
+          <label className="text-xs font-black uppercase text-slate-400">Criticidade</label>
+          <Select value={selectedCriticidade} onValueChange={onCriticidadeChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Todas" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todas</SelectItem>
+              <SelectItem value="A">A</SelectItem>
+              <SelectItem value="B">B</SelectItem>
+              <SelectItem value="C">C</SelectItem>
             </SelectContent>
           </Select>
         </div>

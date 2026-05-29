@@ -39,6 +39,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
   const [selectedMesAno, setSelectedMesAno] = useState<string>("all");
   const [selectedStatusRevisao, setSelectedStatusRevisao] = useState<string>("all");
   const [selectedStatusControle, setSelectedStatusControle] = useState<string>("all");
+  const [selectedCriticidade, setSelectedCriticidade] = useState<string>("all");
   const [showWorkshopModal, setShowWorkshopModal] = useState(false);
 
   // Criar mapa de classificação por placa
@@ -49,6 +50,19 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       const classificacao = asset["CLASSIFICAÇÃO"] || asset["Classificação"] || asset["CLASSIFICACAO"] || "";
       if (placa && classificacao) {
         map.set(placa, classificacao);
+      }
+    });
+    return map;
+  }, [assets]);
+
+  // Criar mapa de criticidade por placa
+  const criticidadeMap = useMemo(() => {
+    const map = new Map<string, string>();
+    assets.forEach((asset) => {
+      const placa = (asset.PLACA || "").toString().toUpperCase().trim();
+      const criticidade = asset.CRITICIDADE || asset.criticidade || "";
+      if (placa && criticidade) {
+        map.set(placa, criticidade.toString().toUpperCase().trim());
       }
     });
     return map;
@@ -167,6 +181,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       const tipo = (vals[9]?.toString() || "").trim().toUpperCase();
       const statusControle = (vals[11]?.toString() || "").trim().toUpperCase();
       const classificacao = (classificacaoMap.get(placa) || "").trim().toUpperCase();
+      const mCriticidade = (criticidadeMap.get(placa) || "C").trim().toUpperCase();
       
       if (!placa) return false;
       const matchPlaca = searchPlaca === "" || placa.includes(searchPlaca.toUpperCase());
@@ -177,9 +192,11 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       const matchStatusOperacional = selectedStatusOperacional === "all" || statusOperacional === selectedStatusOperacional;
       const matchStatusManutencao = selectedStatusManutencao === "all" || statusManutencao === selectedStatusManutencao;
       const matchStatusControle = selectedStatusControle === "all" || statusControle === selectedStatusControle;
-      return matchPlaca && matchDiretoria && matchGerencia && matchTipo && matchClassificacao && matchStatusOperacional && matchStatusManutencao && matchStatusControle;
+      const matchCriticidade = selectedCriticidade === "all" || mCriticidade === selectedCriticidade || (selectedCriticidade === "C" && !criticidadeMap.has(placa));
+      
+      return matchPlaca && matchDiretoria && matchGerencia && matchTipo && matchClassificacao && matchStatusOperacional && matchStatusManutencao && matchStatusControle && matchCriticidade;
     });
-  }, [maintenance, searchPlaca, selectedDiretoria, selectedGerencia, selectedTipo, selectedClassificacao, selectedStatusOperacional, selectedStatusManutencao, selectedStatusControle, classificacaoMap]);
+  }, [maintenance, searchPlaca, selectedDiretoria, selectedGerencia, selectedTipo, selectedClassificacao, selectedStatusOperacional, selectedStatusManutencao, selectedStatusControle, selectedCriticidade, classificacaoMap, criticidadeMap]);
 
   const vehicleInfoMap = useMemo(() => {
     const map = new Map<string, { diretoria: string; gerencia: string; tipo: string }>();
@@ -202,14 +219,18 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       const placa = vals[0]?.toString().toUpperCase().trim() || "";
       const statusRevisao = (vals[20]?.toString() || "").trim().toUpperCase(); 
       const vehicleInfo = vehicleInfoMap.get(placa);
+      const mCriticidade = (criticidadeMap.get(placa) || "C").trim().toUpperCase();
+      
       const matchPlaca = searchPlaca === "" || placa.includes(searchPlaca.toUpperCase());
       const matchDiretoria = selectedDiretoria === "all" || vehicleInfo?.diretoria === selectedDiretoria;
       const matchGerencia = selectedGerencia === "all" || vehicleInfo?.gerencia === selectedGerencia;
       const matchTipo = selectedTipo === "all" || vehicleInfo?.tipo === selectedTipo;
       const matchStatusRevisao = selectedStatusRevisao === "all" || statusRevisao === selectedStatusRevisao;
-      return matchPlaca && matchDiretoria && matchGerencia && matchTipo && matchStatusRevisao;
+      const matchCriticidade = selectedCriticidade === "all" || mCriticidade === selectedCriticidade || (selectedCriticidade === "C" && !criticidadeMap.has(placa));
+      
+      return matchPlaca && matchDiretoria && matchGerencia && matchTipo && matchStatusRevisao && matchCriticidade;
     });
-  }, [preventiveMaintenance, searchPlaca, selectedDiretoria, selectedGerencia, selectedTipo, selectedStatusRevisao, vehicleInfoMap]);
+  }, [preventiveMaintenance, searchPlaca, selectedDiretoria, selectedGerencia, selectedTipo, selectedStatusRevisao, selectedCriticidade, vehicleInfoMap, criticidadeMap]);
 
   const metrics = useMemo(() => {
     const total = filteredMaintenance.length;
@@ -321,6 +342,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     setSelectedStatusOperacional("all");
     setSelectedStatusManutencao("all");
     setSelectedStatusRevisao("all");
+    setSelectedCriticidade("all");
     setSearchPlaca("");
     setSelectedMesAno("all");
   };
@@ -470,6 +492,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         selectedStatusRevisao={selectedStatusRevisao}
         selectedStatusControle={selectedStatusControle}
         selectedMesAno={selectedMesAno}
+        selectedCriticidade={selectedCriticidade}
         searchPlaca={searchPlaca}
         onDiretoriaChange={handleDiretoriaChange}
         onGerenciaChange={setSelectedGerencia}
@@ -480,6 +503,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         onStatusRevisaoChange={setSelectedStatusRevisao}
         onStatusControleChange={setSelectedStatusControle}
         onMesAnoChange={setSelectedMesAno}
+        onCriticidadeChange={setSelectedCriticidade}
         onSearchPlacaChange={setSearchPlaca}
         onClearFilters={handleClearFilters}
       />
@@ -629,6 +653,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
                     <TableRow>
                       <TableHead className="text-center">Placa</TableHead>
                       <TableHead className="text-center">Tipo</TableHead>
+                      <TableHead className="text-center">Criticidade</TableHead>
                       <TableHead className="text-center">Status Operacional</TableHead>
                       <TableHead className="text-center">Local</TableHead>
                       <TableHead className="text-center">Prazo</TableHead>
@@ -640,10 +665,24 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
                       const v = item.__raw || [];
                       const placa = String(v[0] || "");
                       if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return null;
+                      
+                      const mCrit = (criticidadeMap.get(placa) || "C").trim().toUpperCase();
+                      let criticityColor = "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700";
+                      if (mCrit === "A") {
+                        criticityColor = "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-900/30 font-black";
+                      } else if (mCrit === "B") {
+                        criticityColor = "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-900/30 font-bold";
+                      }
+
                       return (
                         <TableRow key={idx}>
                           <TableCell className="font-bold text-center">{placa}</TableCell>
                           <TableCell className="text-xs text-center">{String(v[9] || "")}</TableCell>
+                          <TableCell className="text-center">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] border tracking-wider uppercase ${criticityColor}`}>
+                              {mCrit}
+                            </span>
+                          </TableCell>
                           <TableCell className="text-xs text-center">{String(v[1] || "")}</TableCell>
                           <TableCell className="text-xs text-center">{String(v[3] || "")}</TableCell>
                           <TableCell className="text-xs text-center">{String(v[4] || "")}</TableCell>
