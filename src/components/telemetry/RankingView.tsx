@@ -255,22 +255,76 @@ export default function RankingView() {
       let bgClass = "bg-emerald-50";
 
       const detailsList = r.details || [];
-      const numTelemetriaGrave = detailsList.filter((d: any) => d.type === 'telemetria' && d.severity === 'GRAVE').length;
-      const numTransitoGrave = detailsList.filter((d: any) => d.type === 'ctb' && d.severity === 'GRAVE').length;
-      const numGravissimas = detailsList.filter((d: any) => d.severity === 'GRAVÍSSIMA').length;
 
-      // Lógica GAD-NI-003-02 (Ajustada):
-      // - Até 3 infrações de TRÂNSITO GRAVES + 3 de TELEMETRIA GRAVES, ou até 2 GRAVÍSSIMAS: ADVERTÊNCIA.
-      // - Excedeu qualquer um desses limites: o condutor fica em situação de SUSPENSÃO.
       if (r.totalAlerts > 0) {
-        if (numTelemetriaGrave <= 3 && numTransitoGrave <= 3 && numGravissimas <= 2) {
-          situation = "Advertência";
-          situationColor = "text-amber-500";
-          bgClass = "bg-amber-50";
+        // Ordenar os detalhes cronologicamente por data antes de processar
+        const sortedDetails = [...detailsList].sort((a, b) => {
+          const parseDate = (dStr: string) => {
+            if (!dStr || dStr === "-") return 0;
+            const parts = dStr.split(' ')[0].split('/');
+            if (parts.length === 3) {
+              return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0])).getTime();
+            }
+            return 0;
+          };
+          return parseDate(a.date) - parseDate(b.date);
+        });
+
+        let teleGraveCount = 0;
+        let ctbGraveCount = 0;
+        let ctbGravissimaCount = 0;
+
+        let advertenciaNotifications = 0;
+        let suspensaoTemporariaNotifications = 0;
+
+        sortedDetails.forEach((d: any) => {
+          let assignedType = "ADVERTÊNCIA";
+
+          if (d.type === 'telemetria') {
+            if (d.severity === 'GRAVE') {
+              teleGraveCount++;
+              if (teleGraveCount > 3) {
+                assignedType = "SUSPENSÃO TEMPORÁRIA";
+              }
+            }
+          } else if (d.type === 'ctb') {
+            if (d.severity === 'GRAVE') {
+              ctbGraveCount++;
+              if (ctbGraveCount > 3) {
+                assignedType = "SUSPENSÃO TEMPORÁRIA";
+              }
+            } else if (d.severity === 'GRAVÍSSIMA') {
+              ctbGravissimaCount++;
+              if (ctbGravissimaCount > 2) {
+                assignedType = "SUSPENSÃO TEMPORÁRIA";
+              }
+            }
+          }
+
+          if (assignedType === "ADVERTÊNCIA") {
+            advertenciaNotifications++;
+          } else {
+            suspensaoTemporariaNotifications++;
+          }
+
+          d.assignedNotificationType = assignedType;
+        });
+
+        // Aplicando a classificação com base nas notificações acumuladas:
+        // - "Suspensão Definitiva: Aplicada ao que exceder quando houver a partir de 02 notificações do tipo SUSPENSÃO TEMPORÁRIA"
+        // - "Suspensão de Condução: Aplicada ao exceder quando houver a partir de 03 notificações do tipo ADVERTÊNCIA (ou pelo menos 1 SUSPENSÃO TEMPORÁRIA)"
+        if (suspensaoTemporariaNotifications >= 2) {
+          situation = "Suspensão Definitiva";
+          situationColor = "text-rose-700 font-extrabold";
+          bgClass = "bg-rose-100 dark:bg-rose-950/60";
+        } else if (advertenciaNotifications >= 3 || suspensaoTemporariaNotifications >= 1) {
+          situation = "Suspensão de Condução";
+          situationColor = "text-rose-600 font-bold";
+          bgClass = "bg-rose-50 dark:bg-rose-900/30";
         } else {
-          situation = "Suspensão";
-          situationColor = "text-rose-600";
-          bgClass = "bg-rose-50";
+          situation = "Advertência";
+          situationColor = "text-amber-500 font-semibold";
+          bgClass = "bg-amber-50 dark:bg-amber-950/30";
         }
       } 
       else {
@@ -313,9 +367,16 @@ export default function RankingView() {
     let baseText = "";
 
     // Se o template for 'auto', decidimos baseado na situation da norma
-    const isSuspension = situation === "Suspensão";
-    const titleLabel = isSuspension ? "ORIENTAÇÃO DE SUSPENSÃO FORMAL" : "ORIENTAÇÃO DE ADVERTÊNCIA FORMAL";
-    const measureLabel = isSuspension 
+    const isSuspension = situation === "Suspensão de Condução" || situation === "Suspensão Definitiva";
+    const isDefinitive = situation === "Suspensão Definitiva";
+    const titleLabel = isDefinitive 
+      ? "ORIENTAÇÃO DE SUSPENSÃO DEFINITIVA" 
+      : isSuspension 
+      ? "ORIENTAÇÃO DE SUSPENSÃO DE CONDUÇÃO" 
+      : "ORIENTAÇÃO DE ADVERTÊNCIA FORMAL";
+    const measureLabel = isDefinitive
+      ? "suspensão definitiva do direito de conduzir veículos da frota COMPESA"
+      : isSuspension
       ? "suspensão temporária do direito de conduzir veículos da frota COMPESA" 
       : "ADVERTÊNCIA FORMAL";
 
@@ -392,18 +453,24 @@ export default function RankingView() {
            <Scale className="text-indigo-600" size={20} />
            <h2 className="text-sm font-black uppercase tracking-widest italic text-slate-800 dark:text-white underline decoration-indigo-500/30">Diretrizes Norma Interna GAD-NI-003-02</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-            <p className="text-[10px] font-black text-blue-600 uppercase mb-2 flex items-center">
+            <p className="text-[10px] font-black text-amber-600 uppercase mb-2 flex items-center">
               <Info size={12} className="mr-1" /> 1. Solicitação de Advertência
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicável em casos de até 03 infrações de Telemetria GRAVE + 03 infrações de Trânsito GRAVE, ou até 02 infrações GRAVÍSSIMAS acumuladas.</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicável em casos de até 03 infrações de Telemetria GRAVE OU 03 infrações de Trânsito GRAVE, ou até 02 infrações GRAVÍSSIMAS acumuladas.</p>
           </div>
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
             <p className="text-[10px] font-black text-rose-600 uppercase mb-2 flex items-center">
               <ShieldAlert size={12} className="mr-1" /> 2. Suspensão de Condução
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada ao exceder os limites tolerados (mais de 3 graves de telemetria, mais de 3 graves de trânsito ou mais de 2 gravíssimas acumuladas).</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada ao exceder quando houver a partir de 03 notificações do tipo ADVERTÊNCIA.</p>
+          </div>
+          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+            <p className="text-[10px] font-black text-rose-800 uppercase mb-2 flex items-center">
+              <ShieldAlert size={12} className="mr-1" /> 3. Suspensão Definitiva
+            </p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada ao que exceder quando houver a partir de 02 notificações do tipo SUSPENSÃO TEMPORÁRIA.</p>
           </div>
         </div>
       </div>
