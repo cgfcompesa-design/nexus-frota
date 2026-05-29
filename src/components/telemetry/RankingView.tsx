@@ -162,6 +162,19 @@ export default function RankingView() {
       const desc = String(n.EVENTO || n[keys[5]] || "Alerta de Telemetria");
       const sei = String(n.__raw?.[0] || n.SEI || n["Nº SEI"] || "-");
       
+      // Determinar gravidade real da telemetria
+      const gravityRaw = String(n.GRAVIDADE || n._gravidade || "MÉDIA").toUpperCase();
+      let teleSeverity = "MÉDIA";
+      if (gravityRaw.includes("GRAVISSIMA") || gravityRaw.includes("GRAVÍSSIMA")) {
+        teleSeverity = "GRAVÍSSIMA";
+      } else if (gravityRaw.includes("GRAVE")) {
+        teleSeverity = "GRAVE";
+      } else if (gravityRaw.includes("MEDIA") || gravityRaw.includes("MÉDIA")) {
+        teleSeverity = "MÉDIA";
+      } else if (gravityRaw.includes("LEVE")) {
+        teleSeverity = "LEVE";
+      }
+
       // Telemetria é Advertência base. Se passar de 3, ganha mais pontos
       let points = 5; 
       if (penaltyMap[driverRaw].teleCount >= 3) points = 15; // Escalona para Suspensão
@@ -174,7 +187,7 @@ export default function RankingView() {
         desc,
         sei,
         date: dateStr, 
-        severity: 'ADVERTÊNCIA', 
+        severity: teleSeverity, 
         points 
       });
     });
@@ -241,21 +254,23 @@ export default function RankingView() {
       let situationColor = "text-emerald-500";
       let bgClass = "bg-emerald-50";
 
-      // Lógica GAD-NI-003-02 (Atualizada conforme solicitação do usuário):
-      // Todas as ocorrências (mesmo gravíssimas ou em grande quantidade) devem constar como ADVERTÊNCIA
+      const detailsList = r.details || [];
+      const numTelemetriaGrave = detailsList.filter((d: any) => d.type === 'telemetria' && d.severity === 'GRAVE').length;
+      const numTransitoGrave = detailsList.filter((d: any) => d.type === 'ctb' && d.severity === 'GRAVE').length;
+      const numGravissimas = detailsList.filter((d: any) => d.severity === 'GRAVÍSSIMA').length;
+
+      // Lógica GAD-NI-003-02 (Ajustada):
+      // - Até 3 infrações de TRÂNSITO GRAVES + 3 de TELEMETRIA GRAVES, ou até 2 GRAVÍSSIMAS: ADVERTÊNCIA.
+      // - Excedeu qualquer um desses limites: o condutor fica em situação de SUSPENSÃO.
       if (r.totalAlerts > 0) {
-        situation = "Advertência";
-        situationColor = "text-amber-500";
-        bgClass = "bg-amber-50";
-        
-        // Mantendo distinção visual sutil para gestores master se necessário, 
-        // mas o texto deve ser ADVERTÊNCIA conforme pedido.
-        if (r.totalAlerts >= 5) {
+        if (numTelemetriaGrave <= 3 && numTransitoGrave <= 3 && numGravissimas <= 2) {
+          situation = "Advertência";
+          situationColor = "text-amber-500";
+          bgClass = "bg-amber-50";
+        } else {
+          situation = "Suspensão";
           situationColor = "text-rose-600";
           bgClass = "bg-rose-50";
-        } else if (r.totalAlerts === 4) {
-          situationColor = "text-rose-500";
-          bgClass = "bg-rose-50/50";
         }
       } 
       else {
@@ -298,13 +313,18 @@ export default function RankingView() {
     let baseText = "";
 
     // Se o template for 'auto', decidimos baseado na situation da norma
-    // ATUALIZAÇÃO: Conforme pedido do usuário, agora todos os casos mostram ADVERTÊNCIA
+    const isSuspension = situation === "Suspensão";
+    const titleLabel = isSuspension ? "ORIENTAÇÃO DE SUSPENSÃO FORMAL" : "ORIENTAÇÃO DE ADVERTÊNCIA FORMAL";
+    const measureLabel = isSuspension 
+      ? "suspensão temporária do direito de conduzir veículos da frota COMPESA" 
+      : "ADVERTÊNCIA FORMAL";
+
     if (template === 'auto') {
       return generateFormalText(driver, 'compesa');
     } else if (template === 'compesa') {
-      baseText = `1. ADVERTÊNCIA FORMAL p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a realização de ADVERTÊNCIA FORMAL ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento da advertência pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+      baseText = `1. NOTIFICAÇÃO E ORIENTAÇÃO p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ${titleLabel}\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a aplicação de ${measureLabel} ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     } else if (template === 'terceirizado') {
-      baseText = `2. ADVERTÊNCIA FORMAL P TERCEIRIZADOS\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ORIENTAÇÃO DE ADVERTÊNCIA FORMAL\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador TERCEIRIZADO ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a realização de ADVERTÊNCIA FORMAL à empresa tercerizada para que a mesma notifique o colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e posterior descontos das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+      baseText = `2. NOTIFICAÇÃO E ORIENTAÇÃO P TERCEIRIZADOS\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ${titleLabel}\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador TERCEIRIZADO ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a aplicação de ${measureLabel} à empresa terceirizada para que a mesma notifique o colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e posterior desconto das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     }
 
     return baseText;
@@ -372,24 +392,18 @@ export default function RankingView() {
            <Scale className="text-indigo-600" size={20} />
            <h2 className="text-sm font-black uppercase tracking-widest italic text-slate-800 dark:text-white underline decoration-indigo-500/30">Diretrizes Norma Interna GAD-NI-003-02</h2>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
             <p className="text-[10px] font-black text-blue-600 uppercase mb-2 flex items-center">
-              <Info size={12} className="mr-1" /> 1. Advertência
+              <Info size={12} className="mr-1" /> 1. Solicitação de Advertência
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicável da 1ª até a 3ª ocorrência acumulada (Telemetria ou CTB Leve/Média/Grave).</p>
-          </div>
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
-            <p className="text-[10px] font-black text-orange-600 uppercase mb-2 flex items-center">
-              <AlertTriangle size={12} className="mr-1" /> 2. Suspensão Temporária
-            </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada na 4ª ocorrência acumulada. Requer reorientação de segurança viária.</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicável em casos de até 03 infrações de Telemetria GRAVE + 03 infrações de Trânsito GRAVE, ou até 02 infrações GRAVÍSSIMAS acumuladas.</p>
           </div>
           <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-100 dark:border-slate-800">
             <p className="text-[10px] font-black text-rose-600 uppercase mb-2 flex items-center">
-              <ShieldAlert size={12} className="mr-1" /> 3. Suspensão Definitiva
+              <ShieldAlert size={12} className="mr-1" /> 2. Suspensão de Condução
             </p>
-            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada na 5ª ocorrência acumulada ou riscos críticos persistentes conforme Norma.</p>
+            <p className="text-[10px] font-bold text-slate-500 leading-relaxed italic">Aplicada ao exceder os limites tolerados (mais de 3 graves de telemetria, mais de 3 graves de trânsito ou mais de 2 gravíssimas acumuladas).</p>
           </div>
         </div>
       </div>

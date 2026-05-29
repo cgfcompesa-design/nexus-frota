@@ -74,7 +74,9 @@ export default function Overview() {
       }
 
       const placa = String(asset.PLACA || asset.placa || "").toUpperCase();
-      const matchesPlaca = !searchPlaca || placa.includes(searchPlaca.toUpperCase());
+      const idObjeto = String(asset.ID_OBJETO || asset["ID OBJETO"] || asset["ID_OBJETO"] || "").toUpperCase();
+      const query = searchPlaca.toUpperCase().trim();
+      const matchesPlaca = !searchPlaca || placa.includes(query) || idObjeto.includes(query);
       const matchesTipo = selectedTipo === "all" || asset.TIPO === selectedTipo;
       const matchesDiretoria = selectedDiretoria === "all" || asset.DIRETORIA === selectedDiretoria;
       const matchesGerencia = selectedGerencia === "all" || (asset.GERENCIA || asset["GERÊNCIA"]) === selectedGerencia;

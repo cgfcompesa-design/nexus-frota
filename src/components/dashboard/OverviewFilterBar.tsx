@@ -49,7 +49,7 @@ export const OverviewFilterBar = ({
             type="text"
             value={searchPlaca}
             onChange={(e) => onSearchPlacaChange(e.target.value)}
-            placeholder="Buscar por placa..."
+            placeholder="Buscar por placa ou ID Objeto..."
             className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
           />
         </div>
