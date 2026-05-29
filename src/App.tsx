@@ -104,7 +104,7 @@ function AbastDesviosView({ desviosOnly, userRole }: { desviosOnly: boolean, use
   const { data: maintenance = [], isLoading: loadingMaint } = useMaintenanceData();
   
   if (loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint) {
-    return <LoadingState message="Carregando Desoneração e Desvios..." />;
+    return <LoadingState message="Carregando ..." />;
   }
   
   return (
