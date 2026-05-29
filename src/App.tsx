@@ -28,6 +28,7 @@ import GestaoVista from './components/gestao/GestaoVista';
 import DrivePage from './components/drive/DrivePage';
 import ActivityManagement from './components/config/ActivityManagement';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
+import { LoadingState } from './components/dashboard/LoadingState';
 import AlertConfig from './components/config/AlertConfig';
 import UserManagement from './components/config/UserManagement';
 import ManagementAlertsPopup from './components/dashboard/ManagementAlertsPopup';
@@ -95,12 +96,16 @@ function useAppLogic() {
 
 // Separate components to keep App.tsx clean and avoid re-definition during render
 function AbastDesviosView({ desviosOnly, userRole }: { desviosOnly: boolean, userRole: string }) {
-  const { data: fuel = [] } = useFuelData();
-  const { data: assets = [] } = useAssets();
-  const { data: autonomia = [] } = useAutonomiaData();
-  const { data: autonomiaPadrao = [] } = useAutonomiaPadraoData();
-  const { data: maintenanceCost = [] } = useMaintenanceCostData();
-  const { data: maintenance = [] } = useMaintenanceData();
+  const { data: fuel = [], isLoading: loadingFuel } = useFuelData();
+  const { data: assets = [], isLoading: loadingAssets } = useAssets();
+  const { data: autonomia = [], isLoading: loadingAutonomia } = useAutonomiaData();
+  const { data: autonomiaPadrao = [], isLoading: loadingAutonomiaPadrao } = useAutonomiaPadraoData();
+  const { data: maintenanceCost = [], isLoading: loadingCost } = useMaintenanceCostData();
+  const { data: maintenance = [], isLoading: loadingMaint } = useMaintenanceData();
+  
+  if (loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint) {
+    return <LoadingState message="Carregando Desoneração e Desvios..." />;
+  }
   
   return (
     <FuelDashboard 
@@ -117,12 +122,16 @@ function AbastDesviosView({ desviosOnly, userRole }: { desviosOnly: boolean, use
 }
 
 function AbastPerformanceView({ userRole }: { userRole: string }) {
-  const { data: fuel = [] } = useFuelData();
-  const { data: assets = [] } = useAssets();
-  const { data: autonomia = [] } = useAutonomiaData();
-  const { data: autonomiaPadrao = [] } = useAutonomiaPadraoData();
-  const { data: maintenanceCost = [] } = useMaintenanceCostData();
-  const { data: maintenance = [] } = useMaintenanceData();
+  const { data: fuel = [], isLoading: loadingFuel } = useFuelData();
+  const { data: assets = [], isLoading: loadingAssets } = useAssets();
+  const { data: autonomia = [], isLoading: loadingAutonomia } = useAutonomiaData();
+  const { data: autonomiaPadrao = [], isLoading: loadingAutonomiaPadrao } = useAutonomiaPadraoData();
+  const { data: maintenanceCost = [], isLoading: loadingCost } = useMaintenanceCostData();
+  const { data: maintenance = [], isLoading: loadingMaint } = useMaintenanceData();
+  
+  if (loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint) {
+    return <LoadingState message="Carregando Desempenho e Métricas..." />;
+  }
   
   return (
     <FuelDashboard 
@@ -139,7 +148,10 @@ function AbastPerformanceView({ userRole }: { userRole: string }) {
 }
 
 function MaintenanceDesempenhoView() {
-  const { data: maintenanceCost = [] } = useMaintenanceCostData();
+  const { data: maintenanceCost = [], isLoading } = useMaintenanceCostData();
+  if (isLoading) {
+    return <LoadingState message="Carregando Histórico de Manutenção..." />;
+  }
   return <MaintenanceHistoryDashboard maintenanceCost={maintenanceCost} />;
 }
 

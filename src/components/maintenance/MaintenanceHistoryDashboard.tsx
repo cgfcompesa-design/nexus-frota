@@ -28,6 +28,7 @@ import {
   Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, ReferenceLine 
 } from "recharts";
 import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes } from "@/hooks/useFleetData";
+import { LoadingState } from "@/components/dashboard/LoadingState";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { MaintenanceCostData } from "@/types";
@@ -1393,7 +1394,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     toast.success("Excel consolidado gerado com sucesso!");
   };
 
-  if (isLoading) return <div className="flex items-center justify-center p-20"><Loader2 className="animate-spin mr-2 h-8 w-8 text-primary" /> Carregando Dashboard Otimizado...</div>;
+  if (isLoading) return <LoadingState message="Carregando Detalhes de Custos de Manutenção..." />;
 
   return (
     <div className="space-y-6">

@@ -422,7 +422,7 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
     // 1. Gerar e baixar planilha de apoio
     const placas = vehicles.map(v => v.placa);
     // Filtrar transações originais para estas placas
-    const relevantTxs = filteredFuel.filter(f => placas.includes(String(f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase()));
+    const relevantTxs = filteredFuel.filter(f => placas.includes(String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase()));
     // Filtrar desvios para estas placas
     const relevantDesvios = fuelAnalysis.desvios.filter(d => placas.includes(d.placa));
 
@@ -431,7 +431,7 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
       return {
         "CODIGO TRANSACAO": raw[0] || f["N\u00BA TRANSACAO"] || f._txId || "N/A",
         "DATA TRANSACAO": f["DATA TRANSACAO"] || raw[4] || "N/A",
-        "PLACA": f.PLACA || f.Placa || raw[5] || "N/A",
+        "PLACA": f._placa || f.PLACA || f.Placa || raw[5] || "N/A",
         "TIPO FROTA": raw[6] || f["TIPO FROTA"] || "N/A",
         "MODELO VEICULO": f["MODELO VEICULO"] || raw[10] || "N/A",
         "NOME MOTORISTA": f["NOME MOTORISTA"] || raw[11] || "N/A",
@@ -1014,7 +1014,7 @@ Coordenação de Gestão de Frotas - CGF`;
     toast.info("Exportação em processamento...");
     
     const baseData = filteredFuel.map(f => ({
-      Placa: f.PLACA || f.Placa || "N/A",
+      Placa: f._placa || f.PLACA || f.Placa || "N/A",
       Data: f["DATA TRANSACAO"] ? formatDateTimePtBRLocal(String(f["DATA TRANSACAO"])) : "N/A", // Use hourly format if available
       Litros: Number(f.LITROS).toFixed(2),
       "Valor Unitário": Number(f["VALOR UNITARIO"] || f["VL/UNITARIO"]).toFixed(2),
@@ -1094,7 +1094,7 @@ Coordenação de Gestão de Frotas - CGF`;
       const fuelType = f._fuelType;
       if (fuelType === "ARLA 32") continue;
 
-      const placaRaw = f.PLACA || f.Placa || "";
+      const placaRaw = f._placa || f.PLACA || f.Placa || "";
       const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
       
       // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
@@ -1111,7 +1111,10 @@ Coordenação de Gestão de Frotas - CGF`;
                               (asset.__raw && asset.__raw[43]) || 
                               "";
       
-      if (String(tipoControleVal).trim().toUpperCase() !== "FROTA") continue;
+      const tc = String(tipoControleVal).trim().toUpperCase();
+      // Only discard if the control is explicitly set to something other than FROTA.
+      // If it's empty, or contains "FROTA" (even partially, e.g. "FROTA PRÓPRIA", "SISTEMA FROTA"), KEEP IT!
+      if (tc !== "" && !tc.includes("FROTA")) continue;
 
       const valR = f._valR;
       
@@ -1158,7 +1161,7 @@ Coordenação de Gestão de Frotas - CGF`;
           placa, 
           tipo: 'Item Abastecido', 
           descricao: `Cód. Transação: ${f._txId} | Item: ${f._itemDesc}`, 
-          data: f["DATA TRANSACAO"] 
+          data: f["DATA TRANSACAO"] || f._formattedDate || f._date
         };
         desvios.push(d);
         v.alerts.add('Item Abastecido');
@@ -1173,7 +1176,7 @@ Coordenação de Gestão de Frotas - CGF`;
           placa, 
           tipo: 'Alerta Vale', 
           descricao: `Cód. Transação: ${f._txId} | KM Irregular: ${kmHoras} | Combustível Repetido: ${currentFuelType}`, 
-          data: f["DATA TRANSACAO"] 
+          data: f["DATA TRANSACAO"] || f._formattedDate || f._date
         };
         desvios.push(d);
         v.alerts.add('Alerta Vale');
@@ -1190,7 +1193,7 @@ Coordenação de Gestão de Frotas - CGF`;
       const fuelType = f._fuelType;
       if (fuelType === "ARLA 32") continue;
       
-      const placaRaw = f.PLACA || f.Placa || "";
+      const placaRaw = f._placa || f.PLACA || f.Placa || "";
       const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
       
       // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
@@ -1214,7 +1217,7 @@ Coordenação de Gestão de Frotas - CGF`;
               placa, 
               tipo: 'KM/Hora', 
               descricao: `Cód. Transação: ${f._txId} | KM/H: ${valR} vs Med: ${avgR.toFixed(1)} (${perc}%)`, 
-              data: f["DATA TRANSACAO"] 
+              data: f["DATA TRANSACAO"] || f._formattedDate || f._date
             };
             desvios.push(d);
             v.alerts.add('KM/Hora');
@@ -1237,7 +1240,7 @@ Coordenação de Gestão de Frotas - CGF`;
             placa, 
             tipo: 'Litros/m³', 
             descricao: `Cód. Transação: ${f._txId} | Tanque: ${litros}L vs Lim: ${limit}L (+${excesso}L)`, 
-            data: f["DATA TRANSACAO"] 
+            data: f["DATA TRANSACAO"] || f._formattedDate || f._date
           };
           desvios.push(d);
           v.alerts.add('Litros/m³');
@@ -1263,7 +1266,7 @@ Coordenação de Gestão de Frotas - CGF`;
             placa, 
             tipo: 'Autonomia', 
             descricao: `Cód. Transação: ${f._txId} | Aut: ${autReal.toFixed(1)} vs Pad: ${autRef} (${perDesvio}%)`, 
-            data: f["DATA TRANSACAO"] 
+            data: f["DATA TRANSACAO"] || f._formattedDate || f._date
           };
           desvios.push(d);
           v.alerts.add('Autonomia');
@@ -1278,7 +1281,7 @@ Coordenação de Gestão de Frotas - CGF`;
           placa, 
           tipo: 'Valor/Litro', 
           descricao: `Cód. Transação: ${f._txId} | Preço: R$ ${vlLitro.toFixed(2)} vs Med Regional (${fuelType}): R$ ${precoMedioParaComp.toFixed(2)} (${perc}%)`, 
-          data: f["DATA TRANSACAO"] 
+          data: f["DATA TRANSACAO"] || f._formattedDate || f._date
         };
         desvios.push(d);
         v.alerts.add('Valor/Litro');
@@ -1300,7 +1303,7 @@ Coordenação de Gestão de Frotas - CGF`;
           placa: v.placa, 
           tipo: 'Dias s/ Abastecer', 
           descricao: `Cód. Transação: ${v.lastTx?._txId} | ${dias} dias sem abastecer`, 
-          data: v.lastTx?.["DATA TRANSACAO"] 
+          data: v.lastTx?.["DATA TRANSACAO"] || v.lastTx?._formattedDate || v.lastTx?._date
         };
         desvios.push(d);
         v.alerts.add('Dias s/ Abastecer');
@@ -1320,7 +1323,7 @@ Coordenação de Gestão de Frotas - CGF`;
     const condutoresRanking = Object.entries(
       filteredFuel.reduce((acc: Record<string, number>, f: any) => {
         const condutor = f["NOME MOTORISTA"] || ((f as any).__raw && (f as any).__raw[11]) || "NÃO IDENTIFICADO";
-        const placaRaw = f.PLACA || f.Placa || "";
+        const placaRaw = f._placa || f.PLACA || f.Placa || "";
         const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
         
         if (placa.startsWith("MAQ")) return acc;

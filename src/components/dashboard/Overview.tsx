@@ -9,6 +9,7 @@ import {
 import { Asset, TelemetryData, FuelData, MaintenanceData, MaintenanceCostData } from "../../types";
 import { useState, useMemo, useEffect } from "react";
 import { useAssets, useMaintenanceData } from "../../hooks/useFleetData";
+import { LoadingState } from "./LoadingState";
 import { motion, AnimatePresence } from "motion/react";
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#8b5cf6'];
@@ -144,15 +145,7 @@ export default function Overview() {
   };
 
   if (loadingFetch && assets.length === 0) {
-    return (
-      <div className="h-[600px] flex flex-col items-center justify-center space-y-6">
-        <div className="w-16 h-16 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <div className="text-center">
-          <p className="text-slate-800 dark:text-white font-black uppercase tracking-tighter text-xl">Nexus Frota BI</p>
-          <p className="text-slate-500 font-bold animate-pulse uppercase tracking-widest text-[10px] mt-2 italic">Sincronizando Base de Dados Auditada...</p>
-        </div>
-      </div>
-    );
+    return <LoadingState message="Sincronizando Base de Dados Auditada..." />;
   }
 
   const CHART_COLORS = {

@@ -1,7 +1,42 @@
 
 import express from "express";
 import path from "path";
+import https from "https";
+import * as XLSX from "xlsx";
 import { createServer as createViteServer } from "vite";
+
+// Helper function to fetch URL recursively following redirects
+function fetchUrlBinary(urlStr: string, redirectsRemaining = 5): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    if (redirectsRemaining <= 0) {
+      return reject(new Error("Too many redirects"));
+    }
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    };
+    https.get(urlStr, options, (res) => {
+      const statusCode = res.statusCode || 0;
+      if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
+        let redirectUrl = res.headers.location;
+        if (!redirectUrl.startsWith("http")) {
+          const originalUrl = new URL(urlStr);
+          redirectUrl = originalUrl.origin + redirectUrl;
+        }
+        return fetchUrlBinary(redirectUrl, redirectsRemaining - 1).then(resolve, reject);
+      }
+      if (statusCode !== 200) {
+        return reject(new Error(`HTTP ${statusCode} for ${urlStr}`));
+      }
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve(Buffer.concat(chunks));
+      });
+    }).on("error", reject);
+  });
+}
 
 async function startServer() {
   const app = express();
@@ -12,6 +47,65 @@ async function startServer() {
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", time: new Date().toISOString() });
+  });
+
+  app.get("/api/fuel-data", async (req, res) => {
+    try {
+      const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';
+      console.log("[SERVER] Fetching and parsing XLSX fuel data from Google Sheets...");
+      const buffer = await fetchUrlBinary(url).catch(err => {
+        // Fallback or bubble up
+        throw new Error(`Failed to download spreadsheet: ${err.message}`);
+      });
+      
+      const wb = XLSX.read(buffer, { type: 'buffer' });
+      
+      // Find the first sheet with row keywords
+      let targetSheetName = "";
+      let bestMatchHeadersCount = -1;
+      let selectedRows: any[][] = [];
+
+      for (const name of wb.SheetNames) {
+        const sheet = wb.Sheets[name];
+        const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+        if (sheetRows.length === 0) continue;
+
+        // Count match headers for keywords to select the sheet
+        const headerRowIndex = sheetRows.findIndex(row => 
+          row.some(cell => {
+            const c = String(cell || "").toUpperCase();
+            return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR") || c.includes("LITROS") || c.includes("TRANSACAO");
+          })
+        );
+
+        if (headerRowIndex !== -1) {
+          const headerRow = sheetRows[headerRowIndex];
+          const keywords = ["PLACA", "DATA", "LITROS", "VOLUME", "VALOR", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM"];
+          const matchCount = headerRow.filter(cell => {
+            const c = String(cell || "").toUpperCase();
+            return keywords.some(k => c.includes(k));
+          }).length;
+
+          if (matchCount > bestMatchHeadersCount) {
+            bestMatchHeadersCount = matchCount;
+            targetSheetName = name;
+            selectedRows = sheetRows;
+          }
+        }
+      }
+
+      if (selectedRows.length === 0 && wb.SheetNames.length > 0) {
+        // Fallback: use first sheet
+        const firstSheet = wb.Sheets[wb.SheetNames[0]];
+        selectedRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as any[][];
+      }
+
+      console.log(`[SERVER] Success! Found target sheet: ${targetSheetName || "first"} with ${selectedRows.length} rows.`);
+      res.json({ success: true, sheetName: targetSheetName, data: selectedRows });
+    } catch (error: any) {
+      console.error("[SERVER] Failed to proxy fuel data:", error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
   });
 
   app.post("/api/send-management-report", async (req, res) => {
