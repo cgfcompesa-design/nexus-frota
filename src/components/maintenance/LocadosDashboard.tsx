@@ -573,7 +573,7 @@ export const LocadosDashboard = () => {
     return "outline";
   };
 
-  if (isLoading || isLoadingVeiculos || isLoadingPreventive || isLoadingAssets) return <LoadingState />;
+  // No page-blocking loading screen to keep tabs accessible immediately
 
   if (hasError) {
     return (

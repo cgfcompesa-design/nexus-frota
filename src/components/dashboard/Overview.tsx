@@ -144,9 +144,7 @@ export default function Overview() {
     exportToExcel(dataToExport, "Frota_Nexus_Auditada", "Consolidado");
   };
 
-  if (loadingFetch && assets.length === 0) {
-    return <LoadingState message="Sincronizando Base de Dados Auditada..." />;
-  }
+  // No blocking LoadingState here to keep other tabs accessible and visible instantly.
 
   const CHART_COLORS = {
     primary: '#6366f1',

@@ -164,7 +164,7 @@ export default function RegularizacaoDocumentosPage() {
     return { total, comCrlv, comCsv, comTacografo, comCivCipp, comCarroceria };
   }, [filtered]);
 
-  if (isLoading) return <LoadingState />;
+  // No page-blocking loading screen to keep tabs accessible immediately
 
   return (
     <main className="min-h-screen bg-background">

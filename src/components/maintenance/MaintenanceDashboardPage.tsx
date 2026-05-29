@@ -30,9 +30,7 @@ export default function MaintenanceDashboardPage({ userRole = 'Visualizador' }: 
     refetchCO();
   };
 
-  if (isLoading) {
-    return <LoadingState message="Sincronizando dados de manutenção..." />;
-  }
+  // No page-blocking loading screen to keep tabs accessible immediately
 
   if (isError && maintenance.length === 0) {
     return (

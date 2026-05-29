@@ -103,9 +103,7 @@ function AbastDesviosView({ desviosOnly, userRole }: { desviosOnly: boolean, use
   const { data: maintenanceCost = [], isLoading: loadingCost } = useMaintenanceCostData();
   const { data: maintenance = [], isLoading: loadingMaint } = useMaintenanceData();
   
-  if (loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint) {
-    return <LoadingState message="Carregando ..." />;
-  }
+  const isLoading = loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint;
   
   return (
     <FuelDashboard 
@@ -117,6 +115,7 @@ function AbastDesviosView({ desviosOnly, userRole }: { desviosOnly: boolean, use
       maintenance={maintenance} 
       desviosOnly={desviosOnly} 
       userRole={userRole}
+      isLoading={isLoading}
     />
   );
 }
@@ -129,9 +128,7 @@ function AbastPerformanceView({ userRole }: { userRole: string }) {
   const { data: maintenanceCost = [], isLoading: loadingCost } = useMaintenanceCostData();
   const { data: maintenance = [], isLoading: loadingMaint } = useMaintenanceData();
   
-  if (loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint) {
-    return <LoadingState message="Carregando Desempenho e Métricas..." />;
-  }
+  const isLoading = loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint;
   
   return (
     <FuelDashboard 
@@ -143,15 +140,13 @@ function AbastPerformanceView({ userRole }: { userRole: string }) {
       maintenance={maintenance} 
       initialTab="abast-perf" 
       userRole={userRole}
+      isLoading={isLoading}
     />
   );
 }
 
 function MaintenanceDesempenhoView() {
-  const { data: maintenanceCost = [], isLoading } = useMaintenanceCostData();
-  if (isLoading) {
-    return <LoadingState message="Carregando Histórico de Manutenção..." />;
-  }
+  const { data: maintenanceCost = [] } = useMaintenanceCostData();
   return <MaintenanceHistoryDashboard maintenanceCost={maintenanceCost} />;
 }
 

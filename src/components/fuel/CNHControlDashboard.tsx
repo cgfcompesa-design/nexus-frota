@@ -91,7 +91,7 @@ export function CNHControlDashboard() {
     toast.info(`E-mail preparado para ${record.nome}`);
   };
 
-  if (isLoading) return <LoadingState />;
+  // No page-blocking loading screen to keep tabs accessible immediately
   if (error) return (
     <div className="p-8 text-center text-destructive border rounded-lg bg-destructive/5">
       Erro ao carregar dados de CNH. Verifique a conexão com a planilha.

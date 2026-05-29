@@ -464,7 +464,7 @@ export function FuelJustificationsTab() {
       .slice(0, 5);
   }, [filteredTransactions]);
 
-  if (isLoading) return <LoadingState />;
+  // No page-blocking loading screen to keep tabs accessible immediately
 
   return (
     <div className="space-y-6">

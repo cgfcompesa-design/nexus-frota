@@ -4,6 +4,7 @@ import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FuelFilterBar } from "./FuelFilterBar";
 import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag, Building2 } from "lucide-react";
 import { useAlertaValeData } from "@/hooks/useAlertaValeData";
+import { LoadingState } from "@/components/dashboard/LoadingState";
 import { Button } from "@/components/ui/button";
 import { exportToExcelMultiSheet } from "@/lib/exportToExcel";
 import { toast } from "sonner";
@@ -103,6 +104,7 @@ interface FuelDashboardProps {
   desviosOnly?: boolean;
   initialTab?: string;
   userRole?: string;
+  isLoading?: boolean;
 }
 
 // Função auxiliar para parsear números brasileiros (trata separadores de milhar e decimal)
@@ -311,7 +313,7 @@ const standardizeFuelType = (fuelType: string | undefined): string => {
   return fuelType;
 };
 
-export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false, initialTab, userRole }: FuelDashboardProps) => {
+export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, maintenanceCost, maintenance, desviosOnly = false, initialTab, userRole, isLoading }: FuelDashboardProps) => {
   // Hook para dados de locados (veículos em manutenção)
   const { data: locadosData = [] } = useLocadosData();
   
@@ -1472,11 +1474,14 @@ Coordenação de Gestão de Frotas - CGF`;
         </div>
 
         <TabsContent value="analise" className="space-y-6 mt-0">
-          <div id="monitoramento-desvios" className="space-y-6">
-            <div className="flex items-center gap-2 border-b pb-2">
-              <AlertTriangle className="h-5 w-5 text-rose-500" />
-              <h2 className="text-lg font-bold uppercase tracking-tight">Monitoramento e Análise de Desvios</h2>
-            </div>
+          {isLoading ? (
+            <LoadingState message="Carregando..." />
+          ) : (
+            <div id="monitoramento-desvios" className="space-y-6">
+              <div className="flex items-center gap-2 border-b pb-2">
+                <AlertTriangle className="h-5 w-5 text-rose-500" />
+                <h2 className="text-lg font-bold uppercase tracking-tight">Monitoramento e Análise de Desvios</h2>
+              </div>
 
             <FuelFilterBar
             fuel={fuel} assets={assets} autonomia={autonomia}
@@ -1865,8 +1870,9 @@ Coordenação de Gestão de Frotas - CGF`;
           </div>
         </CardContent>
       </Card>
-    </div>
-  </TabsContent>
+            </div>
+          )}
+        </TabsContent>
 
         <TabsContent value="abast-perf" className="space-y-6 mt-0">
           <SupplyPerformanceDashboard fuel={filteredFuel} assets={assets} />

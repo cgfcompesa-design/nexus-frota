@@ -1394,7 +1394,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     toast.success("Excel consolidado gerado com sucesso!");
   };
 
-  if (isLoading) return <LoadingState message="Carregando Detalhes de Custos de Manutenção..." />;
+  // No blocking LoadingState here to keep other tabs accessible and visible instantly.
 
   return (
     <div className="space-y-6">

@@ -1613,7 +1613,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     </div>
   );
 
-  if (isLoading) return <LoadingState />;
+  // No page-blocking loading screen to keep tabs accessible immediately
 
   if (hasError) {
     return (
