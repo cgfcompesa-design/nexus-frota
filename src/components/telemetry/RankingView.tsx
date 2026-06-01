@@ -67,6 +67,16 @@ export default function RankingView() {
     }
   };
 
+  const getMonthVal = (ma: string) => {
+    if (!ma) return 0;
+    const parts = ma.split('/');
+    if (parts.length !== 2) return 0;
+    const [mes, ano] = parts;
+    const mesesNomes = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    const mesIndex = mesesNomes.indexOf(mes.toLowerCase().trim());
+    return parseInt(ano) * 12 + (mesIndex >= 0 ? mesIndex : 0);
+  };
+
   const meses = useMemo(() => {
     const set = new Set<string>();
     notificacoes.forEach(n => {
@@ -80,51 +90,45 @@ export default function RankingView() {
       if (ma) set.add(ma);
     });
     
-    return Array.from(set).sort((a, b) => {
-      const [mesA, anoA] = a.split('/');
-      const [mesB, anoB] = b.split('/');
-      const mesesNomes = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-      const valA = parseInt(anoA) * 100 + mesesNomes.indexOf(mesA);
-      const valB = parseInt(anoB) * 100 + mesesNomes.indexOf(mesB);
-      return valA - valB;
-    });
+    return Array.from(set)
+      .filter(ma => getMonthVal(ma) >= getMonthVal("jan/26"))
+      .sort((a, b) => {
+        const [mesA, anoA] = a.split('/');
+        const [mesB, anoB] = b.split('/');
+        const mesesNomes = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+        const valA = parseInt(anoA) * 100 + mesesNomes.indexOf(mesA);
+        const valB = parseInt(anoB) * 100 + mesesNomes.indexOf(mesB);
+        return valA - valB;
+      });
   }, [notificacoes, infracoesData]);
 
   const filteredNotificacoes = useMemo(() => {
-    let result = notificacoes;
     const targetFim = selectedMesFim !== "all" ? selectedMesFim : (selectedMesInicio !== "all" ? selectedMesInicio : "all");
-    if (targetFim !== "all") {
-      result = result.filter(n => {
-        const dataStr = String(n.__raw?.[8] || n.DATA_HORA || "").trim();
-        const ma = getMesAno(dataStr);
-        if (!ma) return false;
-        
-        const maIndex = meses.indexOf(ma);
-        const fimIndex = meses.indexOf(targetFim);
-        
-        return maIndex <= fimIndex;
-      });
-    }
-    return result;
-  }, [notificacoes, selectedMesInicio, selectedMesFim, meses]);
+    const limitMin = getMonthVal("jan/26");
+    const limitMax = targetFim !== "all" ? getMonthVal(targetFim) : Infinity;
+
+    return notificacoes.filter(n => {
+      const dataStr = String(n.__raw?.[8] || n.DATA_HORA || "").trim();
+      const ma = getMesAno(dataStr);
+      if (!ma) return false;
+      const val = getMonthVal(ma);
+      return val >= limitMin && val <= limitMax;
+    });
+  }, [notificacoes, selectedMesInicio, selectedMesFim]);
 
   const filteredInfracoes = useMemo(() => {
-    let result = infracoesData;
     const targetFim = selectedMesFim !== "all" ? selectedMesFim : (selectedMesInicio !== "all" ? selectedMesInicio : "all");
-    if (targetFim !== "all") {
-      result = result.filter(i => {
-        const dataStr = String(i.__raw?.[8] || "").trim(); // Col I
-        const ma = getMesAno(dataStr);
-        if (!ma) return false;
+    const limitMin = getMonthVal("jan/26");
+    const limitMax = targetFim !== "all" ? getMonthVal(targetFim) : Infinity;
 
-        const maIndex = meses.indexOf(ma);
-        const fimIndex = meses.indexOf(targetFim);
-
-        return maIndex <= fimIndex;
-      });
-    }
-    return result;
-  }, [infracoesData, selectedMesInicio, selectedMesFim, meses]);
+    return infracoesData.filter(i => {
+      const dataStr = String(i.__raw?.[8] || "").trim();
+      const ma = getMesAno(dataStr);
+      if (!ma) return false;
+      const val = getMonthVal(ma);
+      return val >= limitMin && val <= limitMax;
+    });
+  }, [infracoesData, selectedMesInicio, selectedMesFim]);
 
   const unifiedRanking = useMemo(() => {
     const penaltyMap: Record<string, { 
