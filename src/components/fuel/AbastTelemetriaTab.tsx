@@ -807,24 +807,6 @@ Coordenação de Gestão de Frotas - CGF`;
           hasDeviations = true;
         }
 
-        // REGRA 4 - IGNIÇÃO DESLIGADA
-        if (ignicao === "DESLIGADA") {
-          deviations.push({
-            placa: placaA,
-            dataAbast: dataA.toLocaleString('pt-BR'),
-            status: "MATCH",
-            desvio: "IGNICAO DESLIGADA",
-            difMin: melhorDiff.toFixed(1),
-            motoristaTelem: matchedTR.motorista || "N/A",
-            ignicao,
-            obs: "ABASTECIMENTO COM MOTOR DESLIGADO (PARÂMETRO PADRÃO REGULAMENTAR)",
-            litros: f["LITROS"],
-            posto: postoA,
-            motoristaAbast: rawDriverA
-          });
-          hasDeviations = true;
-        }
-
         // REGRA 6 - MOTORISTA DIFERENTE
         if (motoristaA && motoristaT) {
           let driversDiffer = false;

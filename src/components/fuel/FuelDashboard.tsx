@@ -689,15 +689,7 @@ Coordenação de Gestão de Frotas - CGF`;
     return { prevLitros: 0, prevValor: 0, prevAbast: 0, prevPrecoLitro: 0 };
   }, [fuel]);
 
-  const [internalLoading, setInternalLoading] = useState(false);
-  
-  useEffect(() => {
-    if (fuel.length > 0) {
-      setInternalLoading(true);
-      const timer = setTimeout(() => setInternalLoading(false), 500);
-      return () => clearTimeout(timer);
-    }
-  }, [fuel.length, selectedFuelTypes, selectedVehicleModels, debouncedSearchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedMonthsYears, dateFrom, dateTo]);
+  const internalLoading = false;
 
   const litrosChange = previousMonthMetrics.prevLitros > 0 ? ((totalLitros - previousMonthMetrics.prevLitros) / previousMonthMetrics.prevLitros) * 100 : 0;
   const valorChange = previousMonthMetrics.prevValor > 0 ? ((totalValor - previousMonthMetrics.prevValor) / previousMonthMetrics.prevValor) * 100 : 0;
@@ -1139,6 +1131,7 @@ Coordenação de Gestão de Frotas - CGF`;
           totalKm: 0,
           lastTimestamp: 0,
           lastFuelType: null,
+          lastTxTimestamp: 0,
           autonomias: [],
           alerts: new Set<string>(),
           lastTx: null
@@ -1171,22 +1164,40 @@ Coordenação de Gestão de Frotas - CGF`;
       }
 
       // Alerta Vale: Trata como irregular se KM Rodados for entre 0 e 10 ou negativo, 
-      // E o combustível for o mesmo do abastecimento anterior
+      // OU se o tempo de diferença do mesmo combustível for de menos de 4 horas.
       const kmHoras = f._kmHoras;
-      if ((kmHoras <= 10) && v.lastFuelType && currentFuelType === v.lastFuelType) {
-        const d = { 
-          placa, 
-          tipo: 'Alerta Vale', 
-          descricao: `Cód. Transação: ${f._txId} | KM Irregular: ${kmHoras} | Combustível Repetido: ${currentFuelType}`, 
-          data: f["DATA TRANSACAO"] || f._formattedDate || f._date
-        };
-        desvios.push(d);
-        v.alerts.add('Alerta Vale');
-        stats.vale++;
+      const hasTimeCheck = v.lastTxTimestamp && v.lastTxTimestamp > 0 && timestamp > 0;
+      const hoursBetween = hasTimeCheck ? (v.lastTxTimestamp - timestamp) / (1000 * 60 * 60) : Infinity;
+
+      if (v.lastFuelType && currentFuelType === v.lastFuelType) {
+        const isLowMvt = (kmHoras <= 10);
+        const isShortInterval = (hoursBetween < 4);
+
+        if (isLowMvt || isShortInterval) {
+          let reason = "";
+          if (isLowMvt && isShortInterval) {
+            reason = `KM Irregular (${kmHoras} km) e Intervalo Curto (${hoursBetween.toFixed(1)}h)`;
+          } else if (isLowMvt) {
+            reason = `KM Irregular (Movimentação Mínima): ${kmHoras} km`;
+          } else {
+            reason = `Intervalo Curto: ${hoursBetween.toFixed(1)}h (< 4h)`;
+          }
+
+          const d = { 
+            placa, 
+            tipo: 'Alerta Vale', 
+            descricao: `Cód. Transação: ${f._txId} | ${reason} | Combustível Repetido: ${currentFuelType}`, 
+            data: f["DATA TRANSACAO"] || f._formattedDate || f._date
+          };
+          desvios.push(d);
+          v.alerts.add('Alerta Vale');
+          stats.vale++;
+        }
       }
 
-      // Atualiza o último combustível para a próxima iteração
+      // Atualiza o último combustível e timestamp para a próxima iteração
       v.lastFuelType = currentFuelType;
+      v.lastTxTimestamp = timestamp;
     }
 
     // Pass 2: calculate specific alerts
@@ -1412,17 +1423,6 @@ Coordenação de Gestão de Frotas - CGF`;
 
   return (
     <div className="space-y-6">
-      {internalLoading && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center p-8 bg-card border rounded-3xl shadow-2xl space-y-4 animate-in fade-in zoom-in duration-300">
-            <Activity className="h-12 w-12 text-primary animate-pulse" />
-            <div className="text-center">
-              <h3 className="text-lg font-bold text-slate-800">Processando Análise de Desvios...</h3>
-              <p className="text-sm text-muted-foreground">Isso pode levar alguns segundos dependendo do volume de dados.</p>
-            </div>
-          </div>
-        </div>
-      )}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-md pb-2 -mx-4 px-4 md:-mx-8 md:px-8">
           <TabsList className="flex w-full justify-start gap-2 bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none h-11 p-0 mb-2 overflow-x-auto custom-scrollbar shadow-none">
@@ -1474,9 +1474,6 @@ Coordenação de Gestão de Frotas - CGF`;
         </div>
 
         <TabsContent value="analise" className="space-y-6 mt-0">
-          {isLoading ? (
-            <LoadingState message="Carregando..." />
-          ) : (
             <div id="monitoramento-desvios" className="space-y-6">
               <div className="flex items-center gap-2 border-b pb-2">
                 <AlertTriangle className="h-5 w-5 text-rose-500" />
@@ -1871,7 +1868,6 @@ Coordenação de Gestão de Frotas - CGF`;
         </CardContent>
       </Card>
             </div>
-          )}
         </TabsContent>
 
         <TabsContent value="abast-perf" className="space-y-6 mt-0">
