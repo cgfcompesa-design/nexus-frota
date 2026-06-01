@@ -51,7 +51,7 @@ const sections = [
   },
 ];
 
-export default function DrivePage() {
+export default function DrivePage({ onBack }: { onBack?: () => void }) {
   const [activeSubview, setActiveSubview] = useState<string | null>(null);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function DrivePage() {
             <div className="absolute top-8 right-8">
                <Button 
                 variant="outline" 
-                onClick={() => window.location.href = window.location.origin}
+                onClick={onBack || (() => window.location.href = window.location.origin)}
                 className="rounded-2xl font-black uppercase text-[10px] tracking-widest gap-2 bg-white/50 backdrop-blur-md border-slate-200"
               >
                 <ChevronLeft size={16} /> Voltar ao Sistema

@@ -176,7 +176,7 @@ export default function App() {
 
   useEffect(() => {
     if (!loading && !user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'login'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login'];
       if (!publicViews.includes(currentView)) {
         setCurrentView('home');
       }
@@ -189,7 +189,7 @@ export default function App() {
   const renderView = () => {
     // Visitor protection
     if (!user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive'];
       if (!publicViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
@@ -197,7 +197,7 @@ export default function App() {
 
     // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
@@ -251,7 +251,7 @@ export default function App() {
       return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <div className="min-h-screen">
-            {currentView === 'drive' ? <DrivePage /> : <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />}
+            {currentView === 'drive' ? <DrivePage onBack={() => setCurrentView('home')} /> : <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />}
             {managementAlerts}
             <Toaster position="top-right" />
           </div>
@@ -261,7 +261,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas'];
+    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">
