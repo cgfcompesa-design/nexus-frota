@@ -363,15 +363,6 @@ export default function RankingView() {
     }).sort((a, b) => b.score - a.score);
   }, [filteredNotificacoes, filteredInfracoes]);
 
-  if (loading) {
-     return (
-      <div className="h-[400px] flex flex-col items-center justify-center space-y-4">
-        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-        <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Unificando Rankings GAD-NI-003-02...</p>
-      </div>
-    );
-  }
-
   const allDriversForSelect = useMemo(() => {
     const list = unifiedRanking.map(r => r.driver as string).filter(Boolean);
     return Array.from(new Set(list)).sort((a: string, b: string) => a.localeCompare(b));
@@ -395,6 +386,15 @@ export default function RankingView() {
       return driverNorm.includes(searchNorm);
     });
   }, [unifiedRanking, driverSearch]);
+
+  if (loading) {
+     return (
+      <div className="h-[400px] flex flex-col items-center justify-center space-y-4">
+        <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-slate-400 font-black uppercase tracking-widest text-[10px]">Unificando Rankings GAD-NI-003-02...</p>
+      </div>
+    );
+  }
 
   const generateFormalText = (driver: any, template: 'auto' | 'compesa' | 'terceirizado' = 'auto') => {
     const { situation, details, score } = driver;
