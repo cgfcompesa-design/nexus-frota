@@ -123,6 +123,7 @@ export default function TelemetryDashboard() {
   const [selectedSituacoes, setSelectedSituacoes] = useState<string[]>([]);
   const [selectedTiposNotificacao, setSelectedTiposNotificacao] = useState<string[]>([]);
   const [selectedMeses, setSelectedMeses] = useState<string[]>([]);
+  const [driverSearch, setDriverSearch] = useState("");
 
   // Removido useEffect manual em favor do react-query
 
@@ -159,6 +160,7 @@ export default function TelemetryDashboard() {
   const gravidades = useMemo(() => Array.from(new Set(notificacoes.map(n => String(n._gravidade || n.GRAVIDADE || "Média").trim()).filter(Boolean))).sort(), [notificacoes]);
   const situacoes = useMemo(() => Array.from(new Set(notificacoes.map(n => String(n._situacao || n["SITUAÇÃO"] || n.SITUACAO || "Pendente").trim()).filter(Boolean))).sort(), [notificacoes]);
   const tiposNotificacao = useMemo(() => Array.from(new Set(notificacoes.map(n => String(n._tipo || n["TIPO NOTIFICAÇÃO"] || n["TIPO NOTIFICACAO"] || "Evento").trim()).filter(Boolean))).sort(), [notificacoes]);
+  const condutoresList = useMemo(() => Array.from(new Set(notificacoes.map(n => String(n._condutor || n.CONDUTOR || "").trim()).filter(Boolean))).sort(), [notificacoes]);
   
   const meses = useMemo(() => {
     const set = new Set<string>();
@@ -178,6 +180,7 @@ export default function TelemetryDashboard() {
 
   const filteredNotificacoes = useMemo(() => {
     const searchLow = debouncedSearchPlaca.toLowerCase().trim();
+    const driverSearchLow = driverSearch.toLowerCase().trim();
     const hasSelectedMeses = selectedMeses.length > 0;
     const hasSelectedDiretorias = selectedDiretorias.length > 0;
     const hasSelectedGerencias = selectedGerencias.length > 0;
@@ -188,6 +191,9 @@ export default function TelemetryDashboard() {
     return notificacoes.filter(n => {
       const placa = String(n._placa || n.PLACA || "").toLowerCase();
       if (searchLow && !placa.includes(searchLow)) return false;
+
+      const condutor = String(n._condutor || n.CONDUTOR || "").toLowerCase();
+      if (driverSearchLow && !condutor.includes(driverSearchLow)) return false;
 
       const dataStr = String(n._data || n.DATA || "").trim();
       const ma = getMesAno(dataStr);
@@ -206,7 +212,7 @@ export default function TelemetryDashboard() {
       if (hasSelectedTipos && !selectedTiposNotificacao.includes(t)) return false;
       return true;
     });
-  }, [notificacoes, selectedDiretorias, selectedGerencias, selectedGravidades, selectedSituacoes, selectedTiposNotificacao, selectedMeses, debouncedSearchPlaca]);
+  }, [notificacoes, selectedDiretorias, selectedGerencias, selectedGravidades, selectedSituacoes, selectedTiposNotificacao, selectedMeses, debouncedSearchPlaca, driverSearch]);
 
   // Insights de Notificações
   const topGerencias = useMemo(() => {
@@ -692,7 +698,11 @@ export default function TelemetryDashboard() {
                 setSelectedSituacoes([]);
                 setSelectedTiposNotificacao([]);
                 setSelectedMeses([]);
+                setDriverSearch("");
               }}
+              driverSearch={driverSearch}
+              onDriverSearchChange={setDriverSearch}
+              condutoresList={condutoresList}
             />
 
             <div className="grid gap-6 md:grid-cols-2 mt-6">

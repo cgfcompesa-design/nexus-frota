@@ -1,5 +1,5 @@
 import React from "react";
-import { Filter, ChevronDown } from "lucide-react";
+import { Filter, ChevronDown, Search } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -25,6 +25,9 @@ interface TelemetryFilterBarProps {
   onTiposNotificacaoChange: (values: string[]) => void;
   onMesesChange: (values: string[]) => void;
   onClearFilters: () => void;
+  driverSearch: string;
+  onDriverSearchChange: (value: string) => void;
+  condutoresList: string[];
 }
 
 export const TelemetryFilterBar = ({
@@ -47,6 +50,9 @@ export const TelemetryFilterBar = ({
   onTiposNotificacaoChange,
   onMesesChange,
   onClearFilters,
+  driverSearch,
+  onDriverSearchChange,
+  condutoresList,
 }: TelemetryFilterBarProps) => {
 
   const FilterGroup = ({ label, options, selected, onChange, idPrefix }: { label: string; options: string[]; selected: string[]; onChange: (v: string[]) => void; idPrefix: string }) => (
@@ -93,6 +99,37 @@ export const TelemetryFilterBar = ({
           <h3 className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white">Filtros Avançados de Alertas</h3>
         </div>
         <button onClick={onClearFilters} className="text-xs font-black uppercase text-rose-500 hover:underline tracking-widest">Limpar Todos</button>
+      </div>
+
+      {/* Filtro do Condutor */}
+      <div className="bg-slate-50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+        <label className="text-[10px] font-black uppercase text-slate-400 ml-1">Filtrar por Condutor (Digitar ou Selecionar)</label>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              placeholder="Digite o nome do condutor..."
+              value={driverSearch}
+              onChange={(e) => onDriverSearchChange(e.target.value)}
+              className="w-full h-10 pl-9 pr-4 bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+          <div>
+            <select
+              value={driverSearch}
+              onChange={(e) => onDriverSearchChange(e.target.value)}
+              className="w-full h-10 px-3 bg-white dark:bg-slate-900 border-none rounded-xl text-xs font-bold uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700 dark:text-slate-300"
+            >
+              <option value="">-- SELECIONAR CONDUTOR --</option>
+              {condutoresList.map(c => (
+                <option key={c} value={c}>
+                  {c.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">

@@ -31,6 +31,7 @@ export default function RankingView() {
   const [selectedMesFim, setSelectedMesFim] = useState<string>("all");
   const [selectedDriverDetails, setSelectedDriverDetails] = useState<any | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<'auto' | 'compesa' | 'terceirizado'>('auto');
+  const [driverSearch, setDriverSearch] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -179,13 +180,16 @@ export default function RankingView() {
       let teleSeverity = "MÉDIA";
       if (gravityRaw.includes("GRAVISSIMA") || gravityRaw.includes("GRAVÍSSIMA")) {
         teleSeverity = "GRAVÍSSIMA";
-      } else if (gravityRaw.includes("GRAVE")) {
+      } else if (gravityRaw.includes("GRAVE") || gravityRaw.includes("ALTA")) {
         teleSeverity = "GRAVE";
       } else if (gravityRaw.includes("MEDIA") || gravityRaw.includes("MÉDIA")) {
         teleSeverity = "MÉDIA";
       } else if (gravityRaw.includes("LEVE")) {
         teleSeverity = "LEVE";
       }
+
+      // Considere apenas as notificações de telemetria do tipo GRAVE para fins de cálculo
+      if (teleSeverity !== "GRAVE") return;
 
       // Telemetria é Advertência base. Se passar de 3, ganha mais pontos
       let points = 5; 
@@ -368,6 +372,30 @@ export default function RankingView() {
     );
   }
 
+  const allDriversForSelect = useMemo(() => {
+    const list = unifiedRanking.map(r => r.driver as string).filter(Boolean);
+    return Array.from(new Set(list)).sort((a: string, b: string) => a.localeCompare(b));
+  }, [unifiedRanking]);
+
+  const filteredUnifiedRanking = useMemo(() => {
+    const searchVal = driverSearch.toUpperCase().trim();
+    if (!searchVal) return unifiedRanking;
+    
+    const normalizeName = (name: string) => {
+      return name.toUpperCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ");
+    };
+    
+    return unifiedRanking.filter(r => {
+      const driverNorm = normalizeName(r.driver);
+      const searchNorm = normalizeName(searchVal);
+      return driverNorm.includes(searchNorm);
+    });
+  }, [unifiedRanking, driverSearch]);
+
   const generateFormalText = (driver: any, template: 'auto' | 'compesa' | 'terceirizado' = 'auto') => {
     const { situation, details, score } = driver;
     const driverName = driver.driver;
@@ -497,6 +525,52 @@ export default function RankingView() {
         </div>
       </div>
 
+      {/* Filtro do Condutor */}
+      <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+        <div className="flex items-center space-x-2">
+          <Search className="text-indigo-600" size={18} />
+          <h3 className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white">Filtrar Condutor no Ranking</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+            <input
+              type="text"
+              placeholder="Digite o nome do condutor..."
+              value={driverSearch}
+              onChange={(e) => setDriverSearch(e.target.value)}
+              className="w-full h-10 pl-9 pr-4 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            />
+          </div>
+          <div>
+            <select
+              value={driverSearch}
+              onChange={(e) => setDriverSearch(e.target.value)}
+              className="w-full h-10 px-3 bg-slate-50 dark:bg-slate-800 border-none rounded-xl text-xs font-bold uppercase focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-slate-700 dark:text-slate-300"
+            >
+              <option value="">-- SELECIONE OU BUSQUE UM CONDUTOR --</option>
+              {allDriversForSelect.map((d: string) => (
+                <option key={d} value={d}>
+                  {d}
+                </option>
+              ))}
+            </select>
+          </div>
+          {driverSearch && (
+            <div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDriverSearch("")}
+                className="w-full h-10 rounded-xl text-xs font-black uppercase tracking-wider text-rose-600 border-rose-100 dark:border-rose-950 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 transition-colors"
+              >
+                Limpar Filtro
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+
       <TooltipProvider>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1 space-y-4">
@@ -504,45 +578,48 @@ export default function RankingView() {
             <TrendingUp className="mr-2" size={18} /> Perfis de Risco (Consolidado)
           </h3>
           <div className="space-y-4">
-            {unifiedRanking.slice(0, 3).map((r, idx) => (
-              <motion.div 
-                initial={{ opacity: 0, y: 10 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                transition={{ delay: idx * 0.1 }}
-                key={r.driver} 
-                className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group"
-              >
-                <div className={`absolute top-0 right-0 w-24 h-24 ${r.bgClass} opacity-40 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110`}></div>
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm ${
-                    idx === 0 ? 'bg-rose-600 text-white' : 
-                    idx === 1 ? 'bg-orange-500 text-white' : 
-                    'bg-amber-500 text-white'
-                  }`}>
-                    {idx + 1}º
+            {filteredUnifiedRanking.slice(0, 3).map((r, idx) => {
+              const originalIndex = unifiedRanking.findIndex(x => x.driver === r.driver);
+              return (
+                <motion.div 
+                  initial={{ opacity: 0, y: 10 }} 
+                  animate={{ opacity: 1, y: 0 }} 
+                  transition={{ delay: idx * 0.1 }}
+                  key={r.driver} 
+                  className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden group"
+                >
+                  <div className={`absolute top-0 right-0 w-24 h-24 ${r.bgClass} opacity-40 rounded-bl-full -mr-8 -mt-8 transition-transform group-hover:scale-110`}></div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black text-xl shadow-sm ${
+                      originalIndex === 0 ? 'bg-rose-600 text-white' : 
+                      originalIndex === 1 ? 'bg-orange-500 text-white' : 
+                      'bg-amber-500 text-white'
+                    }`}>
+                      {originalIndex + 1}º
+                    </div>
+                    <div className="text-right z-10">
+                      <p className={`text-2xl font-black ${r.situationColor} leading-none`}>{r.score}</p>
+                      <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Score Total</p>
+                    </div>
                   </div>
-                  <div className="text-right z-10">
-                    <p className={`text-2xl font-black ${r.situationColor} leading-none`}>{r.score}</p>
-                    <p className="text-[10px] text-slate-400 font-black uppercase tracking-widest">Score Total</p>
+                  <div className="space-y-1 relative z-10">
+                    <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight truncate">{r.driver}</p>
+                    <div className="flex items-center space-x-2">
+                       <span className={`text-[10px] font-black uppercase tracking-widest ${r.situationColor}`}>{r.situation}</span>
+                       {r.teleCount > 3 && <span className="text-[8px] bg-rose-600 text-white px-1.5 py-0.5 rounded-full animate-pulse">Excesso Tolerância</span>}
+                    </div>
+                    <div className="flex items-center space-x-3 mt-3">
+                      <span className="flex items-center text-[9px] font-black uppercase text-indigo-500">
+                        <AlertCircle size={10} className="mr-1" /> T: {r.teleCount}
+                      </span>
+                      <span className="flex items-center text-[9px] font-black uppercase text-rose-500">
+                        <ShieldAlert size={10} className="mr-1" /> I: {r.infraCount}
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <div className="space-y-1 relative z-10">
-                  <p className="font-black text-slate-800 dark:text-white uppercase tracking-tight truncate">{r.driver}</p>
-                  <div className="flex items-center space-x-2">
-                     <span className={`text-[10px] font-black uppercase tracking-widest ${r.situationColor}`}>{r.situation}</span>
-                     {r.teleCount > 3 && <span className="text-[8px] bg-rose-600 text-white px-1.5 py-0.5 rounded-full animate-pulse">Excesso Tolerância</span>}
-                  </div>
-                  <div className="flex items-center space-x-3 mt-3">
-                    <span className="flex items-center text-[9px] font-black uppercase text-indigo-500">
-                      <AlertCircle size={10} className="mr-1" /> T: {r.teleCount}
-                    </span>
-                    <span className="flex items-center text-[9px] font-black uppercase text-rose-500">
-                      <ShieldAlert size={10} className="mr-1" /> I: {r.infraCount}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              );
+            })}
           </div>
         </div>
 
@@ -588,19 +665,20 @@ export default function RankingView() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {unifiedRanking.map((r, i) => {
+                  {filteredUnifiedRanking.map((r) => {
                     const lastO = r.details[r.details.length - 1];
                     const lastDate = lastO?.date || "-";
                     const lastDesc = lastO?.desc || "N/A";
                     const lastType = lastO?.type;
+                    const originalIndex = unifiedRanking.findIndex(x => x.driver === r.driver);
 
                     return (
                       <tr key={r.driver} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors group/row">
                          <td className="px-6 py-4 text-center">
                           <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg font-black text-xs ${
-                            i < 3 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'
+                            originalIndex < 3 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'
                           }`}>
-                            {i + 1}
+                            {originalIndex + 1}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -732,6 +810,15 @@ export default function RankingView() {
                                         <Badge variant="outline" className="text-[10px] h-6 bg-indigo-50 dark:bg-indigo-900/10 text-indigo-600 border-indigo-100 dark:border-indigo-900/30 font-black">+{detail.points} pts</Badge>
                                       </div>
                                       <p className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase leading-snug tracking-tight">{detail.desc}</p>
+                                      <div className="flex items-center gap-2 mt-1">
+                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded uppercase tracking-widest ${
+                                          detail.severity === 'GRAVÍSSIMA' ? 'bg-rose-600 text-white' : 
+                                          detail.severity === 'GRAVE' ? 'bg-orange-500 text-white' : 
+                                          'bg-slate-200 text-slate-600'
+                                        }`}>
+                                          Gravidade: {detail.severity}
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
                                 ))
