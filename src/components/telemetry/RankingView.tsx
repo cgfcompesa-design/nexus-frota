@@ -92,17 +92,17 @@ export default function RankingView() {
 
   const filteredNotificacoes = useMemo(() => {
     let result = notificacoes;
-    if (selectedMesInicio !== "all" || selectedMesFim !== "all") {
+    const targetFim = selectedMesFim !== "all" ? selectedMesFim : (selectedMesInicio !== "all" ? selectedMesInicio : "all");
+    if (targetFim !== "all") {
       result = result.filter(n => {
         const dataStr = String(n.__raw?.[8] || n.DATA_HORA || "").trim();
         const ma = getMesAno(dataStr);
         if (!ma) return false;
         
         const maIndex = meses.indexOf(ma);
-        const inicioIndex = selectedMesInicio === "all" ? 0 : meses.indexOf(selectedMesInicio);
-        const fimIndex = selectedMesFim === "all" ? meses.length - 1 : meses.indexOf(selectedMesFim);
+        const fimIndex = meses.indexOf(targetFim);
         
-        return maIndex >= inicioIndex && maIndex <= fimIndex;
+        return maIndex <= fimIndex;
       });
     }
     return result;
@@ -110,17 +110,17 @@ export default function RankingView() {
 
   const filteredInfracoes = useMemo(() => {
     let result = infracoesData;
-    if (selectedMesInicio !== "all" || selectedMesFim !== "all") {
+    const targetFim = selectedMesFim !== "all" ? selectedMesFim : (selectedMesInicio !== "all" ? selectedMesInicio : "all");
+    if (targetFim !== "all") {
       result = result.filter(i => {
         const dataStr = String(i.__raw?.[8] || "").trim(); // Col I
         const ma = getMesAno(dataStr);
         if (!ma) return false;
 
         const maIndex = meses.indexOf(ma);
-        const inicioIndex = selectedMesInicio === "all" ? 0 : meses.indexOf(selectedMesInicio);
-        const fimIndex = selectedMesFim === "all" ? meses.length - 1 : meses.indexOf(selectedMesFim);
+        const fimIndex = meses.indexOf(targetFim);
 
-        return maIndex >= inicioIndex && maIndex <= fimIndex;
+        return maIndex <= fimIndex;
       });
     }
     return result;
@@ -278,24 +278,30 @@ export default function RankingView() {
         let suspensaoTemporariaNotifications = 0;
 
         sortedDetails.forEach((d: any) => {
-          let assignedType = "ADVERTÊNCIA";
+          let assignedType = "ORIENTAÇÃO DE CONDUTA";
 
           if (d.type === 'telemetria') {
             if (d.severity === 'GRAVE') {
               teleGraveCount++;
-              if (teleGraveCount > 3) {
+              if (teleGraveCount <= 3) {
+                assignedType = "ADVERTÊNCIA";
+              } else {
                 assignedType = "SUSPENSÃO TEMPORÁRIA";
               }
             }
           } else if (d.type === 'ctb') {
             if (d.severity === 'GRAVE') {
               ctbGraveCount++;
-              if (ctbGraveCount > 3) {
+              if (ctbGraveCount <= 3) {
+                assignedType = "ADVERTÊNCIA";
+              } else {
                 assignedType = "SUSPENSÃO TEMPORÁRIA";
               }
             } else if (d.severity === 'GRAVÍSSIMA') {
               ctbGravissimaCount++;
-              if (ctbGravissimaCount > 2) {
+              if (ctbGravissimaCount <= 2) {
+                assignedType = "ADVERTÊNCIA";
+              } else {
                 assignedType = "SUSPENSÃO TEMPORÁRIA";
               }
             }
@@ -303,7 +309,7 @@ export default function RankingView() {
 
           if (assignedType === "ADVERTÊNCIA") {
             advertenciaNotifications++;
-          } else {
+          } else if (assignedType === "SUSPENSÃO TEMPORÁRIA") {
             suspensaoTemporariaNotifications++;
           }
 
@@ -321,10 +327,14 @@ export default function RankingView() {
           situation = "Suspensão de Condução";
           situationColor = "text-rose-600 font-bold";
           bgClass = "bg-rose-50 dark:bg-rose-900/30";
-        } else {
+        } else if (advertenciaNotifications >= 1) {
           situation = "Advertência";
           situationColor = "text-amber-500 font-semibold";
           bgClass = "bg-amber-50 dark:bg-amber-950/30";
+        } else {
+          situation = "Regular";
+          situationColor = "text-emerald-500";
+          bgClass = "bg-emerald-50";
         }
       } 
       else {
