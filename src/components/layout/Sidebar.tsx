@@ -156,6 +156,9 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
               toggleMenu(item.id);
             } else {
               setView(item.id);
+              if (window.innerWidth < 1024) {
+                setIsOpen(false);
+              }
             }
           }}
           className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl transition-all ${

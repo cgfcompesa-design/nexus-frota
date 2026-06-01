@@ -271,7 +271,7 @@ export default function App() {
             user={{ displayName: 'Visitante', email: 'visitante@nexus.frota', role: 'Visualizador' }} 
           />
           <main className="flex-1 overflow-hidden flex flex-col h-screen">
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
+            <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pl-16 pr-4 py-3 lg:px-4 flex justify-between items-center shrink-0">
                <div className="flex items-center space-x-4">
                 <div 
                   className="flex items-center space-x-2 bg-indigo-50 dark:bg-indigo-900/10 px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors"
@@ -382,7 +382,7 @@ export default function App() {
       
       <main className="flex-1 overflow-hidden flex flex-col">
         {/* Top bar for visibility confirmation */}
-        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex justify-between items-center shrink-0">
+        <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 pl-16 pr-4 py-3 lg:px-4 flex justify-between items-center shrink-0">
           <div className="flex items-center space-x-4">
             <div 
               className="flex items-center space-x-2 bg-indigo-50 dark:bg-indigo-900/10 px-3 py-1.5 rounded-xl cursor-pointer hover:bg-indigo-100 transition-colors"

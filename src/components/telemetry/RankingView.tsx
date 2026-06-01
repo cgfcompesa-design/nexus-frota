@@ -80,7 +80,7 @@ export default function RankingView() {
   const meses = useMemo(() => {
     const set = new Set<string>();
     notificacoes.forEach(n => {
-      const dataStr = String(n.__raw?.[8] || n.DATA_HORA || "").trim();
+      const dataStr = String(n._data || n.DATA || n.COL_3 || n.DATA_HORA || "").trim();
       const ma = getMesAno(dataStr);
       if (ma) set.add(ma);
     });
@@ -108,7 +108,7 @@ export default function RankingView() {
     const limitMax = targetFim !== "all" ? getMonthVal(targetFim) : Infinity;
 
     return notificacoes.filter(n => {
-      const dataStr = String(n.__raw?.[8] || n.DATA_HORA || "").trim();
+      const dataStr = String(n._data || n.DATA || n.COL_3 || n.DATA_HORA || "").trim();
       const ma = getMesAno(dataStr);
       if (!ma) return false;
       const val = getMonthVal(ma);
@@ -140,10 +140,19 @@ export default function RankingView() {
       details: { type: 'telemetria' | 'ctb', desc: string, date: string, severity: string, points: number, sei: string }[] 
     }> = {};
 
+    // Helper to get normalized name keys for perfect matching across sheets
+    const normalizeName = (name: string) => {
+      return name.toUpperCase()
+        .trim()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/\s+/g, " ");
+    };
+
     // 1. Processar Telemetria (GAD-NI-003-02: Advertência até o 3º registro)
     filteredNotificacoes.forEach(n => {
-      const driverRaw = String(n.CONDUTOR || "N/A").trim();
-      const driverNormalized = driverRaw.toUpperCase();
+      const driverRaw = String(n._condutor || n.CONDUTOR || n.COL_7 || "N/A").trim();
+      const driverNormalized = normalizeName(driverRaw);
       
       // Filtro robusto para condutores inválidos
       if (!driverRaw || 
@@ -154,20 +163,19 @@ export default function RankingView() {
           driverNormalized === "0" || 
           driverNormalized === "-" ||
           driverNormalized.startsWith("NA ") ||
-          driverNormalized.includes("PÁTIO")
+          driverNormalized.includes("PATIO")
       ) return;
 
-      if (!penaltyMap[driverRaw]) {
-        penaltyMap[driverRaw] = { driver: driverRaw, score: 0, teleCount: 0, infraCount: 0, totalAlerts: 0, details: [] };
+      if (!penaltyMap[driverNormalized]) {
+        penaltyMap[driverNormalized] = { driver: driverRaw, score: 0, teleCount: 0, infraCount: 0, totalAlerts: 0, details: [] };
       }
 
-      const keys = Object.keys(n);
-      const dateStr = String(n[keys[3]] || n.DATA_HORA || "-");
-      const desc = String(n.EVENTO || n[keys[5]] || "Alerta de Telemetria");
-      const sei = String(n.__raw?.[0] || n.SEI || n["Nº SEI"] || "-");
+      const dateStr = String(n._data || n.DATA || n.COL_3 || n.DATA_HORA || "-").trim();
+      const desc = String(n._tipo || n.EVENTO || n.COL_2 || "Alerta de Telemetria").trim();
+      const sei = String(n.__raw?.[0] || n.SEI || n["Nº SEI"] || "-").trim();
       
       // Determinar gravidade real da telemetria
-      const gravityRaw = String(n.GRAVIDADE || n._gravidade || "MÉDIA").toUpperCase();
+      const gravityRaw = String(n._gravidade || n.GRAVIDADE || n.COL_9 || "MÉDIA").toUpperCase();
       let teleSeverity = "MÉDIA";
       if (gravityRaw.includes("GRAVISSIMA") || gravityRaw.includes("GRAVÍSSIMA")) {
         teleSeverity = "GRAVÍSSIMA";
@@ -181,12 +189,12 @@ export default function RankingView() {
 
       // Telemetria é Advertência base. Se passar de 3, ganha mais pontos
       let points = 5; 
-      if (penaltyMap[driverRaw].teleCount >= 3) points = 15; // Escalona para Suspensão
+      if (penaltyMap[driverNormalized].teleCount >= 3) points = 15; // Escalona para Suspensão
 
-      penaltyMap[driverRaw].score += points;
-      penaltyMap[driverRaw].teleCount += 1;
-      penaltyMap[driverRaw].totalAlerts += 1;
-      penaltyMap[driverRaw].details.push({ 
+      penaltyMap[driverNormalized].score += points;
+      penaltyMap[driverNormalized].teleCount += 1;
+      penaltyMap[driverNormalized].totalAlerts += 1;
+      penaltyMap[driverNormalized].details.push({ 
         type: 'telemetria', 
         desc,
         sei,
@@ -200,7 +208,7 @@ export default function RankingView() {
     filteredInfracoes.forEach(i => {
       const raw = i.__raw || [];
       const driverRaw = String(raw[20] || "N/A").trim(); // Coluna U
-      const driverNormalized = driverRaw.toUpperCase();
+      const driverNormalized = normalizeName(driverRaw);
 
       if (!driverRaw || 
           driverNormalized === "N/A" || 
@@ -210,11 +218,11 @@ export default function RankingView() {
           driverNormalized === "0" || 
           driverNormalized === "-" ||
           driverNormalized.startsWith("NA ") ||
-          driverNormalized.includes("PÁTIO")
+          driverNormalized.includes("PATIO")
       ) return;
 
-      if (!penaltyMap[driverRaw]) {
-        penaltyMap[driverRaw] = { driver: driverRaw, score: 0, teleCount: 0, infraCount: 0, totalAlerts: 0, details: [] };
+      if (!penaltyMap[driverNormalized]) {
+        penaltyMap[driverNormalized] = { driver: driverRaw, score: 0, teleCount: 0, infraCount: 0, totalAlerts: 0, details: [] };
       }
 
       const dateStr = String(raw[8] || "-"); // Coluna I
@@ -223,9 +231,9 @@ export default function RankingView() {
       const gravInput = String(raw[14] || "").toUpperCase(); // Coluna O
       
       let points = 5;
-      let severityLabel = 'ADVERTÊNCIA';
+      let severityLabel = 'MÉDIA'; // Default to MÉDIA to prevent general drift
       
-      if (gravInput.includes("GRAVISSIMA")) {
+      if (gravInput.includes("GRAVISSIMA") || gravInput.includes("GRAVÍSSIMA")) {
         points = 40; // Suspensão Definitiva
         severityLabel = 'GRAVÍSSIMA';
       } else if (gravInput.includes("GRAVE")) {
@@ -239,10 +247,10 @@ export default function RankingView() {
         severityLabel = 'LEVE';
       }
 
-      penaltyMap[driverRaw].score += points;
-      penaltyMap[driverRaw].infraCount += 1;
-      penaltyMap[driverRaw].totalAlerts += 1;
-      penaltyMap[driverRaw].details.push({ 
+      penaltyMap[driverNormalized].score += points;
+      penaltyMap[driverNormalized].infraCount += 1;
+      penaltyMap[driverNormalized].totalAlerts += 1;
+      penaltyMap[driverNormalized].details.push({ 
         type: 'ctb', 
         desc,
         sei,

@@ -54,7 +54,7 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       icon: Share2,
       onClick: () => setView('drive'),
       external: true,
-      restricted: true,
+      restricted: false,
     },
     {
       title: "Abastecimento Máquinas",
