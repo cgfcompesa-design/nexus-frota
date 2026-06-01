@@ -722,12 +722,12 @@ export async function fetchNotificacoes(): Promise<any[]> {
     });
 
     // Final Absolute Fallbacks (Nexus Data typically follows this order)
-    if (!obj._diretoria) obj._diretoria = row[0] || "N/A";
-    if (!obj._gerencia) obj._gerencia = row[1] || "N/A";
+    if (!obj._diretoria) obj._diretoria = row[7] || "N/A";
+    if (!obj._gerencia) obj._gerencia = row[8] || "N/A";
     if (!obj._tipo) obj._tipo = row[2] || "N/A";
     if (!obj._data) obj._data = row[3] || "";
     if (!obj._placa) obj._placa = row[4] || "";
-    if (!obj._condutor) obj._condutor = row[7] || "N/A";
+    if (!obj._condutor) obj._condutor = row[6] || "N/A";
     if (!obj._gravidade) obj._gravidade = row[9] || "Média";
     if (!obj._situacao) obj._situacao = row[10] || "Pendente";
 

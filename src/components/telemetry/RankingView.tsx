@@ -52,16 +52,23 @@ export default function RankingView() {
   }, []);
 
   const getMesAno = (dateStr: string) => {
-    if (!dateStr || dateStr === "N/A") return "";
+    if (!dateStr || dateStr === "N/A" || dateStr === "-") return "";
     try {
-      const parts = dateStr.split(' ')[0].split('/');
-      if (parts.length === 3) {
-        const mes = parts[1];
-        const ano = parts[2].slice(-2);
-        const mesesNomes = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
-        const mesNome = mesesNomes[parseInt(mes) - 1];
-        if (mesNome) return `${mesNome}/${ano}`;
+      const parts = dateStr.includes('/') ? dateStr.trim().split('/') : dateStr.split(' ')[0].split('-');
+      if (parts.length < 3) return "";
+      
+      let mes, ano;
+      if (dateStr.includes('/')) {
+        mes = parseInt(parts[1]);
+        ano = parts[2].substring(parts[2].length - 2); 
+      } else {
+        mes = parseInt(parts[1]);
+        ano = parts[0].substring(parts[0].length - 2);
       }
+      
+      const mesesLabels = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+      const mesNome = mesesLabels[mes - 1];
+      if (mesNome) return `${mesNome}/${ano}`;
       return "";
     } catch {
       return "";
@@ -104,9 +111,8 @@ export default function RankingView() {
   }, [notificacoes, infracoesData]);
 
   const filteredNotificacoes = useMemo(() => {
-    const targetFim = selectedMesFim !== "all" ? selectedMesFim : (selectedMesInicio !== "all" ? selectedMesInicio : "all");
-    const limitMin = getMonthVal("jan/26");
-    const limitMax = targetFim !== "all" ? getMonthVal(targetFim) : Infinity;
+    const limitMin = selectedMesInicio !== "all" ? getMonthVal(selectedMesInicio) : getMonthVal("jan/26");
+    const limitMax = selectedMesFim !== "all" ? getMonthVal(selectedMesFim) : Infinity;
 
     return notificacoes.filter(n => {
       const dataStr = String(n._data || n.DATA || n.COL_3 || n.DATA_HORA || "").trim();
@@ -118,9 +124,8 @@ export default function RankingView() {
   }, [notificacoes, selectedMesInicio, selectedMesFim]);
 
   const filteredInfracoes = useMemo(() => {
-    const targetFim = selectedMesFim !== "all" ? selectedMesFim : (selectedMesInicio !== "all" ? selectedMesInicio : "all");
-    const limitMin = getMonthVal("jan/26");
-    const limitMax = targetFim !== "all" ? getMonthVal(targetFim) : Infinity;
+    const limitMin = selectedMesInicio !== "all" ? getMonthVal(selectedMesInicio) : getMonthVal("jan/26");
+    const limitMax = selectedMesFim !== "all" ? getMonthVal(selectedMesFim) : Infinity;
 
     return infracoesData.filter(i => {
       const dataStr = String(i.__raw?.[8] || "").trim();
@@ -299,7 +304,9 @@ export default function RankingView() {
           if (d.type === 'telemetria') {
             if (d.severity === 'GRAVE') {
               teleGraveCount++;
-              if (teleGraveCount <= 3) {
+              if (teleGraveCount < 3) {
+                assignedType = "ORIENTAÇÃO DE CONDUTA";
+              } else if (teleGraveCount === 3) {
                 assignedType = "ADVERTÊNCIA";
               } else {
                 assignedType = "SUSPENSÃO TEMPORÁRIA";
@@ -308,14 +315,18 @@ export default function RankingView() {
           } else if (d.type === 'ctb') {
             if (d.severity === 'GRAVE') {
               ctbGraveCount++;
-              if (ctbGraveCount <= 3) {
+              if (ctbGraveCount < 3) {
+                assignedType = "ORIENTAÇÃO DE CONDUTA";
+              } else if (ctbGraveCount === 3) {
                 assignedType = "ADVERTÊNCIA";
               } else {
                 assignedType = "SUSPENSÃO TEMPORÁRIA";
               }
             } else if (d.severity === 'GRAVÍSSIMA') {
               ctbGravissimaCount++;
-              if (ctbGravissimaCount <= 2) {
+              if (ctbGravissimaCount < 2) {
+                assignedType = "ORIENTAÇÃO DE CONDUTA";
+              } else if (ctbGravissimaCount === 2) {
                 assignedType = "ADVERTÊNCIA";
               } else {
                 assignedType = "SUSPENSÃO TEMPORÁRIA";
