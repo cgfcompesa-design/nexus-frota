@@ -825,7 +825,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   // 2. Top 10 - Consumo por Ativo (Liters and Cost)
   const top10ByAsset = useMemo(() => {
-    const map: Record<string, { placa: string; liters: number; cost: number; diretoria: string; gerencia: string }> = {};
+    const map: Record<string, { placa: string; liters: number; cost: number; diretoria: string; gerencia: string; litersByFuel: Record<string, number> }> = {};
     filteredFuel.forEach(f => {
       const placaStr = String(f._placa || "N/A").toUpperCase();
       const placaNorm = placaStr.replace(/[^A-Z0-9]/gi, "").trim();
@@ -839,17 +839,39 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           liters: 0, 
           cost: 0, 
           diretoria, 
-          gerencia 
+          gerencia,
+          litersByFuel: {}
         };
       }
       map[placaStr].liters += f._litros || 0;
       map[placaStr].cost += f._total || 0;
+
+      const rawType = String(f._fuelType || "Outros").trim().toUpperCase();
+      let stdType = rawType;
+      if (rawType.includes("ARLA 32") || rawType.includes("ARLA")) {
+        stdType = "Arla 32";
+      } else if (rawType.includes("DIESEL S10") || rawType.includes("DIESEL S-10") || rawType.includes("S-10 COMUM") || rawType.includes("S10")) {
+        stdType = "DIESEL S-10";
+      } else if (rawType.includes("DIESEL COMUM") || rawType.includes("DIESEL S500") || rawType.includes("S500") || (rawType.includes("DIESEL") && !rawType.includes("S10"))) {
+        stdType = "DIESEL COMUM";
+      } else if (rawType.includes("GASOLINA ADITIVADA")) {
+        stdType = "GASOLINA ADIT.";
+      } else if (rawType.includes("GASOLINA")) {
+        stdType = "GASOLINA COMUM";
+      } else if (rawType.includes("ETANOL") || rawType.includes("ALCOOL")) {
+        stdType = "ETANOL";
+      } else if (rawType.includes("GAS NATURAL") || rawType.includes("GNV")) {
+        stdType = "GNV";
+      } else {
+        stdType = rawType.replace(/_/g, " ");
+      }
+      map[placaStr].litersByFuel[stdType] = (map[placaStr].litersByFuel[stdType] || 0) + (f._litros || 0);
     });
     return Object.values(map).sort((a, b) => b.liters - a.liters).slice(0, 10);
   }, [filteredFuel, assetsByPlaca]);
 
   const top10ByAssetSorted = useMemo(() => {
-    const map: Record<string, { placa: string; liters: number; cost: number; diretoria: string; gerencia: string }> = {};
+    const map: Record<string, { placa: string; liters: number; cost: number; diretoria: string; gerencia: string; litersByFuel: Record<string, number> }> = {};
     filteredFuel.forEach(f => {
       const placaStr = String(f._placa || "N/A").toUpperCase();
       const placaNorm = placaStr.replace(/[^A-Z0-9]/gi, "").trim();
@@ -863,11 +885,33 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           liters: 0, 
           cost: 0, 
           diretoria, 
-          gerencia 
+          gerencia,
+          litersByFuel: {}
         };
       }
       map[placaStr].liters += f._litros || 0;
       map[placaStr].cost += f._total || 0;
+
+      const rawType = String(f._fuelType || "Outros").trim().toUpperCase();
+      let stdType = rawType;
+      if (rawType.includes("ARLA 32") || rawType.includes("ARLA")) {
+        stdType = "Arla 32";
+      } else if (rawType.includes("DIESEL S10") || rawType.includes("DIESEL S-10") || rawType.includes("S-10 COMUM") || rawType.includes("S10")) {
+        stdType = "DIESEL S-10";
+      } else if (rawType.includes("DIESEL COMUM") || rawType.includes("DIESEL S500") || rawType.includes("S500") || (rawType.includes("DIESEL") && !rawType.includes("S10"))) {
+        stdType = "DIESEL COMUM";
+      } else if (rawType.includes("GASOLINA ADITIVADA")) {
+        stdType = "GASOLINA ADIT.";
+      } else if (rawType.includes("GASOLINA")) {
+        stdType = "GASOLINA COMUM";
+      } else if (rawType.includes("ETANOL") || rawType.includes("ALCOOL")) {
+        stdType = "ETANOL";
+      } else if (rawType.includes("GAS NATURAL") || rawType.includes("GNV")) {
+        stdType = "GNV";
+      } else {
+        stdType = rawType.replace(/_/g, " ");
+      }
+      map[placaStr].litersByFuel[stdType] = (map[placaStr].litersByFuel[stdType] || 0) + (f._litros || 0);
     });
     const list = Object.values(map);
     if (assetChartMetric === "liters") {
@@ -1276,14 +1320,21 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       doc.setFontSize(11);
       doc.text("Top 10 Ativos com Maior Consumo (litros)", 14, 25);
 
-      const top10Body = top10ByAsset.map((item, idx) => [
-        `#${idx + 1}`,
-        item.placa,
-        item.diretoria || "N/A",
-        item.gerencia || "N/A",
-        `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
-        `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
-      ]);
+      const top10Body = top10ByAsset.map((item, idx) => {
+        let volStr = `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`;
+        if (item.litersByFuel && Object.keys(item.litersByFuel).length > 0) {
+          const parts = Object.entries(item.litersByFuel).map(([k, v]) => `${k}: ${(v as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L`);
+          volStr += `\n(${parts.join(' / ')})`;
+        }
+        return [
+          `#${idx + 1}`,
+          item.placa,
+          item.diretoria || "N/A",
+          item.gerencia || "N/A",
+          volStr,
+          `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}`
+        ];
+      });
 
       autoTable(doc, {
         startY: 30,
@@ -1466,11 +1517,18 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           row.titularidade,
           row.lastOdo > 0 ? row.lastOdo.toLocaleString('pt-BR') : "-",
           ...displayMonths.map(m => {
-            const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
+            const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} };
             const lines = [];
             if (stats.kms > 0) lines.push(`${stats.kms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km(Tkt)`);
             if (stats.telemetryKms > 0) lines.push(`${stats.telemetryKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km(Tel)`);
-            if (stats.liters > 0) lines.push(`${stats.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`);
+            if (stats.liters > 0) {
+              let litStr = `${stats.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`;
+              if (stats.litersByFuel && Object.keys(stats.litersByFuel).length > 0) {
+                const parts = Object.entries(stats.litersByFuel).map(([k, v]) => `${k}: ${(v as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L`);
+                litStr += `\n(${parts.join(' / ')})`;
+              }
+              lines.push(litStr);
+            }
             if (stats.cost > 0) lines.push(`R$ ${stats.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`);
             return lines.join("\n") || "-";
           })
@@ -1611,23 +1669,49 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         });
 
         // Calculate stats for each month
-        const monthStats: Record<string, { kms: number, telemetryKms: number, liters: number, cost: number }> = {};
+        const monthStats: Record<string, { kms: number, telemetryKms: number, liters: number, cost: number, litersByFuel: Record<string, number> }> = {};
         displayMonths.forEach(m => {
           const mTransactions = assetFuel.filter(f => String(f._monthYear || "").trim() === String(m).trim());
           const kms = mTransactions.reduce((sum, f) => sum + (f._kmRodados || f.KM_RODADOS || 0), 0);
           const liters = mTransactions.reduce((sum, f) => sum + (f._litros || 0), 0);
           const cost = mTransactions.reduce((sum, f) => sum + (f._total || 0), 0);
 
+          const litersByFuel: Record<string, number> = {};
+          mTransactions.forEach(f => {
+            const rawType = String(f._fuelType || f["TIPO COMBUSTIVEL"] || f["TIPO COMBUSTÍVEL"] || f["PRODUTO"] || "Outros").trim().toUpperCase();
+            let stdType = rawType;
+            if (rawType.includes("ARLA 32") || rawType.includes("ARLA")) {
+              stdType = "Arla 32";
+            } else if (rawType.includes("DIESEL S10") || rawType.includes("DIESEL S-10") || rawType.includes("S-10 COMUM") || rawType.includes("S10")) {
+              stdType = "DIESEL S-10";
+            } else if (rawType.includes("DIESEL COMUM") || rawType.includes("DIESEL S500") || rawType.includes("S500") || (rawType.includes("DIESEL") && !rawType.includes("S10"))) {
+              stdType = "DIESEL COMUM";
+            } else if (rawType.includes("GASOLINA ADITIVADA")) {
+              stdType = "GASOLINA ADIT.";
+            } else if (rawType.includes("GASOLINA")) {
+              stdType = "GASOLINA COMUM";
+            } else if (rawType.includes("ETANOL") || rawType.includes("ALCOOL")) {
+              stdType = "ETANOL";
+            } else if (rawType.includes("GAS NATURAL") || rawType.includes("GNV")) {
+              stdType = "GNV";
+            } else {
+              stdType = rawType.replace(/_/g, " ");
+            }
+            litersByFuel[stdType] = (litersByFuel[stdType] || 0) + (f._litros || 0);
+          });
+
           // Fetch telemetry kms for this month 'm' and plate 'placa'
           const p = String(placa).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
           const plateMap = telemetryByPlateAndMonth.get(p);
           const telemetryKms = plateMap ? (plateMap[m] || 0) : 0;
 
-          monthStats[m] = { kms, telemetryKms, liters, cost };
+          monthStats[m] = { kms, telemetryKms, liters, cost, litersByFuel };
         });
 
         const lastMonth = displayMonths.length > 0 ? displayMonths[displayMonths.length - 1] : "";
-        const currentMonthStats = lastMonth ? (monthStats[lastMonth] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 }) : { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
+        const currentMonthStats = lastMonth 
+          ? (monthStats[lastMonth] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} }) 
+          : { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} };
 
         return {
           ...a,
@@ -1640,6 +1724,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           gerencia: a.GERENCIA || a["GERÊNCIA"] || a["GERENCIA"] || a.Gerencia || (a as any).COL_4 || "N/A",
           monthStats,
           currentMonthLiters: currentMonthStats.liters,
+          currentMonthLitersByFuel: currentMonthStats.litersByFuel || {},
           currentMonthCost: currentMonthStats.cost,
           lastOdo
         };
@@ -1756,10 +1841,17 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         "Último Odômetro": row.lastOdo,
       };
       displayMonths.forEach(m => {
-        const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
+        const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} };
         item[`Km Ticket ${formatMonthLabel(m)}`] = stats.kms;
         item[`Km Telemetria ${formatMonthLabel(m)}`] = stats.telemetryKms;
         item[`L ${formatMonthLabel(m)}`] = stats.liters;
+        if (stats.litersByFuel && Object.keys(stats.litersByFuel).length > 0) {
+          item[`Detalhamento L ${formatMonthLabel(m)}`] = Object.entries(stats.litersByFuel)
+            .map(([k, v]) => `${k}: ${(v as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L`)
+            .join(' / ');
+        } else {
+          item[`Detalhamento L ${formatMonthLabel(m)}`] = "";
+        }
         item[`Custo R$ ${formatMonthLabel(m)}`] = stats.cost;
       });
       return item;
@@ -2727,9 +2819,20 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                               <span className="text-indigo-400/60" title="Deslocamento Telemetria">- (Tel)</span>
                             )}
                             {stats.liters > 0 ? (
-                              <span className="font-semibold text-blue-600 dark:text-blue-400">
-                                {stats.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L
-                              </span>
+                              <div className="flex flex-col items-center">
+                                <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                  {stats.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L
+                                </span>
+                                {stats.litersByFuel && Object.keys(stats.litersByFuel).length > 0 && (
+                                  <div className="text-[7.5px] font-mono leading-none tracking-tighter flex flex-col items-center mt-1 space-y-0.5 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 p-1 rounded max-w-[115px] w-full text-center">
+                                    {Object.entries(stats.litersByFuel).map(([fType, fLiters]) => (
+                                      <span key={fType} className="truncate max-w-full text-slate-500 dark:text-slate-400">
+                                        {fType}: <span className="font-bold text-blue-500">{(fLiters as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             ) : (
                               <span className="text-slate-400">-</span>
                             )}
@@ -2748,7 +2851,20 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                       {row.lastOdo > 0 ? row.lastOdo.toLocaleString('pt-BR') : "-"}
                     </TableCell>
                     <TableCell className="text-center font-semibold font-mono text-blue-600 bg-blue-50/10 dark:bg-blue-950/5 py-1 px-2 text-[10px]">
-                      {row.currentMonthLiters > 0 ? `${row.currentMonthLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L` : "-"}
+                      {row.currentMonthLiters > 0 ? (
+                        <div className="flex flex-col items-center justify-center space-y-1">
+                          <span>{row.currentMonthLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
+                          {row.currentMonthLitersByFuel && Object.keys(row.currentMonthLitersByFuel).length > 0 && (
+                            <div className="text-[7.5px] font-mono leading-none tracking-tighter flex flex-col items-center space-y-0.5 bg-blue-50/30 dark:bg-blue-950/20 border border-blue-100/50 dark:border-blue-900/50 p-1 rounded max-w-[115px] w-full text-center text-slate-500">
+                              {Object.entries(row.currentMonthLitersByFuel).map(([fType, fLiters]) => (
+                                <span key={fType} className="truncate max-w-full">
+                                  {fType}: <span className="font-bold text-blue-600 dark:text-blue-400">{(fLiters as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : "-"}
                     </TableCell>
                     <TableCell className="text-center font-bold font-mono text-emerald-600 bg-emerald-50/10 dark:bg-emerald-950/5 py-1 px-2 text-[10px]">
                       {row.currentMonthCost > 0 ? `R$ ${row.currentMonthCost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}` : "-"}

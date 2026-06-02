@@ -328,7 +328,7 @@ export async function fetchFuelData(): Promise<any[]> {
     return true;
   });
   
-  return dataRows.map(row => {
+  const mapped = dataRows.map(row => {
     const obj: any = { __raw: row };
     // Always add index-based keys (Column A=0, B=1, ... T=19, AP=41)
     row.forEach((val, i) => {
@@ -537,7 +537,79 @@ export async function fetchFuelData(): Promise<any[]> {
     }
 
     return obj;
-  }).filter(obj => {
+  });
+
+  // Apply Arla 32 duplicate odometer correction for displacement
+  const byVehicle: Record<string, any[]> = {};
+  mapped.forEach(f => {
+    const p = String(f._placa || f.PLACA || f.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+    if (p) {
+      if (!byVehicle[p]) byVehicle[p] = [];
+      byVehicle[p].push(f);
+    }
+  });
+
+  for (const placa of Object.keys(byVehicle)) {
+    const txs = byVehicle[placa];
+    
+    const getTxTime = (f: any) => {
+      const dStr = f._date || f["DATA TRANSACAO"] || f["DATA_TRANSACAO"] || "";
+      if (!dStr) return 0;
+      if (/^\d+(\.\d+)?$/.test(String(dStr))) {
+        return (parseFloat(dStr) - 25569) * 86400 * 1000;
+      }
+      const parts = String(dStr).split(/[\/\s-]/);
+      if (parts.length >= 3) {
+        const day = parseInt(parts[0], 10) || 1;
+        const month = (parseInt(parts[1], 10) || 1) - 1;
+        const yearStr = parts[2] || "2026";
+        const year = yearStr.length === 2 ? 2000 + parseInt(yearStr, 10) : parseInt(yearStr, 10);
+        return new Date(year, month, day).getTime();
+      }
+      const parsed = Date.parse(String(dStr));
+      return isNaN(parsed) ? 0 : parsed;
+    };
+
+    txs.sort((a, b) => getTxTime(a) - getTxTime(b));
+
+    for (let i = 0; i < txs.length; i++) {
+      const current = txs[i];
+      const fuelName = String(current._fuelType || current["TIPO COMBUSTIVEL"] || current["TIPO COMBUSTÍVEL"] || current["PRODUTO"] || "").toUpperCase();
+      const isArla = fuelName.includes("ARLA");
+      
+      if (isArla) {
+        const currentOdo = current._odometer || 0;
+        if (currentOdo > 0) {
+          let hasSameOdoNeighbor = false;
+          
+          if (i > 0) {
+            const prev = txs[i - 1];
+            const prevOdo = prev._odometer || 0;
+            if (prevOdo === currentOdo) {
+              hasSameOdoNeighbor = true;
+            }
+          }
+          
+          if (i < txs.length - 1) {
+            const next = txs[i + 1];
+            const nextOdo = next._odometer || 0;
+            if (nextOdo === currentOdo) {
+              hasSameOdoNeighbor = true;
+            }
+          }
+          
+          if (hasSameOdoNeighbor) {
+            current._kmRodados = 0;
+            current.KM_RODADOS = 0;
+            if (current["KM RODADOS OU HORAS TRABALHADAS"]) current["KM RODADOS OU HORAS TRABALHADAS"] = 0;
+            if (current["KM_RODADOS"]) current["KM_RODADOS"] = 0;
+          }
+        }
+      }
+    }
+  }
+
+  return mapped.filter(obj => {
     return true;
   });
 }
