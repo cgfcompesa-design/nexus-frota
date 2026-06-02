@@ -1430,7 +1430,71 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         styles: { fontSize: 8.0, cellPadding: 2.0 },
       });
 
-      // Page 6: Visual charts fallback image handler
+      // Page 6: Landscape - Resumo de Abastecimento por Veículo Mês a Mês
+      doc.addPage("a4", "l");
+      const pageWidthL = doc.internal.pageSize.getWidth();
+      
+      doc.setFillColor(30, 41, 59);
+      doc.rect(0, 0, pageWidthL, 15, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("COMPESA - RESUMO DE ABASTECIMENTO POR VEÍCULO", 14, 10);
+      
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(11);
+      doc.text("Histórico Analítico Mensal de Desempenho por Ativo (Volume, Custo, Km Ticket e Telemetria)", 14, 25);
+
+      const vehicleSummaryHeaders = [
+        "Placa", 
+        "Diretoria", 
+        "Gerência", 
+        "Tipo", 
+        "Modelo", 
+        "Titularidade", 
+        "Últ. Odo.", 
+        ...displayMonths.map(m => formatMonthLabel(m))
+      ];
+
+      const vehicleSummaryBody = vehicleSummaryData.map(row => {
+        return [
+          row.placa,
+          row.diretoria,
+          row.gerencia,
+          row.tipo,
+          row.modelo,
+          row.titularidade,
+          row.lastOdo > 0 ? row.lastOdo.toLocaleString('pt-BR') : "-",
+          ...displayMonths.map(m => {
+            const stats = row.monthStats?.[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0 };
+            const lines = [];
+            if (stats.kms > 0) lines.push(`${stats.kms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km(Tkt)`);
+            if (stats.telemetryKms > 0) lines.push(`${stats.telemetryKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km(Tel)`);
+            if (stats.liters > 0) lines.push(`${stats.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`);
+            if (stats.cost > 0) lines.push(`R$ ${stats.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`);
+            return lines.join("\n") || "-";
+          })
+        ];
+      });
+
+      autoTable(doc, {
+        startY: 30,
+        theme: "grid",
+        head: [vehicleSummaryHeaders],
+        body: vehicleSummaryBody,
+        headStyles: { fillColor: [51, 65, 85], halign: 'center', valign: 'middle', fontSize: 7 },
+        styles: { fontSize: 6, cellPadding: 1, halign: 'center', valign: 'middle' },
+        columnStyles: {
+          0: { fontStyle: 'bold', halign: 'center' }, // Placa
+          1: { halign: 'left' }, // Diretoria
+          2: { halign: 'left' }, // Gerencia
+          3: { halign: 'center' }, // Tipo
+          4: { halign: 'left' }, // Modelo
+          5: { halign: 'center' }, // Titularidade
+        }
+      });
+
+      // Page 7: Visual charts fallback image handler (back to portrait)
       if (chartsContainerRef.current) {
         try {
           const canvas = await html2canvas(chartsContainerRef.current, {
@@ -1440,7 +1504,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             backgroundColor: "#ffffff",
           });
 
-          doc.addPage();
+          doc.addPage("a4", "p");
           
           doc.setFillColor(30, 41, 59);
           doc.rect(0, 0, pageWidth, 15, "F");
@@ -1683,6 +1747,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     const summaryData = vehicleSummaryData.map(row => {
       const item: any = {
         "Placa": row.placa,
+        "Diretoria": row.diretoria || "N/A",
+        "Gerência": row.gerencia || "N/A",
         "Tipo": row.tipo,
         "Modelo": row.modelo,
         "Titularidade": row.titularidade,
