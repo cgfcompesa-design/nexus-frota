@@ -730,7 +730,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
   // Veículo com maior consumo por tipo
   const topConsumidoresPorTipo = useMemo(() => {
-    const groups: Record<string, Record<string, { liters: number, cost: number, count: number, model: string, kms: number }>> = {};
+    const groups: Record<string, Record<string, { liters: number, cost: number, count: number, model: string, kms: number, litersByFuel: Record<string, number> }>> = {};
     const driversByTipo: Record<string, Record<string, number>> = {};
     
     filteredFuel.forEach(f => {
@@ -749,13 +749,34 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       
       if (!groups[tipo]) groups[tipo] = {};
       if (!groups[tipo][placa]) {
-        groups[tipo][placa] = { liters: 0, cost: 0, count: 0, model, kms: 0 };
+        groups[tipo][placa] = { liters: 0, cost: 0, count: 0, model, kms: 0, litersByFuel: {} };
       }
       
       groups[tipo][placa].liters += litros;
       groups[tipo][placa].cost += custo;
       groups[tipo][placa].count += 1;
       groups[tipo][placa].kms += kmTrip;
+
+      const rawType = String(f._fuelType || f["TIPO COMBUSTIVEL"] || f["TIPO COMBUSTÍVEL"] || f["PRODUTO"] || "Outros").trim().toUpperCase();
+      let stdType = rawType;
+      if (rawType.includes("ARLA 32") || rawType.includes("ARLA")) {
+        stdType = "Arla 32";
+      } else if (rawType.includes("DIESEL S10") || rawType.includes("DIESEL S-10") || rawType.includes("S-10 COMUM") || rawType.includes("S10")) {
+        stdType = "DIESEL S-10";
+      } else if (rawType.includes("DIESEL COMUM") || rawType.includes("DIESEL S500") || rawType.includes("S500") || (rawType.includes("DIESEL") && !rawType.includes("S10"))) {
+        stdType = "DIESEL COMUM";
+      } else if (rawType.includes("GASOLINA ADITIVADA")) {
+        stdType = "GASOLINA ADIT.";
+      } else if (rawType.includes("GASOLINA")) {
+        stdType = "GASOLINA COMUM";
+      } else if (rawType.includes("ETANOL") || rawType.includes("ALCOOL")) {
+        stdType = "ETANOL";
+      } else if (rawType.includes("GAS NATURAL") || rawType.includes("GNV")) {
+        stdType = "GNV";
+      } else {
+        stdType = rawType.replace(/_/g, " ");
+      }
+      groups[tipo][placa].litersByFuel[stdType] = (groups[tipo][placa].litersByFuel[stdType] || 0) + litros;
 
       // Group drivers by type of active based on Column L (f.COL_11 or _driver)
       const driver = String(f.COL_11 || f._driver || f.CONDUTOR || f["NOME MOTORISTA"] || "").trim().toUpperCase();
@@ -777,11 +798,12 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       diretoria: string;
       gerencia: string;
       driverMaisAbasteceu: string;
+      litersByFuel: Record<string, number>;
     }> = [];
 
     Object.keys(groups).forEach(tipo => {
       let maxPlaca = "";
-      let maxStats = { liters: 0, cost: 0, count: 0, model: "N/A", kms: 0 };
+      let maxStats = { liters: 0, cost: 0, count: 0, model: "N/A", kms: 0, litersByFuel: {} as Record<string, number> };
       
       Object.keys(groups[tipo]).forEach(placa => {
         if (groups[tipo][placa].liters > maxStats.liters) {
@@ -815,7 +837,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           kmsTelemetry: getTelemetryDisplacementForPlate(maxPlaca, selectedMonthsYears),
           diretoria: asset?.DIRETORIA || asset?.Diretoria || "N/A",
           gerencia: asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A",
-          driverMaisAbasteceu: topDriver
+          driverMaisAbasteceu: topDriver,
+          litersByFuel: maxStats.litersByFuel || {}
         });
       }
     });
@@ -1002,7 +1025,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           placa, 
           days, 
           lastDate: last?.toLocaleDateString('pt-BR') || 'Nunca',
-          titularidade: asset?.TITULARIDADE || (asset as any)?.COL_27 || "N/A"
+          titularidade: asset?.TITULARIDADE || (asset as any)?.COL_27 || "N/A",
+          gerencia: asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.["GERENCIA"] || asset?.Gerencia || "N/A"
         };
       }).sort((a, b) => b.days - a.days).slice(0, 10);
   }, [filteredFuel, assets, assetsByPlaca, searchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedVehicleModels, selectedPropriedades, selectedTitularidades, selectedFuelTypes, selectedCidades, selectedMonthsYears, dateFrom, dateTo, selectedTipoControleAutonomia]);
@@ -1051,7 +1075,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         return { 
           placa, 
           avg: Math.round(avg), 
-          titularidade: a["TITULARIDADE"] || (a as any).COL_27 || "N/A"
+          titularidade: a["TITULARIDADE"] || (a as any).COL_27 || "N/A",
+          gerencia: a.GERENCIA || a["GERÊNCIA"] || a["GERENCIA"] || a.Gerencia || "N/A"
         };
       }).filter(a => a.avg > 0).sort((a, b) => a.avg - b.avg).slice(0, 10);
   }, [filteredFuel, assets, searchPlaca, selectedDirectorias, selectedGerencias, selectedTipos, selectedVehicleModels, selectedPropriedades, selectedTitularidades]);
@@ -1284,19 +1309,26 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       doc.setFontSize(11);
       doc.text("Veículo com Maior Consumo por Tipo de Ativo", 14, 25);
 
-      const topTipoBody = topConsumidoresPorTipo.map(item => [
-        item.tipo,
-        item.placa,
-        item.model,
-        item.diretoria,
-        item.gerencia,
-        item.driverMaisAbasteceu || "Sem dados",
-        `${item.count} abast.`,
-        item.kmsTicket > 0 ? `${item.kmsTicket.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-",
-        item.kmsTelemetry > 0 ? `${item.kmsTelemetry.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-",
-        `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`,
-        `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
-      ]);
+      const topTipoBody = topConsumidoresPorTipo.map(item => {
+        let volStr = `${item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L`;
+        if (item.litersByFuel && Object.keys(item.litersByFuel).length > 0) {
+          const parts = Object.entries(item.litersByFuel).map(([k, v]) => `${k}: ${(v as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L`);
+          volStr += `\n(${parts.join(' / ')})`;
+        }
+        return [
+          item.tipo,
+          item.placa,
+          item.model,
+          item.diretoria,
+          item.gerencia,
+          item.driverMaisAbasteceu || "Sem dados",
+          `${item.count} abast.`,
+          item.kmsTicket > 0 ? `${item.kmsTicket.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-",
+          item.kmsTelemetry > 0 ? `${item.kmsTelemetry.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-",
+          volStr,
+          `R$ ${item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`,
+        ];
+      });
 
       autoTable(doc, {
         startY: 30,
@@ -2257,7 +2289,18 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                         {item.kmsTelemetry > 0 ? `${item.kmsTelemetry.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km` : "-"}
                       </TableCell>
                       <TableCell className="text-right font-semibold font-mono text-xs text-blue-600 py-2">
-                        {item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L
+                        <div className="flex flex-col items-end justify-center">
+                          <span>{item.liters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
+                          {item.litersByFuel && Object.keys(item.litersByFuel).length > 0 && (
+                            <div className="text-[7.5px] font-mono leading-none tracking-tighter flex flex-col items-end ml-1 space-y-0.5 text-slate-500 whitespace-nowrap bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800/50 p-1 rounded max-w-[130px]">
+                              {Object.entries(item.litersByFuel).map(([fType, fLiters]) => (
+                                <span key={fType}>
+                                  {fType}: <span className="font-bold text-blue-500">{(fLiters as number).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L</span>
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="text-right font-black font-mono text-xs text-emerald-600 py-2">
                         R$ {item.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
@@ -2674,6 +2717,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-center">Placa</TableHead>
+                  <TableHead className="text-center">Gerência</TableHead>
                   <TableHead className="text-center">Titularidade</TableHead>
                   <TableHead className="text-center">Último Abast.</TableHead>
                   <TableHead className="text-center">Dias Parado</TableHead>
@@ -2683,6 +2727,9 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                 {longTimeNoFuel.map((v) => (
                   <TableRow key={v.placa}>
                     <TableCell className="font-medium text-center">{v.placa}</TableCell>
+                    <TableCell className="text-center text-xs text-slate-500 font-medium max-w-[120px] truncate" title={v.gerencia}>
+                      {v.gerencia}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline" className="text-[10px] font-normal uppercase">
                         {v.titularidade}
@@ -2711,6 +2758,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-center">Placa</TableHead>
+                  <TableHead className="text-center">Gerência</TableHead>
                   <TableHead className="text-center">Titularidade</TableHead>
                   <TableHead className="text-center">KM Médio</TableHead>
                 </TableRow>
@@ -2719,6 +2767,9 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                 {lowKmAssets.map((v) => (
                   <TableRow key={v.placa}>
                     <TableCell className="font-medium text-center">{v.placa}</TableCell>
+                    <TableCell className="text-center text-xs text-slate-500 font-medium max-w-[120px] truncate" title={v.gerencia}>
+                      {v.gerencia}
+                    </TableCell>
                     <TableCell className="text-center">
                       <Badge variant="outline">{v.titularidade}</Badge>
                     </TableCell>
