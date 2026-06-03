@@ -950,6 +950,11 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     filteredFuel.forEach(f => {
       const placa = (f._placa || f.PLACA || f.COL_5 || "").toString().toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
       const asset = assetsByPlaca.get(placa);
+      if (!asset) return; // Correlacionados com o cadastro geral de ativos
+
+      const controleAuto = String(asset?.["CONTROLE DE AUTONOMIA"] || asset?.["CONTROLE AUTONOMIA"] || asset?.["TIPO CONTROLE AUTONOMIA"] || (f as any).COL_43 || "").toUpperCase().trim();
+      if (controleAuto !== "FROTA") return; // Filtrados pela coluna de tipo de controle de autonomia correspondente a "FROTA"
+
       const unit = asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.Gerencia || "N/A";
       if (!unit) return;
       if (!map[unit]) map[unit] = { unit, cost: 0, vehicles: new Set<string>() };
@@ -1660,17 +1665,24 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         const placa = String(a.PLACA || a.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
         if (!placa) return false;
         
+        // Correlated with general asset register
+        const asset = assetsByPlaca.get(placa);
+        if (!asset) return false;
+
+        // Tipo de controle de autonomia (para corresponder a "FROTA")
+        const controleAuto = String(asset["CONTROLE DE AUTONOMIA"] || asset["CONTROLE AUTONOMIA"] || asset["TIPO CONTROLE AUTONOMIA"] || "").toUpperCase().trim();
+        if (controleAuto !== "FROTA") return false;
+        
         // Frotal Operacional Filter: Strict OPERACIONAL as requested
-        const statusOp = String(a.STATUS_OPERACIONAL || "").toUpperCase().trim();
+        const statusOp = String(asset.STATUS_OPERACIONAL || "").toUpperCase().trim();
         if (statusOp !== 'OPERACIONAL') return false;
 
         // Metadata filters
-        const gerencia = String(a.GERENCIA || a["GER\u00CANCIA"] || a["GERENCIA"] || a.Gerencia || "N/A").trim();
-        const diretoria = String(a.DIRETORIA || a.Diretoria || "N/A").trim();
-        const modelo = String(a.MODELO || a.Modelo || "N/A").trim();
-        const comb = String(a["COMBUST\u00CDVEL"] || a["COMBUSTIVEL"] || "N/A").trim();
-        const tipo = String(a["TIPO"] || a["TIPO VEICULO"] || "N/A").trim();
-        const propTipo = String(a.PROPRIEDADE_TIPO || (a.PROPRIEDADE === 'COMPESA' ? 'Pr\u00F3prio' : 'Locado') || "N/A").trim();
+        const gerencia = String(asset.GERENCIA || asset["GERÊNCIA"] || asset["GERENCIA"] || asset.Gerencia || "N/A").trim();
+        const diretoria = String(asset.DIRETORIA || asset.Diretoria || "N/A").trim();
+        const modelo = String(asset.MODELO || asset.Modelo || "N/A").trim();
+        const comb = String(asset["COMBUSTÍVEL"] || asset["COMBUSTIVEL"] || "N/A").trim();
+        const tipo = String(asset["TIPO"] || asset["TIPO VEICULO"] || "N/A").trim();
 
         if (searchPlaca && !placa.includes(searchPlaca.toUpperCase().replace(/[^A-Z0-9]/gi, "").trim())) return false;
         if (selectedGerencias.length > 0 && !selectedGerencias.map(g => String(g).trim()).includes(gerencia)) return false;
@@ -1678,7 +1690,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         if (selectedVehicleModels.length > 0 && !selectedVehicleModels.map(m => String(m).trim()).includes(modelo)) return false;
         if (selectedFuelTypes.length > 0 && !selectedFuelTypes.map(f => String(f).trim()).includes(comb)) return false;
         if (selectedTipos.length > 0 && !selectedTipos.map(t => String(t).trim()).includes(tipo)) return false;
-        if (selectedTipoControleAutonomia.length > 0 && !selectedTipoControleAutonomia.map(c => String(c).trim()).includes(propTipo)) return false;
+        if (selectedTipoControleAutonomia.length > 0 && !selectedTipoControleAutonomia.map(c => String(c).trim().toUpperCase()).includes(controleAuto)) return false;
 
         // Ensure this row has data in the CURRENT filtered set
         return platesInFilteredFuel.has(placa);

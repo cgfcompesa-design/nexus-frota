@@ -98,6 +98,11 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // --- Calendar Selections ---
+    match /calendar_selections/{selectionId} {
+      allow read, write: if true;
+    }
+
     // Connection test
     match /test/connection {
       allow read: if true;

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { 
   Upload, 
   Activity, 
@@ -21,8 +21,23 @@ import {
   Info,
   Mail,
   Send,
-  Users
+  Users,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  CheckSquare,
+  Square,
+  Trash2
 } from "lucide-react";
+import { auth, db } from "@/lib/firebase";
+import { 
+  collection, 
+  doc, 
+  setDoc, 
+  deleteDoc,
+  onSnapshot, 
+  query 
+} from "firebase/firestore";
 import { useContactsData } from "@/hooks/useContactsData";
 import {
   Dialog,
@@ -332,6 +347,106 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [strictDrivers, setStrictDrivers] = useState<boolean>(false);
   const [loadingFile, setLoadingFile] = useState<boolean>(false);
+
+  // New Interactive Calendar and Asset Selection States
+  const [selectedCalendarAssetType, setSelectedCalendarAssetType] = useState<string>("all");
+  const [viewDate, setViewDate] = useState<Date>(() => new Date(2026, 4, 19)); // Maio de 2026
+
+  // Realtime Calendar Selections State
+  const [savedSelections, setSavedSelections] = useState<Record<string, string[]>>({});
+  const [savingSelection, setSavingSelection] = useState<boolean>(false);
+
+  // Handle local state edit of checked asset types during an active selection session
+  const [localCheckedTypes, setLocalCheckedTypes] = useState<string[]>([]);
+
+  // Calculate unique asset types across the actual fleet
+  const allAssetTypes = useMemo(() => {
+    const typesSet = new Set<string>();
+    assets.forEach(a => {
+      const t = String(a.TIPO || a.Tipo || a["TIPO VEICULO"] || "").trim().toUpperCase();
+      if (t && t !== "N/A" && t !== "UNDEFINED") {
+        typesSet.add(t);
+      }
+    });
+    // Fallback static list if no assets exist yet or are empty
+    if (typesSet.size === 0) {
+      ["CAMINHÃO", "UTILITÁRIO", "LEVE", "PESADO", "MOTOCICLETA", "MÁQUINA/GERADOR"].forEach(t => typesSet.add(t));
+    }
+    return Array.from(typesSet).sort();
+  }, [assets]);
+
+  // Sync snapshot of calendar_selections collection
+  useEffect(() => {
+    const q = query(collection(db, "calendar_selections"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const selections: Record<string, string[]> = {};
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (data.date && Array.isArray(data.selectedTypes)) {
+          selections[data.date] = data.selectedTypes;
+        }
+      });
+      setSavedSelections(selections);
+    }, (error) => {
+      console.error("Erro ao carregar seleções do Firestore:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Sync local selection when active startDate changes OR when saved selections update
+  useEffect(() => {
+    if (startDate) {
+      setLocalCheckedTypes(savedSelections[startDate] || []);
+    } else {
+      setLocalCheckedTypes([]);
+    }
+  }, [startDate, savedSelections]);
+
+  const handleSaveSelection = async (dateStr: string, selectedTypes: string[]) => {
+    if (!dateStr) return;
+    setSavingSelection(true);
+    try {
+      const userEmail = auth.currentUser?.email || "cgf.compesa@gmail.com";
+      const docRef = doc(db, "calendar_selections", dateStr);
+      await setDoc(docRef, {
+        date: dateStr,
+        selectedTypes: selectedTypes,
+        updatedBy: userEmail,
+        updatedAt: new Date().toISOString()
+      });
+      toast.success(`Tipos de ativo salvos com sucesso para a data ${new Date(dateStr + "T12:00:00").toLocaleDateString('pt-BR')}!`);
+    } catch (err) {
+      console.error("Erro ao salvar seleções:", err);
+      toast.error("Não foi possível salvar os tipos de ativos. Verifique as permissões de gravação.");
+    } finally {
+      setSavingSelection(false);
+    }
+  };
+
+  const handleClearSelectionForDate = async (dateStr: string) => {
+    if (!dateStr) return;
+    setSavingSelection(true);
+    try {
+      const docRef = doc(db, "calendar_selections", dateStr);
+      await deleteDoc(docRef);
+      setLocalCheckedTypes([]);
+      toast.info(`Configurações de ativos removidas para ${new Date(dateStr + "T12:00:00").toLocaleDateString('pt-BR')}.`);
+    } catch (err) {
+      console.error("Erro ao excluir seleção:", err);
+      toast.error("Erro ao apagar o registro do calendário.");
+    } finally {
+      setSavingSelection(false);
+    }
+  };
+
+  const assetsByPlaca = useMemo(() => {
+    const map = new Map<string, any>();
+    assets.forEach(a => {
+      const p = limparPlaca(a.PLACA || a.placa);
+      if (p) map.set(p, a);
+    });
+    return map;
+  }, [assets]);
 
   // Email Notification Modal States
   const [emailModalOpen, setEmailModalOpen] = useState<boolean>(false);
@@ -873,8 +988,16 @@ Coordenação de Gestão de Frotas - CGF`;
       }
     });
 
-    return deviations;
-  }, [telemetryFile, telemetryFiles, fuel, selectedPlaca, startDate, endDate, strictDrivers]);
+    return deviations.map(d => {
+      const cleanP = limparPlaca(d.placa);
+      const asset = assetsByPlaca.get(cleanP);
+      const tipoAtivo = (asset?.TIPO || asset?.Tipo || asset?.["TIPO VEICULO"] || "N/A").toUpperCase().trim();
+      return {
+        ...d,
+        tipoAtivo
+      };
+    });
+  }, [telemetryFile, telemetryFiles, fuel, selectedPlaca, startDate, endDate, strictDrivers, assetsByPlaca]);
 
   // General statistics from crossings
   const crossedStats = useMemo(() => {
@@ -895,6 +1018,15 @@ Coordenação de Gestão de Frotas - CGF`;
   // Filtered crossing list for table display
   const finalFilteredResults = useMemo(() => {
     let list = crossDataResults;
+
+    // Filter by selected active day's asset type
+    if (selectedCalendarAssetType && selectedCalendarAssetType !== "all") {
+      list = list.filter(r => {
+        const t = String(r.tipoAtivo || "").toUpperCase().trim();
+        return t === selectedCalendarAssetType.toUpperCase().trim();
+      });
+    }
+
     if (searchFilter) {
       const q = searchFilter.toLowerCase().trim();
       list = list.filter(r => 
@@ -906,7 +1038,56 @@ Coordenação de Gestão de Frotas - CGF`;
       );
     }
     return list;
-  }, [crossDataResults, searchFilter]);
+  }, [crossDataResults, selectedCalendarAssetType, searchFilter]);
+
+  // Calculate which days of the year have fueling transaction activity
+  const activityDaysMap = useMemo(() => {
+    const map = new Map<string, number>();
+    fuel.forEach(f => {
+      const d = parseFullDateTime(f["DATA TRANSACAO"] || f["DATA"]);
+      if (d) {
+        const dStr = formatDateToInputString(d);
+        map.set(dStr, (map.get(dStr) || 0) + 1);
+      }
+    });
+    return map;
+  }, [fuel]);
+
+  // Get list of asset types having fueling transactions on the selected day
+  const activeAssetTypesForSelectedDay = useMemo(() => {
+    if (!startDate) return [];
+    
+    // Filter fuelings of this exact day
+    const dayFuel = fuel.filter(f => {
+      const d = parseFullDateTime(f["DATA TRANSACAO"] || f["DATA"]);
+      if (!d) return false;
+      const dStr = formatDateToInputString(d);
+      return dStr === startDate;
+    });
+
+    const typesMap = new Map<string, number>();
+    dayFuel.forEach(f => {
+      const p = limparPlaca(f["PLACA"]);
+      const asset = assetsByPlaca.get(p);
+      const tipo = (asset?.TIPO || asset?.Tipo || asset?.["TIPO VEICULO"] || "OUTROS").toUpperCase().trim();
+      typesMap.set(tipo, (typesMap.get(tipo) || 0) + 1);
+    });
+
+    return Array.from(typesMap.entries()).map(([tipo, count]) => ({
+      tipo,
+      count
+    })).sort((a, b) => b.count - a.count);
+  }, [startDate, fuel, assetsByPlaca]);
+
+  // Sync calendar view if startDate changes
+  React.useEffect(() => {
+    if (startDate) {
+      const d = new Date(startDate + "T12:00:00");
+      if (!isNaN(d.getTime())) {
+        setViewDate(new Date(d.getFullYear(), d.getMonth(), 1));
+      }
+    }
+  }, [startDate]);
 
   // EXPORTS
   const exportToExcelTab = () => {
@@ -1095,6 +1276,362 @@ Coordenação de Gestão de Frotas - CGF`;
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-none shadow-md bg-white dark:bg-slate-900 rounded-[2rem] overflow-hidden">
+            <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b pb-5 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-sm font-bold flex items-center gap-2 leading-none">
+                  <Calendar className="h-4 w-4 text-indigo-500" />
+                  Calendário de Atividades
+                </CardTitle>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => setViewDate(prev => {
+                    const m = prev.getMonth();
+                    const y = prev.getFullYear();
+                    return m === 0 ? new Date(y - 1, 11, 1) : new Date(y, m - 1, 1);
+                  })}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200 min-w-[70px] text-center">
+                  {["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"][viewDate.getMonth()]} {viewDate.getFullYear()}
+                </span>
+                <Button 
+                  variant="outline" 
+                  size="icon" 
+                  className="h-7 w-7 rounded-lg"
+                  onClick={() => setViewDate(prev => {
+                    const m = prev.getMonth();
+                    const y = prev.getFullYear();
+                    return m === 11 ? new Date(y + 1, 0, 1) : new Date(y, m + 1, 1);
+                  })}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {/* Calendar Grid */}
+              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">
+                {["D", "S", "T", "Q", "Q", "S", "S"].map((d, index) => (
+                  <div key={index} className="py-1">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1 text-center">
+                {(() => {
+                  const year = viewDate.getFullYear();
+                  const month = viewDate.getMonth();
+
+                  const daysInMonth = new Date(year, month + 1, 0).getDate();
+                  const startDayOfWeek = new Date(year, month, 1).getDay();
+
+                  const cells: React.ReactNode[] = [];
+
+                  // Previous month padding
+                  const prevMonthDays = new Date(year, month, 0).getDate();
+                  for (let i = startDayOfWeek - 1; i >= 0; i--) {
+                    const dVal = prevMonthDays - i;
+                    const prevMonth = month === 0 ? 11 : month - 1;
+                    const prevYear = month === 0 ? year - 1 : year;
+                    const dateStr = `${prevYear}-${String(prevMonth + 1).padStart(2, '0')}-${String(dVal).padStart(2, '0')}`;
+                    const hasFueling = activityDaysMap.get(dateStr) || 0;
+                    const isSelected = startDate === dateStr;
+                    const savedTypes = savedSelections[dateStr] || [];
+                    const hasSaved = savedTypes.length > 0;
+                    
+                    cells.push(
+                      <button
+                        key={`prev-${dVal}`}
+                        title={hasSaved ? `Tipos salvos: ${savedTypes.join(', ')}` : undefined}
+                        onClick={() => {
+                          setStartDate(dateStr);
+                          setEndDate(dateStr);
+                          setSelectedCalendarAssetType("all");
+                        }}
+                        className={`
+                          relative p-2 text-xs rounded-xl flex flex-col items-center justify-center transition-all h-10 w-full opacity-35 hover:opacity-85
+                          ${isSelected 
+                            ? "bg-indigo-600 text-white font-black scale-105" 
+                            : hasSaved 
+                              ? "bg-indigo-50/50 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800" 
+                              : "text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                          }
+                          ${hasFueling && !isSelected && !hasSaved ? "border border-dashed border-emerald-300" : ""}
+                        `}
+                      >
+                        <span className="font-bold">{dVal}</span>
+                        <div className="absolute bottom-1 flex gap-0.5 justify-center">
+                          {hasFueling > 0 && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : "bg-emerald-400"}`} />}
+                          {hasSaved && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : "bg-indigo-400"}`} />}
+                        </div>
+                      </button>
+                    );
+                  }
+
+                  // Current month days
+                  for (let d = 1; d <= daysInMonth; d++) {
+                    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                    const hasFueling = activityDaysMap.get(dateStr) || 0;
+                    const isSelected = startDate === dateStr;
+                    const savedTypes = savedSelections[dateStr] || [];
+                    const hasSaved = savedTypes.length > 0;
+
+                    cells.push(
+                      <button
+                        key={`curr-${d}`}
+                        title={hasSaved ? `Ativos salvos: ${savedTypes.join(', ')}` : undefined}
+                        onClick={() => {
+                          setStartDate(dateStr);
+                          setEndDate(dateStr);
+                          setSelectedCalendarAssetType("all");
+                          toast.info(`Data selecionada: ${d}/${viewDate.getMonth() + 1}/${viewDate.getFullYear()}`);
+                        }}
+                        className={`
+                          relative p-2 text-xs rounded-xl flex flex-col items-center justify-center transition-all h-10 w-full font-bold
+                          ${isSelected 
+                            ? "bg-indigo-600 text-white font-black shadow-md scale-105 hover:bg-indigo-700" 
+                            : hasSaved 
+                              ? "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800"
+                              : "text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                          }
+                          ${hasFueling && !isSelected && !hasSaved ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-300 border border-emerald-100 dark:border-emerald-900" : ""}
+                        `}
+                      >
+                        <span>{d}</span>
+                        <div className="absolute bottom-1 flex gap-0.5 justify-center">
+                          {hasFueling > 0 && (
+                            <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : "bg-emerald-500 animate-pulse"}`} />
+                          )}
+                          {hasSaved && (
+                            <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : "bg-indigo-600"}`} />
+                          )}
+                        </div>
+                      </button>
+                    );
+                  }
+
+                  // Next month padding to complete the grid (multiples of 7)
+                  const totalGridCells = Math.ceil((startDayOfWeek + daysInMonth) / 7) * 7;
+                  const nextMonthPadding = totalGridCells - (startDayOfWeek + daysInMonth);
+                  for (let i = 1; i <= nextMonthPadding; i++) {
+                    const nextMonth = month === 11 ? 0 : month + 1;
+                    const nextYear = month === 11 ? year + 1 : year;
+                    const dateStr = `${nextYear}-${String(nextMonth + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+                    const hasFueling = activityDaysMap.get(dateStr) || 0;
+                    const isSelected = startDate === dateStr;
+                    const savedTypes = savedSelections[dateStr] || [];
+                    const hasSaved = savedTypes.length > 0;
+
+                    cells.push(
+                      <button
+                        key={`next-${i}`}
+                        title={hasSaved ? `Tipos salvos: ${savedTypes.join(', ')}` : undefined}
+                        onClick={() => {
+                          setStartDate(dateStr);
+                          setEndDate(dateStr);
+                          setSelectedCalendarAssetType("all");
+                        }}
+                        className={`
+                          relative p-2 text-xs rounded-xl flex flex-col items-center justify-center transition-all h-10 w-full opacity-35 hover:opacity-85
+                          ${isSelected 
+                            ? "bg-indigo-600 text-white font-black scale-105" 
+                            : hasSaved 
+                              ? "bg-indigo-50/50 text-indigo-700 dark:bg-indigo-950/20 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800" 
+                              : "text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/50"
+                          }
+                          ${hasFueling && !isSelected && !hasSaved ? "border border-dashed border-emerald-300" : ""}
+                        `}
+                      >
+                        <span className="font-bold">{i}</span>
+                        <div className="absolute bottom-1 flex gap-0.5 justify-center">
+                          {hasFueling > 0 && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : "bg-emerald-400"}`} />}
+                          {hasSaved && <span className={`h-1 w-1 rounded-full ${isSelected ? "bg-white" : "bg-indigo-400"}`} />}
+                        </div>
+                      </button>
+                    );
+                  }
+
+                  return cells;
+                })()}
+              </div>
+
+              {/* Selected date header, local checkbox selection, save button, and filters */}
+              <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Atividades em {startDate ? new Date(startDate + "T12:00:00").toLocaleDateString('pt-BR') : "Nenhum dia marcado"}
+                  </span>
+                </div>
+
+                {!startDate ? (
+                  <p className="text-[11px] text-slate-400 italic">Clique em um dia acima para marcar e ver as atividades correspondentes.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {/* EDITABLE SECTION: SAVE ACTIVITY ASSIGNMENT TO FIRESTORE */}
+                    <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <Label className="text-[10px] font-black text-slate-500 uppercase tracking-widest flex items-center gap-1.5">
+                          <CheckCircle2 className="h-3.5 w-3.5 text-indigo-500" />
+                          Marcar Atividades Executadas (Salva no Banco):
+                        </Label>
+                        
+                        {activeAssetTypesForSelectedDay.length > 0 && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            type="button"
+                            onClick={() => {
+                              const autoCalculated = activeAssetTypesForSelectedDay.map(t => t.tipo);
+                              setLocalCheckedTypes(prev => {
+                                const combined = Array.from(new Set([...prev, ...autoCalculated]));
+                                return combined;
+                              });
+                              toast.info("Sugestões do cruzamento copiadas! Clique em 'Salvar Atividades' para persistir.");
+                            }}
+                            className="h-6 text-[9px] font-bold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 px-2 rounded-lg"
+                          >
+                            ⚡ Copiar do Cruzamento
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Pill style Checkbox List of all available asset types */}
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {allAssetTypes.map(tipo => {
+                          const isChecked = localCheckedTypes.includes(tipo);
+                          return (
+                            <button
+                              key={tipo}
+                              type="button"
+                              onClick={() => {
+                                setLocalCheckedTypes(prev => 
+                                  prev.includes(tipo) 
+                                    ? prev.filter(t => t !== tipo) 
+                                    : [...prev, tipo]
+                                );
+                              }}
+                              className={`
+                                h-7 px-2.5 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1.5 border
+                                ${isChecked 
+                                  ? "bg-indigo-600 border-indigo-600 text-white shadow-sm" 
+                                  : "border-slate-200 bg-white hover:bg-slate-50 text-slate-600 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                                }
+                              `}
+                            >
+                              {isChecked ? (
+                                <CheckSquare className="h-3 w-3 shrink-0" />
+                              ) : (
+                                <Square className="h-3 w-3 shrink-0" />
+                              )}
+                              {tipo}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Save Buttons & Status Meta Row */}
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-200/50 dark:border-slate-800/50 flex-wrap gap-2">
+                        {savedSelections[startDate] && savedSelections[startDate].length > 0 ? (
+                          <div className="text-[9px] text-slate-400 font-medium">
+                            Status: <span className="text-emerald-500 font-bold">Salvo</span> ({savedSelections[startDate].length} tipos)
+                          </div>
+                        ) : (
+                          <div className="text-[9px] text-slate-400 font-medium italic">
+                            Sem registro persistente nesta data
+                          </div>
+                        )}
+
+                        <div className="flex items-center gap-2 ml-auto">
+                          {savedSelections[startDate] && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={savingSelection}
+                              onClick={() => handleClearSelectionForDate(startDate)}
+                              className="h-8 text-[10px] font-bold px-3 rounded-xl hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/20 border-slate-200 text-slate-500 dark:border-slate-800"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              Limpar
+                            </Button>
+                          )}
+                          <Button
+                            variant="default"
+                            size="sm"
+                            disabled={savingSelection}
+                            onClick={() => handleSaveSelection(startDate, localCheckedTypes)}
+                            className="h-8 text-[10px] bg-indigo-600 hover:bg-indigo-700 text-white font-bold px-3.5 rounded-xl flex items-center gap-1.5 shadow-md transition-all active:scale-95 shrink-0"
+                          >
+                            {savingSelection ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Save className="h-3.5 w-3.5" />
+                            )}
+                            Salvar Atividades
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* DYNAMIC FILTERING FROM Excel (PRESERVING CORE FUNCTIONALITY) */}
+                    <div className="space-y-2 pt-1">
+                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block flex items-center gap-1">
+                        <SlidersHorizontal className="h-3 w-3 text-emerald-500" />
+                        Filtro Rápido de Abastecimento (Do Relatório):
+                      </label>
+                      
+                      {activeAssetTypesForSelectedDay.length === 0 ? (
+                        <p className="text-[9px] text-slate-400 italic">Nenhum veículo abastecido no cruzamento deste dia.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5">
+                          <Button
+                            variant={selectedCalendarAssetType === "all" ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setSelectedCalendarAssetType("all")}
+                            className={`h-7 px-2.5 rounded-lg text-[10px] font-bold uppercase transition-all ${
+                              selectedCalendarAssetType === "all" 
+                                ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                                : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-300"
+                            }`}
+                          >
+                            Todos ({activeAssetTypesForSelectedDay.reduce((acc, curr) => acc + curr.count, 0)})
+                          </Button>
+                          
+                          {activeAssetTypesForSelectedDay.map(({ tipo, count }) => (
+                            <Button
+                              key={tipo}
+                              variant={selectedCalendarAssetType === tipo ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => {
+                                setSelectedCalendarAssetType(tipo);
+                                toast.info(`Filtrando pelo Tipo de Ativo: ${tipo}`);
+                              }}
+                              className={`h-7 px-2.5 rounded-lg text-[10px] font-bold uppercase transition-all flex items-center gap-1 ${
+                                selectedCalendarAssetType === tipo 
+                                  ? "bg-emerald-600 hover:bg-emerald-700 text-white" 
+                                  : "border-slate-200 text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800 dark:text-slate-300"
+                              }`}
+                            >
+                              {tipo}
+                              <span className={`ml-1 px-1 rounded text-[8px] ${
+                                selectedCalendarAssetType === tipo ? "bg-emerald-800 text-emerald-100" : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                              }`}>
+                                {count}
+                              </span>
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 

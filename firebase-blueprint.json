@@ -123,6 +123,18 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["transactionId", "machineryDestination", "updatedBy"]
+    },
+    "CalendarSelection": {
+      "title": "Calendar Selection",
+      "description": "Seleções de tipos de ativos feitos no dia registrados pelo usuário",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "description": "Data no formato YYYY-MM-DD" },
+        "selectedTypes": { "type": "array", "description": "Lista de tipos de ativos selecionados para este dia" },
+        "updatedBy": { "type": "string", "description": "Email do usuário que efetuou a alteração" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "selectedTypes"]
     }
   },
   "firestore": {
@@ -157,6 +169,10 @@
     "/machine_supply_assignments/{assignmentId}": {
       "schema": "MachineSupplyAssignment",
       "description": "Preenchimento de dados de maquinário para abastecimentos"
+    },
+    "/calendar_selections/{selectionId}": {
+      "schema": "CalendarSelection",
+      "description": "Seleções de tipos de ativos feitos no dia pelo usuário"
     }
   }
 }

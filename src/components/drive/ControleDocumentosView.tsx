@@ -22,7 +22,19 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
         doc.placa.toLowerCase().includes(searchTerm.toLowerCase()) ||
         doc.gerencia.toLowerCase().includes(searchTerm.toLowerCase());
       
-      const matchesStatus = statusFilter === "all" || doc.statusCrlv.toLowerCase().includes(statusFilter.toLowerCase());
+      const hasAnexo = !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5);
+      const isOkStatus = doc.statusCrlv.toUpperCase().includes('OK') || doc.statusCrlv.toUpperCase().includes('VIGENTE') || hasAnexo;
+      
+      let matchesStatus = true;
+      if (statusFilter !== "all") {
+        if (statusFilter === "OK") {
+          matchesStatus = isOkStatus;
+        } else if (statusFilter === "PENDENTE") {
+          matchesStatus = !isOkStatus;
+        } else {
+          matchesStatus = doc.statusCrlv.toLowerCase().includes(statusFilter.toLowerCase());
+        }
+      }
       
       return matchesSearch && matchesStatus;
     });
@@ -30,20 +42,51 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
 
   const stats = useMemo(() => {
     const total = documents.length;
-    const ok = documents.filter(d => d.statusCrlv.toUpperCase().includes('OK') || d.statusCrlv.toUpperCase().includes('VIGENTE')).length;
-    const pendente = documents.filter(d => d.statusCrlv.toUpperCase().includes('PENDENTE') || d.statusCrlv.toUpperCase().includes('VENCIDO')).length;
+    const ok = documents.filter(d => {
+      const s = d.statusCrlv.toUpperCase();
+      const hasAnexo = !!(d.anexoCrlv && d.anexoCrlv.trim().length > 5);
+      return s.includes('OK') || s.includes('VIGENTE') || hasAnexo;
+    }).length;
+    const pendente = total - ok;
     return { total, ok, pendente };
   }, [documents]);
 
-  const getStatusBadge = (status: string) => {
-    const s = status.toUpperCase();
+  const getStatusBadge = (status: string, hasAnexo: boolean = false) => {
+    let s = (status || "").toUpperCase();
+    let displayStatus = status || "SEM CONTROLE";
+    if (hasAnexo && !s.includes('OK') && !s.includes('VIGENTE')) {
+      s = 'OK';
+      displayStatus = 'OK (Anexo)';
+    }
+    
     if (s.includes('OK') || s.includes('VIGENTE')) {
-      return <Badge className="bg-emerald-500/10 text-emerald-600 border-none flex items-center gap-1"><CheckCircle2 size={10} /> {status}</Badge>;
+      return (
+        <span 
+          title={displayStatus} 
+          className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 font-bold hover:scale-110 transition-transform cursor-help"
+        >
+          <CheckCircle2 size={13} />
+        </span>
+      );
     }
     if (s.includes('PENDENTE') || s.includes('VENCIDO') || s.includes('ATRASO')) {
-      return <Badge className="bg-rose-500/10 text-rose-600 border-none flex items-center gap-1"><AlertCircle size={10} /> {status}</Badge>;
+      return (
+        <span 
+          title={displayStatus} 
+          className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-rose-500/15 text-rose-600 font-bold hover:scale-110 transition-transform cursor-help"
+        >
+          <AlertCircle size={13} />
+        </span>
+      );
     }
-    return <Badge className="bg-amber-500/10 text-amber-600 border-none flex items-center gap-1"><Clock size={10} /> {status}</Badge>;
+    return (
+      <span 
+        title={displayStatus} 
+        className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 font-bold hover:scale-110 transition-transform cursor-help"
+      >
+        <Clock size={13} />
+      </span>
+    );
   };
 
   const renderLink = (url: string, label: string) => {
@@ -180,7 +223,7 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
                         <span className="text-[10px] font-bold text-slate-500 uppercase">{doc.propriedade}</span>
                       </TableCell>
                       <TableCell className="py-6">
-                        {getStatusBadge(doc.statusCrlv)}
+                        {getStatusBadge(doc.statusCrlv, !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5))}
                       </TableCell>
                       <TableCell className="py-6 text-right">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">
