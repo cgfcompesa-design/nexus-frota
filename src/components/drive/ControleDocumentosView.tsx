@@ -17,6 +17,7 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [yearFilter, setYearFilter] = useState("all");
+  const [propriedadeFilter, setPropriedadeFilter] = useState("all");
   const [crlvYears, setCrlvYears] = useState<Record<string, string>>({});
   const [isRefreshingYears, setIsRefreshingYears] = useState(false);
 
@@ -36,6 +37,14 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
   useEffect(() => {
     fetchYearsMap();
   }, []);
+
+  const propriedades = useMemo(() => {
+    const set = new Set<string>();
+    documents.forEach((doc) => {
+      if (doc.propriedade) set.add(doc.propriedade.toUpperCase().trim());
+    });
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  }, [documents]);
 
   const getDocYear = (doc: ControleDocumento) => {
     if (!doc.anexoCrlv || doc.anexoCrlv.trim().length <= 5) return null;
@@ -81,10 +90,15 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
           matchesYear = !hasAnexo;
         }
       }
+
+      let matchesPropriedade = true;
+      if (propriedadeFilter !== "all") {
+        matchesPropriedade = String(doc.propriedade || "").toUpperCase().trim() === propriedadeFilter;
+      }
       
-      return matchesSearch && matchesStatus && matchesYear;
+      return matchesSearch && matchesStatus && matchesYear && matchesPropriedade;
     });
-  }, [documents, searchTerm, statusFilter, yearFilter, crlvYears]);
+  }, [documents, searchTerm, statusFilter, yearFilter, crlvYears, propriedadeFilter]);
 
   const stats = useMemo(() => {
     const total = documents.length;
@@ -197,7 +211,7 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
 
       <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
         <CardHeader className="p-8 border-b border-slate-100 dark:border-slate-800">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="relative group md:col-span-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
               <Input 
@@ -232,6 +246,20 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
                 <option value="2026">FILTRAR APENAS 2026</option>
                 <option value="2025">FILTRAR APENAS 2025</option>
                 <option value="PENDENTE">FILTRAR APENAS PENDENTES</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3 bg-slate-50 px-4 rounded-2xl">
+              <Filter size={16} className="text-slate-400" />
+              <select 
+                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700"
+                value={propriedadeFilter}
+                onChange={(e) => setPropriedadeFilter(e.target.value)}
+              >
+                <option value="all">TODAS PROPRIEDADES</option>
+                {propriedades.map((p) => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
               </select>
             </div>
 
