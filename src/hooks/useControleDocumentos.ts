@@ -14,7 +14,7 @@ export interface ControleDocumento {
   anexoCarroceriaInmetro: string;
 }
 
-const CONTROLE_DOCUMENTOS_API = "https://docs.google.com/spreadsheets/d/1UWu7MU_Qoqdi8ZFO103xZGJahcbMDA_z9s7KLpMjPk8/export?format=csv&gid=327588252";
+const CONTROLE_DOCUMENTOS_API = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KEh8BbV2ta5a_GLcfuYDenLmG7q-g_zGjGER1NVL0mPZwgu3dnCMB0pMQ82YLqEN9oaWYyu6INdo/pub?gid=327588252&single=true&output=csv";
 
 const fetchCSVWithRetry = async (url: string, retries = 3): Promise<string> => {
   for (let i = 0; i < retries; i++) {

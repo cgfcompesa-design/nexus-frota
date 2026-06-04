@@ -48,6 +48,9 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
 
   const getDocYear = (doc: ControleDocumento) => {
     if (!doc.anexoCrlv || doc.anexoCrlv.trim().length <= 5) return null;
+    if (doc.statusCrlv && doc.statusCrlv.trim().length > 0) {
+      return doc.statusCrlv.trim();
+    }
     const plate = doc.placa.trim().toUpperCase();
     if (crlvYears[plate]) return crlvYears[plate];
     
