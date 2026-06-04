@@ -1106,9 +1106,7 @@ Coordenação de Gestão de Frotas - CGF`;
                               "";
       
       const tc = String(tipoControleVal).trim().toUpperCase();
-      // Only discard if the control is explicitly set to something other than FROTA.
-      // If it's empty, or contains "FROTA" (even partially, e.g. "FROTA PRÓPRIA", "SISTEMA FROTA"), KEEP IT!
-      if (tc !== "" && !tc.includes("FROTA")) continue;
+      if (tc !== "FROTA") continue;
 
       const valR = f._valR;
       

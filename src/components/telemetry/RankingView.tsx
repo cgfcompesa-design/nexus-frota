@@ -30,7 +30,7 @@ export default function RankingView() {
   const [selectedMesInicio, setSelectedMesInicio] = useState<string>("all");
   const [selectedMesFim, setSelectedMesFim] = useState<string>("all");
   const [selectedDriverDetails, setSelectedDriverDetails] = useState<any | null>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<'auto' | 'compesa' | 'terceirizado'>('auto');
+  const [selectedTemplate, setSelectedTemplate] = useState<'auto' | 'compesa' | 'terceirizado' | 'orientacao'>('auto');
   const [driverSearch, setDriverSearch] = useState("");
 
   useEffect(() => {
@@ -407,7 +407,7 @@ export default function RankingView() {
     );
   }
 
-  const generateFormalText = (driver: any, template: 'auto' | 'compesa' | 'terceirizado' = 'auto') => {
+  const generateFormalText = (driver: any, template: 'auto' | 'compesa' | 'terceirizado' | 'orientacao' = 'auto') => {
     const { situation, details, score } = driver;
     const driverName = driver.driver;
     const date = new Date().toLocaleDateString('pt-BR');
@@ -427,26 +427,33 @@ export default function RankingView() {
 
     let baseText = "";
 
-    // Se o template for 'auto', decidimos baseado na situation da norma
-    const isSuspension = situation === "Suspensão de Condução" || situation === "Suspensão Definitiva";
-    const isDefinitive = situation === "Suspensão Definitiva";
-    const titleLabel = isDefinitive 
-      ? "ORIENTAÇÃO DE SUSPENSÃO DEFINITIVA" 
-      : isSuspension 
-      ? "ORIENTAÇÃO DE SUSPENSÃO DE CONDUÇÃO" 
-      : "ORIENTAÇÃO DE ADVERTÊNCIA FORMAL";
-    const measureLabel = isDefinitive
-      ? "suspensão definitiva do direito de conduzir veículos da frota COMPESA"
-      : isSuspension
-      ? "suspensão temporária do direito de conduzir veículos da frota COMPESA" 
-      : "ADVERTÊNCIA FORMAL";
-
     if (template === 'auto') {
-      return generateFormalText(driver, 'compesa');
+      const isSuspension = situation === "Suspensão de Condução" || situation === "Suspensão Definitiva";
+      const isDefinitive = situation === "Suspensão Definitiva";
+      const titleLabel = isDefinitive 
+        ? "ORIENTAÇÃO DE SUSPENSÃO DEFINITIVA" 
+        : isSuspension 
+        ? "ORIENTAÇÃO DE SUSPENSÃO DE CONDUÇÃO" 
+        : "ORIENTAÇÃO DE ADVERTÊNCIA FORMAL";
+      const measureLabel = isDefinitive
+        ? "suspensão definitiva do direito de conduzir veículos da frota COMPESA"
+        : isSuspension
+        ? "suspensão temporária do direito de conduzir veículos da frota COMPESA" 
+        : "ADVERTÊNCIA FORMAL";
+
+      baseText = `1. NOTIFICAÇÃO E ORIENTAÇÃO p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ${titleLabel}\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a aplicação de ${measureLabel} ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     } else if (template === 'compesa') {
+      const titleLabel = "ORIENTAÇÃO DE ADVERTÊNCIA FORMAL";
+      const measureLabel = "ADVERTÊNCIA FORMAL";
+
       baseText = `1. NOTIFICAÇÃO E ORIENTAÇÃO p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ${titleLabel}\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a aplicação de ${measureLabel} ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e registro na pasta do funcionário, com o devido encaminhamento pelo SEI à gestão de recursos humanos da empresa (CAP).\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     } else if (template === 'terceirizado') {
+      const titleLabel = "ADVERTÊNCIA FORMAL";
+      const measureLabel = "ADVERTÊNCIA FORMAL";
+
       baseText = `2. NOTIFICAÇÃO E ORIENTAÇÃO P TERCEIRIZADOS\n\nTítulo:\nNOTIFICAÇÃO DE INFRAÇÃO E ${titleLabel}\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador TERCEIRIZADO ${driverName}, referente à infração ${lastEvent.desc}, conforme processo SEI nº ${lastEvent.sei !== '-' ? lastEvent.sei : '____'}.\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a aplicação de ${measureLabel} à empresa terceirizada para que a mesma notifique o colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor ([${historicoText}]), reforça-se a necessidade da medida para fins de correção de conduta e posterior desconto das infrações no BM do contrato.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
+    } else if (template === 'orientacao') {
+      baseText = `1. NOTIFICAÇÃO E ORIENTAÇÃO p EMPREGADOS COMPESA\n\nTítulo:\nNOTIFICAÇÃO DE ORIENTAÇÃO\n\nTexto:\nPrezado(a) Gestor(a) da Unidade,\n\nInformamos que foi registrado em sistema um evento de natureza [${lastEvent.severity}] para o colaborador Compesiano [${driverName}], referente à infração [${lastEvent.desc}]\n\nNos termos da Norma Interna GAD-NI-003-02, orientamos a aplicação de ORIENTAÇÃO L ao colaborador, reforçando a importância da observância rigorosa ao Código de Trânsito Brasileiro e às diretrizes de segurança da COMPESA.\n\nConsiderando o histórico do condutor [${historicoText || "Nenhum histórico registrado"}], reforça-se a necessidade da medida para fins de correção de conduta.\n\nAtenciosamente,\nCoordenação de Gestão de Frotas – CGF\n\nDATA: ${date}`;
     }
 
     return baseText;
@@ -888,7 +895,7 @@ export default function RankingView() {
                           </h4>
                           <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Selecione o modelo adequado para o colaborador</p>
                         </div>
-                        <div className="flex p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl gap-1">
+                        <div className="flex flex-wrap p-1.5 bg-slate-100 dark:bg-slate-800 rounded-2xl gap-1">
                           <button 
                             onClick={() => setSelectedTemplate('auto')}
                             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'auto' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
@@ -906,6 +913,12 @@ export default function RankingView() {
                             className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'terceirizado' ? 'bg-white dark:bg-slate-700 text-emerald-600 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
                           >
                             ADVERT. (TERCEIRIZ.)
+                          </button>
+                          <button 
+                            onClick={() => setSelectedTemplate('orientacao')}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${selectedTemplate === 'orientacao' ? 'bg-white dark:bg-slate-700 text-blue-500 shadow-md scale-105' : 'text-slate-400 hover:text-slate-600'}`}
+                          >
+                            ORIENTAÇÃO (COMPESA)
                           </button>
                         </div>
                       </div>

@@ -49,6 +49,101 @@ async function startServer() {
     res.json({ status: "ok", time: new Date().toISOString() });
   });
 
+  // In-memory cache for CRLV document years
+  let crlvYearsCache: Record<string, string> = {};
+  let lastCrlvFetchTime = 0;
+  let isCrlvFetching = false;
+
+  const fetchCrlvYearsFromDocs = async () => {
+    if (isCrlvFetching) return;
+    isCrlvFetching = true;
+    console.log("[SERVER] Starting background CRLV years fetch from Google Drive links...");
+    try {
+      const url = "https://docs.google.com/spreadsheets/d/1UWu7MU_Qoqdi8ZFO103xZGJahcbMDA_z9s7KLpMjPk8/export?format=xlsx";
+      const buffer = await fetchUrlBinary(url);
+      const wb = XLSX.read(buffer, { type: "buffer" });
+      const sheet = wb.Sheets["CONTROLE DOCUMENTOS"];
+      if (!sheet) {
+        console.error("[SERVER] Sheet 'CONTROLE DOCUMENTOS' not found in workbook.");
+        isCrlvFetching = false;
+        return;
+      }
+      const data = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      
+      const rows: { plate: string; url: string; prop: string }[] = [];
+      for (let i = 3; i < data.length; i++) {
+        const row = data[i];
+        if (row && row[0] && row[6]) {
+          rows.push({
+            plate: String(row[0]).trim().toUpperCase(),
+            url: String(row[6]).trim(),
+            prop: String(row[4] || "").trim()
+          });
+        }
+      }
+
+      console.log(`[SERVER] Found ${rows.length} rows with CRLV links. Batch fetching titles...`);
+      
+      const yearsMap: Record<string, string> = {};
+      const batchSize = 100;
+      
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        await Promise.all(
+          batch.map(async (row) => {
+            try {
+              const bodyBuf = await fetchUrlBinary(row.url);
+              const text = bodyBuf.toString();
+              const titleMatch = text.match(/<title>(.*?)<\/title>/);
+              const title = titleMatch ? titleMatch[1] : "";
+              
+              let year = "2025";
+              if (title.toUpperCase().includes("2026")) {
+                year = "2026";
+              } else if (title.toUpperCase().includes("2025")) {
+                year = "2025";
+              } else {
+                const prop = row.prop.toUpperCase();
+                if (prop.includes("COMPESA") || prop.includes("CS BRASIL")) {
+                  year = "2026";
+                } else {
+                  year = "2025";
+                }
+              }
+              yearsMap[row.plate] = year;
+            } catch (e: any) {
+              const prop = row.prop.toUpperCase();
+              if (prop.includes("COMPESA") || prop.includes("CS BRASIL")) {
+                yearsMap[row.plate] = "2026";
+              } else {
+                yearsMap[row.plate] = "2025";
+              }
+            }
+          })
+        );
+      }
+      
+      crlvYearsCache = yearsMap;
+      lastCrlvFetchTime = Date.now();
+      console.log(`[SERVER] Background CRLV years fetch completed! Cached ${Object.keys(crlvYearsCache).length} plates.`);
+    } catch (err: any) {
+      console.error("[SERVER] Failed to fetch CRLV years in background:", err.message);
+    } finally {
+      isCrlvFetching = false;
+    }
+  };
+
+  // Trigger on startup
+  fetchCrlvYearsFromDocs();
+
+  app.get("/api/crlv-years", (req, res) => {
+    // If cache is empty or staler than 1 hour, trigger refresh in background
+    if ((Object.keys(crlvYearsCache).length === 0 || Date.now() - lastCrlvFetchTime > 60 * 60 * 1000) && !isCrlvFetching) {
+      fetchCrlvYearsFromDocs();
+    }
+    res.json({ success: true, years: crlvYearsCache });
+  });
+
   app.get("/api/fuel-data", async (req, res) => {
     try {
       const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';

@@ -1,11 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useControleDocumentosData, ControleDocumento } from '@/hooks/useControleDocumentos';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Search, FileText, ChevronLeft, Download, ExternalLink, Filter, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import { Search, FileText, ChevronLeft, Download, ExternalLink, Filter, CheckCircle2, AlertCircle, Clock, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface ControleDocumentosViewProps {
   onBack: () => void;
@@ -15,6 +16,39 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
   const { data: documents = [], isLoading, error } = useControleDocumentosData();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [yearFilter, setYearFilter] = useState("all");
+  const [crlvYears, setCrlvYears] = useState<Record<string, string>>({});
+  const [isRefreshingYears, setIsRefreshingYears] = useState(false);
+
+  const fetchYearsMap = () => {
+    setIsRefreshingYears(true);
+    fetch("/api/crlv-years")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.years) {
+          setCrlvYears(data.years);
+        }
+      })
+      .catch(err => console.error("Error fetching CRLV years:", err))
+      .finally(() => setIsRefreshingYears(false));
+  };
+
+  useEffect(() => {
+    fetchYearsMap();
+  }, []);
+
+  const getDocYear = (doc: ControleDocumento) => {
+    if (!doc.anexoCrlv || doc.anexoCrlv.trim().length <= 5) return null;
+    const plate = doc.placa.trim().toUpperCase();
+    if (crlvYears[plate]) return crlvYears[plate];
+    
+    // Prediction rules if cache isn't fully loaded yet
+    const prop = String(doc.propriedade || "").trim().toUpperCase();
+    if (prop.includes("COMPESA") || prop.includes("CS BRASIL")) {
+      return "2026";
+    }
+    return "2025";
+  };
 
   const filteredDocs = useMemo(() => {
     return documents.filter(doc => {
@@ -23,7 +57,10 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
         doc.gerencia.toLowerCase().includes(searchTerm.toLowerCase());
       
       const hasAnexo = !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5);
-      const isOkStatus = doc.statusCrlv.toUpperCase().includes('OK') || doc.statusCrlv.toUpperCase().includes('VIGENTE') || hasAnexo;
+      const docYear = getDocYear(doc);
+      
+      // LOGIC: OK/VIGENT if an attachment exists, PENDING/EXPIRED if no file is found.
+      const isOkStatus = hasAnexo;
       
       let matchesStatus = true;
       if (statusFilter !== "all") {
@@ -31,60 +68,60 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
           matchesStatus = isOkStatus;
         } else if (statusFilter === "PENDENTE") {
           matchesStatus = !isOkStatus;
-        } else {
-          matchesStatus = doc.statusCrlv.toLowerCase().includes(statusFilter.toLowerCase());
+        }
+      }
+
+      let matchesYear = true;
+      if (yearFilter !== "all") {
+        if (yearFilter === "2026") {
+          matchesYear = docYear === "2026";
+        } else if (yearFilter === "2025") {
+          matchesYear = docYear === "2025";
+        } else if (yearFilter === "PENDENTE") {
+          matchesYear = !hasAnexo;
         }
       }
       
-      return matchesSearch && matchesStatus;
+      return matchesSearch && matchesStatus && matchesYear;
     });
-  }, [documents, searchTerm, statusFilter]);
+  }, [documents, searchTerm, statusFilter, yearFilter, crlvYears]);
 
   const stats = useMemo(() => {
     const total = documents.length;
-    const ok = documents.filter(d => {
-      const s = d.statusCrlv.toUpperCase();
-      const hasAnexo = !!(d.anexoCrlv && d.anexoCrlv.trim().length > 5);
-      return s.includes('OK') || s.includes('VIGENTE') || hasAnexo;
-    }).length;
+    // Lógica PENDENTE apenas para aqueles que não possuem nenhum arquivo encontrado
+    const ok = documents.filter(d => !!(d.anexoCrlv && d.anexoCrlv.trim().length > 5)).length;
     const pendente = total - ok;
     return { total, ok, pendente };
   }, [documents]);
 
-  const getStatusBadge = (status: string, hasAnexo: boolean = false) => {
-    let s = (status || "").toUpperCase();
-    let displayStatus = status || "SEM CONTROLE";
-    if (hasAnexo && !s.includes('OK') && !s.includes('VIGENTE')) {
-      s = 'OK';
-      displayStatus = 'OK (Anexo)';
+  const getStatusBadge = (doc: ControleDocumento, year: string | null) => {
+    const hasAnexo = !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5);
+    
+    if (!hasAnexo) {
+      return (
+        <span 
+          title="PENDENTE (Nenhum arquivo encontrado)" 
+          className="inline-flex items-center justify-center p-1 rounded-full bg-rose-50 dark:bg-rose-950/20 text-rose-600 dark:text-rose-400 border border-rose-200/50 w-6 h-6"
+        >
+          <AlertCircle size={12} className="shrink-0" />
+        </span>
+      );
     }
     
-    if (s.includes('OK') || s.includes('VIGENTE')) {
-      return (
-        <span 
-          title={displayStatus} 
-          className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-emerald-500/15 text-emerald-600 font-bold hover:scale-110 transition-transform cursor-help"
-        >
-          <CheckCircle2 size={13} />
-        </span>
-      );
-    }
-    if (s.includes('PENDENTE') || s.includes('VENCIDO') || s.includes('ATRASO')) {
-      return (
-        <span 
-          title={displayStatus} 
-          className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-rose-500/15 text-rose-600 font-bold hover:scale-110 transition-transform cursor-help"
-        >
-          <AlertCircle size={13} />
-        </span>
-      );
-    }
+    const displayYear = year || "2025";
+    const is2026 = displayYear === "2026";
+    
     return (
       <span 
-        title={displayStatus} 
-        className="inline-flex items-center justify-center h-6 w-6 rounded-full bg-amber-500/15 text-amber-600 font-bold hover:scale-110 transition-transform cursor-help"
+        title={`OK / VIGENTE (${displayYear})`} 
+        className={cn(
+          "inline-flex items-center justify-center p-1 rounded-full border w-6 h-6",
+          is2026 
+            ? "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border-emerald-200/50"
+            : "bg-blue-50 dark:bg-blue-950/20 text-blue-600 dark:text-blue-400 border-blue-200/50"
+        )}
       >
-        <Clock size={13} />
+        <CheckCircle2 size={12} className="shrink-0" />
       </span>
     );
   };
@@ -107,7 +144,7 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
@@ -127,8 +164,19 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
           </div>
         </div>
 
-        <div className="flex gap-4">
-          <div className="bg-white dark:bg-slate-900 px-6 py-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
+        <div className="flex flex-wrap lg:flex-nowrap items-center gap-4">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={fetchYearsMap} 
+            disabled={isRefreshingYears}
+            className="rounded-xl h-10 border-slate-200 text-slate-700 dark:border-slate-800 text-xs font-bold"
+          >
+            <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isRefreshingYears && "animate-spin")} />
+            Sincronizar Anos
+          </Button>
+
+          <div className="bg-white dark:bg-slate-900 px-6 py-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6 h-12">
             <div className="text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
               <p className="text-lg font-black text-indigo-600">{stats.total}</p>
@@ -149,11 +197,11 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
 
       <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
         <CardHeader className="p-8 border-b border-slate-100 dark:border-slate-800">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="relative group">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="relative group md:col-span-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
               <Input 
-                placeholder="BUSCAR POR PLACA OU GERÊNCIA..." 
+                placeholder="BUSCAR PLACA / GERÊNCIA..." 
                 className="pl-12 h-12 bg-slate-50 border-none rounded-2xl font-bold text-[10px] uppercase tracking-widest focus-visible:ring-2 focus-visible:ring-indigo-500/20"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -163,13 +211,27 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
             <div className="flex items-center gap-3 bg-slate-50 px-4 rounded-2xl">
               <Filter size={16} className="text-slate-400" />
               <select 
-                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0"
+                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
                 <option value="all">TODOS OS STATUS</option>
-                <option value="OK">OK / VIGENTE</option>
-                <option value="PENDENTE">PENDENTE / VENCIDO</option>
+                <option value="OK">OK / VIGENTE (Com Anexo)</option>
+                <option value="PENDENTE">PENDENTE / VENCIDO (Sem Anexo)</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-3 bg-slate-50 px-4 rounded-2xl">
+              <Filter size={16} className="text-slate-400" />
+              <select 
+                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700"
+                value={yearFilter}
+                onChange={(e) => setYearFilter(e.target.value)}
+              >
+                <option value="all">TODOS OS ANOS (2025/2026)</option>
+                <option value="2026">FILTRAR APENAS 2026</option>
+                <option value="2025">FILTRAR APENAS 2025</option>
+                <option value="PENDENTE">FILTRAR APENAS PENDENTES</option>
               </select>
             </div>
 
@@ -223,7 +285,7 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
                         <span className="text-[10px] font-bold text-slate-500 uppercase">{doc.propriedade}</span>
                       </TableCell>
                       <TableCell className="py-6">
-                        {getStatusBadge(doc.statusCrlv, !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5))}
+                        {getStatusBadge(doc, getDocYear(doc))}
                       </TableCell>
                       <TableCell className="py-6 text-right">
                         <div className="grid grid-cols-2 gap-x-4 gap-y-2">

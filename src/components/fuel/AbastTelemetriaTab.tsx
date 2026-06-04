@@ -1019,6 +1019,15 @@ Coordenação de Gestão de Frotas - CGF`;
   const finalFilteredResults = useMemo(() => {
     let list = crossDataResults;
 
+    // Filter by saved calendar selections if they exist for the selected day
+    if (startDate && savedSelections[startDate] && savedSelections[startDate].length > 0) {
+      const savedTypes = savedSelections[startDate].map((t: string) => t.toUpperCase().trim());
+      list = list.filter(r => {
+        const t = String(r.tipoAtivo || "").toUpperCase().trim();
+        return savedTypes.includes(t);
+      });
+    }
+
     // Filter by selected active day's asset type
     if (selectedCalendarAssetType && selectedCalendarAssetType !== "all") {
       list = list.filter(r => {
@@ -1038,7 +1047,7 @@ Coordenação de Gestão de Frotas - CGF`;
       );
     }
     return list;
-  }, [crossDataResults, selectedCalendarAssetType, searchFilter]);
+  }, [crossDataResults, selectedCalendarAssetType, searchFilter, startDate, savedSelections]);
 
   // Calculate which days of the year have fueling transaction activity
   const activityDaysMap = useMemo(() => {
@@ -1470,9 +1479,7 @@ Coordenação de Gestão de Frotas - CGF`;
                   </span>
                 </div>
 
-                {!startDate ? (
-                  <p className="text-[11px] text-slate-400 italic">Clique em um dia acima para marcar e ver as atividades correspondentes.</p>
-                ) : (
+                {!startDate ? null : (
                   <div className="space-y-4">
                     {/* EDITABLE SECTION: SAVE ACTIVITY ASSIGNMENT TO FIRESTORE */}
                     <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
