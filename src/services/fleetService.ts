@@ -11,7 +11,7 @@ const TITULOS_DESPESAS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS
 const MAINTENANCE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1765787451&single=true&output=csv';
 const PREVENTIVE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=57968629&single=true&output=csv';
 const PREVENTIVE_LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_A1EB7zQfuUlE4LCa_PbXGmtPHoXTyibIStoSW0T8Pe4jense43xIP4uRbgS77KFUKyM5FEX5w99N/pub?gid=698675285&single=true&output=csv';
-const FUEL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?gid=1282350705&single=true&output=csv';
+const FUEL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?gid=1282350705&single=true&output=xlsx';
 const HISTORICO_MANUTENCAO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT3pRYxrmBebjhyQCfcApeQwfwnL2XZdNPxFCvyXUEQ3LW7epLEz0emED0BKFpiivo371IJ6pz3l4m_/pub?gid=449761634&single=true&output=csv';
 const ORCAMENTOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1278375363&single=true&output=csv';
 const CUSTOS_DETALHADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1041597392&single=true&output=csv';
