@@ -176,144 +176,23 @@ export async function fetchPreventiveLocadosData(): Promise<any[]> {
 }
 
 export async function fetchFuelData(): Promise<any[]> {
-  let rows: any[][] = [];
-  
-  try {
-    const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';
-    console.log("Fetching fuel data from Google Sheets directly in XLSX format...");
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-    
-    const buf = await res.arrayBuffer();
-    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-    
-    // Find the first sheet that has rows and contains headers like PLACA, DATA, LITROS, etc.
-    let targetSheetName = "";
-    let bestMatchHeadersCount = -1;
-    let selectedRows: any[][] = [];
-
-    for (const name of wb.SheetNames) {
-      const sheet = wb.Sheets[name];
-      const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-      if (sheetRows.length === 0) continue;
-
-      // Look for a header row containing keywords
-      const headerRowIndex = sheetRows.findIndex(row => 
-        row.some(cell => {
-          const c = String(cell || "").toUpperCase();
-          return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR") || c.includes("LITROS") || c.includes("TRANSACAO");
-        })
-      );
-
-      if (headerRowIndex !== -1) {
-        const headerRow = sheetRows[headerRowIndex];
-        const keywords = ["PLACA", "DATA", "LITROS", "VALOR", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM"];
-        const matchCount = headerRow.filter(cell => {
-          const c = String(cell || "").toUpperCase();
-          return keywords.some(k => c.includes(k));
-        }).length;
-
-        // Prioritize sheets with name containing 'Transacoes' or 'Transações' (case and accent insensitive)
-        const normalizedSheetName = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-        const isTransacoesSheet = normalizedSheetName.includes("TRANSACAO") || normalizedSheetName.includes("ABASTEC");
-        const totalScore = matchCount + (isTransacoesSheet ? 500 : 0);
-
-        if (totalScore > bestMatchHeadersCount) {
-          bestMatchHeadersCount = totalScore;
-          targetSheetName = name;
-          selectedRows = sheetRows;
-        }
-      }
-    }
-
-    if (!targetSheetName && wb.SheetNames.length > 0) {
-      targetSheetName = wb.SheetNames[0];
-      const sheet = wb.Sheets[targetSheetName];
-      selectedRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-    }
-
-    rows = selectedRows;
-    console.log(`Loaded ${rows.length} rows directly from Excel sheet: "${targetSheetName}"`);
-  } catch (error) {
-    console.warn("Failed to load xlsx fuel data, falling back to CSV...", error);
-    try {
-      rows = await fetchCsv(FUEL_URL);
-    } catch (csvError) {
-      console.error("Failed to load CSV fuel data as well:", csvError);
-      return [];
-    }
-  }
-
+  const rows = await fetchCsv(FUEL_URL);
   if (rows.length <= 1) return [];
   
-  // Advanced keyword-scoring-based header row finder - scan first 100 rows of the spreadsheet instead of ALL 96k!
-  let headerRowIndex = -1;
-  let maxScore = -1;
-  const keywords = ["PLACA", "DATA", "LITROS", "VOLUME", "VALOR", "UNITARIO", "TOTAL", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM", "TRANSACAO", "ODOMETRO", "HODOMETRO"];
-  
-  const scanLimit = Math.min(100, rows.length);
-  for (let i = 0; i < scanLimit; i++) {
-    const row = rows[i];
-    if (!row || !Array.isArray(row)) continue;
-    
-    let score = 0;
-    // Check how many unique keywords this row matches
-    const uppercaseCells = row.map(cell => String(cell || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-    keywords.forEach(keyword => {
-      if (uppercaseCells.some(cell => cell.includes(keyword))) {
-        score++;
-      }
-    });
-    
-    // Reward rows having more non-empty columns if baseline relevance holds
-    if (score >= 2) {
-      score += row.filter(cell => String(cell || "").trim() !== "").length * 0.1;
-    }
-    
-    if (score > maxScore) {
-      maxScore = score;
-      headerRowIndex = i;
-    }
-  }
-
-  // Fallback to simple matching if no row scored well
-  if (headerRowIndex === -1 || maxScore < 2) {
-    headerRowIndex = rows.findIndex(row => 
-      row.some(cell => {
-        const c = String(cell || "").toUpperCase();
-        return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR");
-      })
-    );
-  }
+  // Find a row that looks like a header (contains PLACA or MES/ANO)
+  let headerRowIndex = rows.findIndex(row => 
+    row.some(cell => {
+      const c = String(cell).toUpperCase();
+      return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR");
+    })
+  );
 
   if (headerRowIndex === -1) headerRowIndex = 0;
 
   const headers = rows[headerRowIndex];
+  const dataRows = rows.slice(headerRowIndex + 1);
   
-  // Filter out header row and empty lines robustly, allowing data to be both above and below headers due to sorting
-  const dataRows = rows.filter((row, idx) => {
-    if (idx === headerRowIndex) return false;
-    if (!row || !Array.isArray(row)) return false;
-    
-    const isEmpty = row.every(cell => cell === null || cell === undefined || String(cell).trim() === "");
-    if (isEmpty) return false;
-
-    // Check if it's a clone of the header row itself sorted
-    const isHeaderClone = row.some(cell => {
-      const c = String(cell || "").toUpperCase().trim();
-      return c === "PLACA VEÍCULO" || c === "PLACA VEICULO" || c === "DATA TRANSAÇÃO" || c === "DATA TRANSACAO";
-    });
-    if (isHeaderClone) return false;
-
-    // Skip HTML/error tags
-    if (String(row[0] || "").startsWith("<HTML") || String(row[0] || "").startsWith("<!DOCTYPE")) {
-      return false;
-    }
-
-    return true;
-  });
-  
-  const mapped = dataRows.map(row => {
+  return dataRows.map(row => {
     const obj: any = { __raw: row };
     // Always add index-based keys (Column A=0, B=1, ... T=19, AP=41)
     row.forEach((val, i) => {
@@ -328,12 +207,6 @@ export async function fetchFuelData(): Promise<any[]> {
         if (!val) return;
 
         // Priority Mapping for Core Fields
-        if (key === "CODIGO TRANSACAO" || key === "N TRANSACAO" || key === "TRANSACAO" || key === "Nº TRANSACAO" || key === "COD_TRANSACAO") {
-          obj._txId = String(val).trim();
-        } else if (key.includes("TRANSACAO") && !obj._txId) {
-          obj._txId = String(val).trim();
-        }
-
         if (key === "PLACA" || key === "PLACA VEICULO" || key === "PLACA_VEICULO" || key === "PREFIXO") {
           obj._placa = String(val).toUpperCase().replace(/[^A-Z0-9]/gi, "");
         } else if (key.includes("PLACA") && !obj._placa) {
@@ -435,7 +308,7 @@ export async function fetchFuelData(): Promise<any[]> {
     
     if (!obj._txId) obj._txId = row[0] || row[8] || "N/A";
     if (!obj._date) obj._date = row[4]; // Column E
-    if (!obj._placa) obj._placa = String(row[5] || row[10] || row[11] || obj._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
+    if (!obj._placa) obj._placa = String(row[10] || row[11] || row[5] || obj._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
     if (!obj._fuelType) obj._fuelType = row[19] || row[2];
     if (!obj._litros) obj._litros = parseNum(row[21]);
     
@@ -454,7 +327,7 @@ export async function fetchFuelData(): Promise<any[]> {
     // If E is Data/Hora, maybe the Transaction ID is in F? Or I should keep searching.
     // Let's try to map txId to a different column if it's currently showing Time.
     // Usually Ticket Log has it in index 3 or 4.
-    if (!obj._txId) obj._txId = row[0] || row[8] || row[4] || "N/A";
+    if (!obj._txId) obj._txId = row[8] || row[4] || "N/A";
     if (!obj._posto) obj._posto = row[21] || row[16] || row[23] || "N/A";
     if (!obj._cidade) obj._cidade = row[25] || row[21] || row[20] || "N/A";
     if (!obj._endereco) obj._endereco = row[23] || row[18] || "N/A";
@@ -528,79 +401,7 @@ export async function fetchFuelData(): Promise<any[]> {
     }
 
     return obj;
-  });
-
-  // Apply Arla 32 duplicate odometer correction for displacement
-  const byVehicle: Record<string, any[]> = {};
-  mapped.forEach(f => {
-    const p = String(f._placa || f.PLACA || f.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
-    if (p) {
-      if (!byVehicle[p]) byVehicle[p] = [];
-      byVehicle[p].push(f);
-    }
-  });
-
-  for (const placa of Object.keys(byVehicle)) {
-    const txs = byVehicle[placa];
-    
-    const getTxTime = (f: any) => {
-      const dStr = f._date || f["DATA TRANSACAO"] || f["DATA_TRANSACAO"] || "";
-      if (!dStr) return 0;
-      if (/^\d+(\.\d+)?$/.test(String(dStr))) {
-        return (parseFloat(dStr) - 25569) * 86400 * 1000;
-      }
-      const parts = String(dStr).split(/[\/\s-]/);
-      if (parts.length >= 3) {
-        const day = parseInt(parts[0], 10) || 1;
-        const month = (parseInt(parts[1], 10) || 1) - 1;
-        const yearStr = parts[2] || "2026";
-        const year = yearStr.length === 2 ? 2000 + parseInt(yearStr, 10) : parseInt(yearStr, 10);
-        return new Date(year, month, day).getTime();
-      }
-      const parsed = Date.parse(String(dStr));
-      return isNaN(parsed) ? 0 : parsed;
-    };
-
-    txs.sort((a, b) => getTxTime(a) - getTxTime(b));
-
-    for (let i = 0; i < txs.length; i++) {
-      const current = txs[i];
-      const fuelName = String(current._fuelType || current["TIPO COMBUSTIVEL"] || current["TIPO COMBUSTÍVEL"] || current["PRODUTO"] || "").toUpperCase();
-      const isArla = fuelName.includes("ARLA");
-      
-      if (isArla) {
-        const currentOdo = current._odometer || 0;
-        if (currentOdo > 0) {
-          let hasSameOdoNeighbor = false;
-          
-          if (i > 0) {
-            const prev = txs[i - 1];
-            const prevOdo = prev._odometer || 0;
-            if (prevOdo === currentOdo) {
-              hasSameOdoNeighbor = true;
-            }
-          }
-          
-          if (i < txs.length - 1) {
-            const next = txs[i + 1];
-            const nextOdo = next._odometer || 0;
-            if (nextOdo === currentOdo) {
-              hasSameOdoNeighbor = true;
-            }
-          }
-          
-          if (hasSameOdoNeighbor) {
-            current._kmRodados = 0;
-            current.KM_RODADOS = 0;
-            if (current["KM RODADOS OU HORAS TRABALHADAS"]) current["KM RODADOS OU HORAS TRABALHADAS"] = 0;
-            if (current["KM_RODADOS"]) current["KM_RODADOS"] = 0;
-          }
-        }
-      }
-    }
-  }
-
-  return mapped.filter(obj => {
+  }).filter(obj => {
     return true;
   });
 }
@@ -616,29 +417,7 @@ export async function fetchFleetData(): Promise<Asset[]> {
   if (headerRowIndex === -1) return [];
 
   const headers = rows[headerRowIndex];
-  
-  // Make data rows robust to sorting (can be before or after header row)
-  const dataRows = rows.filter((row, idx) => {
-    if (idx === headerRowIndex) return false;
-    if (!row || !Array.isArray(row)) return false;
-    
-    const isEmpty = row.every(cell => cell === null || cell === undefined || String(cell).trim() === "");
-    if (isEmpty) return false;
-
-    // Check if it's a clone of the header row itself sorted
-    const isHeaderClone = row.some(cell => {
-      const c = String(cell || "").toUpperCase().trim();
-      return c === "ID OBJETO" || c === "PLACA VEÍCULO" || c === "PLACA VEICULO";
-    });
-    if (isHeaderClone) return false;
-
-    // Skip HTML/error tags
-    if (String(row[0] || "").startsWith("<HTML") || String(row[0] || "").startsWith("<!DOCTYPE")) {
-      return false;
-    }
-
-    return true;
-  });
+  const dataRows = rows.slice(headerRowIndex + 1);
 
   return dataRows.map(row => {
     const item: any = { "COLUNA_E": row[4] || "" };
@@ -736,29 +515,7 @@ export async function fetchNotificacoes(): Promise<any[]> {
   if (headerIndex === -1) headerIndex = 2; // Fallback para o anterior
   
   const headers = rawRows[headerIndex];
-  
-  // Make data rows robust to sorting (can be before or after header row)
-  const dataRows = rawRows.filter((row, idx) => {
-    if (idx === headerIndex) return false;
-    if (!row || !Array.isArray(row)) return false;
-    
-    const isEmpty = row.every(cell => cell === null || cell === undefined || String(cell).trim() === "");
-    if (isEmpty) return false;
-
-    // Check if it's a clone of the header row itself sorted
-    const isHeaderClone = row.some(cell => {
-      const c = String(cell || "").toUpperCase().trim();
-      return c === "DIRETORIA" || c === "GRAVIDADE" || c === "TIPO NOTIFICAÇÃO" || c === "TIPO NOTIFICACAO" || c === "PLACA";
-    });
-    if (isHeaderClone) return false;
-
-    // Skip HTML/error tags
-    if (String(row[0] || "").startsWith("<HTML") || String(row[0] || "").startsWith("<!DOCTYPE")) {
-      return false;
-    }
-
-    return true;
-  });
+  const dataRows = rawRows.slice(headerIndex + 1);
   
   return dataRows.map(row => {
     const obj: any = { __raw: row };
@@ -785,12 +542,12 @@ export async function fetchNotificacoes(): Promise<any[]> {
     });
 
     // Final Absolute Fallbacks (Nexus Data typically follows this order)
-    if (!obj._diretoria) obj._diretoria = row[7] || "N/A";
-    if (!obj._gerencia) obj._gerencia = row[8] || "N/A";
+    if (!obj._diretoria) obj._diretoria = row[0] || "N/A";
+    if (!obj._gerencia) obj._gerencia = row[1] || "N/A";
     if (!obj._tipo) obj._tipo = row[2] || "N/A";
     if (!obj._data) obj._data = row[3] || "";
     if (!obj._placa) obj._placa = row[4] || "";
-    if (!obj._condutor) obj._condutor = row[6] || "N/A";
+    if (!obj._condutor) obj._condutor = row[7] || "N/A";
     if (!obj._gravidade) obj._gravidade = row[9] || "Média";
     if (!obj._situacao) obj._situacao = row[10] || "Pendente";
 
