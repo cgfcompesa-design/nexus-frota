@@ -1,3 +1,4 @@
+
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { Asset } from '../types';
@@ -11,6 +12,7 @@ const TITULOS_DESPESAS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS
 const MAINTENANCE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1765787451&single=true&output=csv';
 const PREVENTIVE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=57968629&single=true&output=csv';
 const PREVENTIVE_LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_A1EB7zQfuUlE4LCa_PbXGmtPHoXTyibIStoSW0T8Pe4jense43xIP4uRbgS77KFUKyM5FEX5w99N/pub?gid=698675285&single=true&output=csv';
+// URL direto da aba "Transações" — confirmado como funcional pelo usuário
 const FUEL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?gid=1282350705&single=true&output=csv';
 const HISTORICO_MANUTENCAO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT3pRYxrmBebjhyQCfcApeQwfwnL2XZdNPxFCvyXUEQ3LW7epLEz0emED0BKFpiivo371IJ6pz3l4m_/pub?gid=449761634&single=true&output=csv';
 const ORCAMENTOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1278375363&single=true&output=csv';
@@ -177,87 +179,15 @@ export async function fetchPreventiveLocadosData(): Promise<any[]> {
 
 export async function fetchFuelData(): Promise<any[]> {
   let rows: any[][] = [];
-  let isApiLoaded = false;
-  
-  // 1. Try to fetch from the server-side API proxy first (CORS-safe and fast)
+
+  // Busca direta ao CSV da aba "Transações" do Google Sheets — sem proxy, sem XLSX intermediário
+  console.log("Fetching fuel data from Google Sheets CSV (aba Transações)...");
   try {
-    console.log("Fetching fuel data from server-side proxy API...");
-    const res = await fetch("/api/fuel-data");
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.success && Array.isArray(json.data) && json.data.length > 0) {
-        rows = json.data;
-        isApiLoaded = true;
-        console.log(`Successfully fetched ${rows.length} rows of fuel data via server-side proxy (${json.sheetName || "default"}).`);
-      }
-    }
-  } catch (apiError) {
-    console.warn("Server-side proxy fetch failed, falling back to direct client-side download...", apiError);
-  }
-
-  // 2. Fallback to client-side direct XLSX fetch
-  if (!isApiLoaded) {
-    try {
-      const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';
-      console.log("Fetching fuel data from Google Sheets directly in XLSX format...");
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      
-      const buf = await res.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-      
-      // Find the first sheet that has rows and contains headers like PLACA, DATA, LITROS, etc.
-      let targetSheetName = "";
-      let bestMatchHeadersCount = -1;
-      let selectedRows: any[][] = [];
-
-      for (const name of wb.SheetNames) {
-        const sheet = wb.Sheets[name];
-        const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-        if (sheetRows.length === 0) continue;
-
-        // Look for a header row containing keywords
-        const headerRowIndex = sheetRows.findIndex(row => 
-          row.some(cell => {
-            const c = String(cell || "").toUpperCase();
-            return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR") || c.includes("LITROS") || c.includes("TRANSACAO");
-          })
-        );
-
-        if (headerRowIndex !== -1) {
-          const headerRow = sheetRows[headerRowIndex];
-          const keywords = ["PLACA", "DATA", "LITROS", "VALOR", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM"];
-          const matchCount = headerRow.filter(cell => {
-            const c = String(cell || "").toUpperCase();
-            return keywords.some(k => c.includes(k));
-          }).length;
-
-          if (matchCount > bestMatchHeadersCount) {
-            bestMatchHeadersCount = matchCount;
-            targetSheetName = name;
-            selectedRows = sheetRows;
-          }
-        }
-      }
-
-      if (!targetSheetName && wb.SheetNames.length > 0) {
-        targetSheetName = wb.SheetNames[0];
-        const sheet = wb.Sheets[targetSheetName];
-        selectedRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-      }
-
-      rows = selectedRows;
-      isApiLoaded = true;
-      console.log(`Loaded ${rows.length} rows directly from Excel sheet: "${targetSheetName}"`);
-    } catch (error) {
-      console.warn("Failed to load xlsx fuel data, falling back to CSV...", error);
-      try {
-        rows = await fetchCsv(FUEL_URL);
-      } catch (csvError) {
-        console.error("Failed to load CSV fuel data as well:", csvError);
-        return [];
-      }
-    }
+    rows = await fetchCsv(FUEL_URL);
+    console.log(`Loaded ${rows.length} rows from fuel CSV (Transações).`);
+  } catch (csvError) {
+    console.error("Failed to load fuel CSV data:", csvError);
+    return [];
   }
 
   if (rows.length <= 1) return [];
