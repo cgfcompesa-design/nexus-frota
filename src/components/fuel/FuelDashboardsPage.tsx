@@ -953,7 +953,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       if (!asset) return; // Correlacionados com o cadastro geral de ativos
 
       const controleAuto = String(asset?.["CONTROLE DE AUTONOMIA"] || asset?.["CONTROLE AUTONOMIA"] || asset?.["TIPO CONTROLE AUTONOMIA"] || (f as any).COL_43 || "").toUpperCase().trim();
-      if (controleAuto !== "FROTA") return; // Filtrados pela coluna de tipo de controle de autonomia correspondente a "FROTA"
+      if (controleAuto !== "FROTA" && controleAuto !== "") return; // Filtrados pela coluna de tipo de controle de autonomia correspondente a "FROTA"
 
       const unit = asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.Gerencia || "N/A";
       if (!unit) return;
@@ -1671,7 +1671,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
 
         // Tipo de controle de autonomia (para corresponder a "FROTA")
         const controleAuto = String(asset["CONTROLE DE AUTONOMIA"] || asset["CONTROLE AUTONOMIA"] || asset["TIPO CONTROLE AUTONOMIA"] || "").toUpperCase().trim();
-        if (controleAuto !== "FROTA") return false;
+        if (controleAuto !== "FROTA" && controleAuto !== "") return false;
         
         // Frotal Operacional Filter: Strict OPERACIONAL as requested
         const statusOp = String(asset.STATUS_OPERACIONAL || "").toUpperCase().trim();
@@ -1805,8 +1805,6 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
       <span className="text-[8px] font-bold uppercase tracking-tighter opacity-50">Sem dados para os filtros selecionados</span>
     </div>
   );
-
-  // No page-blocking loading screen to keep tabs accessible immediately
 
   if (hasError) {
     return (

@@ -338,6 +338,8 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
   const [selectedMonthsYears, setSelectedMonthsYears] = useState<string[]>([]);
   const [selectedRegioes, setSelectedRegioes] = useState<string[]>([]);
   const [selectedCidades, setSelectedCidades] = useState<string[]>([]);
+  const [selectedPropriedades, setSelectedPropriedades] = useState<string[]>([]);
+  const [selectedTitularidades, setSelectedTitularidades] = useState<string[]>([]);
   const [selectedAlerta, setSelectedAlerta] = useState<string[]>([]);
   const [selectedAlertaAutonomia, setSelectedAlertaAutonomia] = useState<string[]>([]);
   const [selectedAlertaKmHora, setSelectedAlertaKmHora] = useState<string[]>([]);
@@ -581,6 +583,13 @@ Coordenação de Gestão de Frotas - CGF`;
   // PERFORMANCE OPTIMIZATION: PRE-PROCESS FUEL DATA
   // -------------------------------------------------------------------------
   const preProcessedFuel = useMemo(() => {
+    const parseNumLocal = (val: any) => {
+      if (typeof val === 'number') return val;
+      if (!val) return 0;
+      const s = String(val).replace(',', '.').trim();
+      return parseFloat(s) || 0;
+    };
+
     return fuel.map(f => {
       const raw = (f as any).__raw || [];
       const txId = String(f._txId || raw[0] || f["Nº TRANSACAO"] || "N/A").replace(/\./g, '').split(',')[0].trim();
@@ -589,8 +598,14 @@ Coordenação de Gestão de Frotas - CGF`;
       const monthYearData = formattedDate ? getMonthYearFromFormattedDate(formattedDate) : null;
       
       const _monthYearBase = normalizeMonthYear(String(f._monthYear || raw[41] || monthYearData?.mesAno || "N/A"));
-      const _placa = f._placa || "";
       
+      const rawPlaca = f._placa || f.PLACA || f.Placa || (f as any).COL_2 || "";
+      const _placa = String(rawPlaca).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+
+      const litersVal = f._litros !== undefined ? parseNumLocal(f._litros) : parseNumLocal(f.LITROS || f.VOLUME || (f as any).COL_14);
+      const vlLitroVal = f._vlLitro !== undefined ? parseNumLocal(f._vlLitro) : parseNumLocal(f.VALOR_UNITARIO || f.PRECO_UNITARIO || (f as any).COL_15);
+      const totalVal = f._total !== undefined ? parseNumLocal(f._total) : parseNumLocal(f.VALOR_TOTAL || f.VALOR_EMISSAO || (f as any).COL_19);
+
       return {
         ...f,
         _placa,
@@ -599,10 +614,10 @@ Coordenação de Gestão de Frotas - CGF`;
         _timestamp: formattedDate ? new Date(formattedDate).getTime() : 0,
         _monthYearBase,
         _monthYear: monthYearData?.mesAno || null,
-        _fuelType: standardizeFuelType(String(f._fuelType || "N/A")),
-        _litros: f._litros || 0,
-        _vlLitro: f._vlLitro || 0,
-        _valR: f._total || (f._vlLitro * f._litros) || 0,
+        _fuelType: standardizeFuelType(String(f._fuelType || f["TIPO COMBUSTIVEL"] || f["TIPO COMBUSTÍVEL"] || raw[13] || "N/A")),
+        _litros: litersVal,
+        _vlLitro: vlLitroVal,
+        _valR: totalVal || (vlLitroVal * litersVal) || 0,
         _itemDesc: String(f["SERVICO"] || f["SERVI\u00C7O"] || f["ITEM"] || raw[12] || "Abastecimento").trim(),
         _endereco: String(f._endereco || f["ENDERECO"] || f["ENDERE\u00C7O"] || raw[23] || raw[18] || "N/A").trim().toUpperCase(),
         _bairro: String(f._bairro || f["BAIRRO"] || raw[24] || raw[19] || "N/A").trim().toUpperCase(),
@@ -625,10 +640,10 @@ Coordenação de Gestão de Frotas - CGF`;
         selectedVehicleModels.includes(f["MODELO VEICULO"] || f["MODELO"] || (f as any).MODELO_VEICULO || (f as any).MODELO || (f as any).__raw?.[10] || "");
 
       const matchesPlaca =
-        !debouncedSearchPlaca || f._placa.toLowerCase().includes(debouncedSearchPlaca.toLowerCase());
+        !debouncedSearchPlaca || f._placa.toLowerCase().includes(debouncedSearchPlaca.replace(/[^A-Z0-9]/gi, "").toLowerCase());
 
-      // Correlacionar com Asset pela Placa
-      const asset = f._placa ? assetsByPlaca.get(f._placa.replace(/[^A-Z0-9]/gi, "")) : null;
+      // Correlacionar com Asset pela Placa pre-normalizada para máximo desempenho
+      const asset = f._placa ? assetsByPlaca.get(f._placa) : null;
       
       const matchesDiretoria =
         selectedDirectorias.length === 0 || 
@@ -645,6 +660,16 @@ Coordenação de Gestão de Frotas - CGF`;
         (asset && selectedTipos.includes(asset.TIPO || asset["TIPO"] || "")) ||
         (!asset && selectedTipos.includes("N/A"));
 
+      const matchesPropriedade =
+        selectedPropriedades.length === 0 ||
+        (asset && selectedPropriedades.includes(asset.PROPRIEDADE || asset["PROPRIEDADE"] || "")) ||
+        (!asset && selectedPropriedades.includes("N/A"));
+
+      const matchesTitularidade =
+        selectedTitularidades.length === 0 ||
+        (asset && selectedTitularidades.includes(String(asset.TITULARIDADE || asset["TITULARIDADE"] || "").trim().toUpperCase())) ||
+        (!asset && selectedTitularidades.includes("N/A"));
+
       const fromTs = dateFrom ? new Date(dateFrom.getFullYear(), dateFrom.getMonth(), dateFrom.getDate(), 0, 0, 0, 0).getTime() : null;
       const toTs = dateTo ? new Date(dateTo.getFullYear(), dateTo.getMonth(), dateTo.getDate(), 23, 59, 59, 999).getTime() : null;
 
@@ -658,7 +683,7 @@ Coordenação de Gestão de Frotas - CGF`;
         }
       }
 
-      // Filtro por M\u00EAs/Ano (Baseado na coluna AP)
+      // Filtro por Mês/Ano (Baseado na coluna AP)
       const matchesMonthYear = 
         selectedMonthsYears.length === 0 || 
         selectedMonthsYears.includes(f._monthYearBase);
@@ -675,9 +700,9 @@ Coordenação de Gestão de Frotas - CGF`;
         selectedTipoControleAutonomia.length === 0 ||
         selectedTipoControleAutonomia.includes(f["TIPO CONTROLE AUTONOMIA"] || (f as any).TIPO_CONTROLE_AUTONOMIA || (f as any).__raw?.[27] || "");
 
-      return matchesFuelType && matchesModel && matchesPlaca && matchesDiretoria && matchesGerencia && matchesTipo && matchesDate && matchesMonthYear && matchesTipoControleAutonomia && matchesRegiao && matchesCidade;
+      return matchesFuelType && matchesModel && matchesPlaca && matchesDiretoria && matchesGerencia && matchesTipo && matchesPropriedade && matchesTitularidade && matchesDate && matchesMonthYear && matchesTipoControleAutonomia && matchesRegiao && matchesCidade;
     }).sort((a, b) => (b._timestamp || 0) - (a._timestamp || 0)); // Ordem decrescente de data por padrão
-  }, [preProcessedFuel, assetsByPlaca, debouncedSearchPlaca, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedGerencias, selectedTipos, dateFrom, dateTo, selectedMonthsYears, selectedTipoControleAutonomia, selectedRegioes, selectedCidades]);
+  }, [preProcessedFuel, assetsByPlaca, debouncedSearchPlaca, selectedFuelTypes, selectedVehicleModels, selectedDirectorias, selectedGerencias, selectedTipos, selectedPropriedades, selectedTitularidades, dateFrom, dateTo, selectedMonthsYears, selectedTipoControleAutonomia, selectedRegioes, selectedCidades]);
 
   // Metrics
   const totalLitros = useMemo(() => filteredFuel.reduce((sum, f) => sum + (Number(f._litros) || 0), 0), [filteredFuel]);
@@ -720,6 +745,12 @@ Coordenação de Gestão de Frotas - CGF`;
   const regiaoOptions = ["RMR", "Agreste", "Mata Norte", "Mata Sul", "Sertão", "Outras Regiões"];
   const cidadeOptions = useMemo(() => Array.from(new Set(preProcessedFuel.map(f => f._cidade).filter(c => c && c !== "N/A"))).sort(), [preProcessedFuel]);
 
+  const propriedadeOptions = useMemo(() => Array.from(new Set(assets.map(a => a.PROPRIEDADE || a.Propriedade || a["PROPRIEDADE"] || (a.__raw && a.__raw[10])).filter(Boolean))).sort() as string[], [assets]);
+  const titularidadeOptions = useMemo(() => {
+    const dynamic = assets.map(a => a.TITULARIDADE || a["TITULARIDADE"] || (a.__raw && a.__raw[27])).filter(Boolean).map(t => String(t).toUpperCase().trim());
+    return Array.from(new Set(["TITULAR", "RESERVA", "N/A", ...dynamic])).filter(Boolean).sort() as string[];
+  }, [assets]);
+
   const handleClearFilters = () => {
     setSelectedFuelTypes([]);
     setSelectedVehicleModels([]);
@@ -732,6 +763,8 @@ Coordenação de Gestão de Frotas - CGF`;
     setSelectedMonthsYears([]);
     setSelectedRegioes([]);
     setSelectedCidades([]);
+    setSelectedPropriedades([]);
+    setSelectedTitularidades([]);
     setSelectedAlerta([]);
     setSelectedAlertaAutonomia([]);
     setSelectedAlertaKmHora([]);
@@ -1088,8 +1121,7 @@ Coordenação de Gestão de Frotas - CGF`;
       const fuelType = f._fuelType;
       if (fuelType === "ARLA 32") continue;
 
-      const placaRaw = f._placa || f.PLACA || f.Placa || "";
-      const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+      const placa = f._placa;
       
       // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
       if (placa.startsWith("MAQ")) continue;
@@ -1106,7 +1138,7 @@ Coordenação de Gestão de Frotas - CGF`;
                               "";
       
       const tc = String(tipoControleVal).trim().toUpperCase();
-      if (tc !== "FROTA") continue;
+      if (tc !== "FROTA" && tc !== "") continue;
 
       const valR = f._valR;
       
@@ -1204,8 +1236,7 @@ Coordenação de Gestão de Frotas - CGF`;
       const fuelType = f._fuelType;
       if (fuelType === "ARLA 32") continue;
       
-      const placaRaw = f._placa || f.PLACA || f.Placa || "";
-      const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+      const placa = f._placa;
       
       // Momentaneamente excluir placas que começam com MAQ conforme solicitação do usuário
       if (placa.startsWith("MAQ")) continue;
@@ -1333,9 +1364,8 @@ Coordenação de Gestão de Frotas - CGF`;
 
     const condutoresRanking = Object.entries(
       filteredFuel.reduce((acc: Record<string, number>, f: any) => {
-        const condutor = f["NOME MOTORISTA"] || ((f as any).__raw && (f as any).__raw[11]) || "NÃO IDENTIFICADO";
-        const placaRaw = f._placa || f.PLACA || f.Placa || "";
-        const placa = String(placaRaw).replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        const condutor = f._driver || f["NOME MOTORISTA"] || ((f as any).__raw && (f as any).__raw[11]) || "NÃO IDENTIFICADO";
+        const placa = f._placa;
         
         if (placa.startsWith("MAQ")) return acc;
         
@@ -1401,11 +1431,11 @@ Coordenação de Gestão de Frotas - CGF`;
 
   // Ranking by Unit
   const alertsByUnit = useMemo(() => {
-    const map = new Map<string, any>();
-    fuelAnalysis.desvios.forEach(d => {
+    const map = new Map<string, { unit: string; total: number; desvios: any[] }>();
+    fuelAnalysis.desvios.forEach((d) => {
       if (!assetsByPlaca.has(d.placa)) return; // APENAS veículos frota!
       const asset = assetsByPlaca.get(d.placa);
-      const unit = asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A";
+      const unit = asset?.GERENCIA || asset?.["GERÊNCIA"] || asset?.Gerencia || "N/A";
       if (!map.has(unit)) {
         map.set(unit, { unit, total: 0, desvios: [] });
       }
@@ -1419,72 +1449,24 @@ Coordenação de Gestão de Frotas - CGF`;
 
   // Sync internal state if needed, but Tabs handles its own.
 
-  return (
-    <div className="space-y-6">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <div className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-md pb-2 -mx-4 px-4 md:-mx-8 md:px-8">
-          <TabsList className="flex w-full justify-start gap-2 bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none h-11 p-0 mb-2 overflow-x-auto custom-scrollbar shadow-none">
-            <TabsTrigger 
-              value="analise" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Monitoramento
-            </TabsTrigger>
-            <TabsTrigger 
-              value="prices" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Análise de Preços
-            </TabsTrigger>
-            <TabsTrigger 
-              value="justificativas" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Justificativas
-            </TabsTrigger>
-            <TabsTrigger 
-              value="abast-perf" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Performance de Abastecimento
-            </TabsTrigger>
-            <TabsTrigger 
-              value="config" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Configurações
-            </TabsTrigger>
-            <TabsTrigger 
-              value="abast-telemetria" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Abastecimento x Telemetria
-            </TabsTrigger>
-            {(userRole === 'Master' || userRole === 'Gestão') && (
-              <TabsTrigger 
-                value="maq-report" 
-                className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-              >
-                Relatório Máquinas
-              </TabsTrigger>
-            )}
-          </TabsList>
-        </div>
+  const renderMonitoramentoContent = () => (
+    <div id="monitoramento-desvios" className="space-y-6">
+      <div className="flex items-center gap-2 border-b pb-2">
+        <AlertTriangle className="h-5 w-5 text-rose-500" />
+        <h2 className="text-lg font-bold uppercase tracking-tight">Monitoramento e Análise de Desvios</h2>
+      </div>
 
-        <TabsContent value="analise" className="space-y-6 mt-0">
-            <div id="monitoramento-desvios" className="space-y-6">
-              <div className="flex items-center gap-2 border-b pb-2">
-                <AlertTriangle className="h-5 w-5 text-rose-500" />
-                <h2 className="text-lg font-bold uppercase tracking-tight">Monitoramento e Análise de Desvios</h2>
-              </div>
-
-            <FuelFilterBar
-            fuel={fuel} assets={assets} autonomia={autonomia}
+      <FuelFilterBar
+        fuel={fuel} assets={assets} autonomia={autonomia}
         selectedFuelTypes={selectedFuelTypes} selectedVehicleModels={selectedVehicleModels} searchPlaca={searchPlaca}
         selectedDirectorias={selectedDirectorias} selectedGerencias={selectedGerencias} selectedTipos={selectedTipos}
         selectedMonthsYears={selectedMonthsYears}
         selectedRegioes={selectedRegioes}
         selectedCidades={selectedCidades}
+        selectedPropriedades={selectedPropriedades}
+        onPropriedadesChange={setSelectedPropriedades}
+        selectedTitularidades={selectedTitularidades}
+        onTitularidadesChange={setSelectedTitularidades}
         dateFrom={dateFrom} dateTo={dateTo}
         onFuelTypesChange={setSelectedFuelTypes} onVehicleModelsChange={setSelectedVehicleModels} onSearchPlacaChange={setSearchPlaca}
         onDirectoriasChange={setSelectedDirectorias} onGerenciasChange={setSelectedGerencias} onTiposChange={setSelectedTipos}
@@ -1511,6 +1493,8 @@ Coordenação de Gestão de Frotas - CGF`;
         autoControleOptions={autoControleOptions}
         regiaoOptions={regiaoOptions}
         cidadeOptions={cidadeOptions}
+        propriedadeOptions={propriedadeOptions}
+        titularidadeOptions={titularidadeOptions}
       />
 
       {!desviosOnly && (
@@ -1520,7 +1504,7 @@ Coordenação de Gestão de Frotas - CGF`;
             <Button variant="outline" className="gap-2" onClick={handleExport}><Download className="h-4 w-4" /> Exportar para Excel</Button>
           </div>
 
-      <div className="grid gap-3 md:grid-cols-4">
+          <div className="grid gap-3 md:grid-cols-4">
             <MetricCard title="Total de Combustível" value={`${totalLitros.toFixed(0)}L`} icon={<Fuel className="h-4 w-4" />} description={`${totalAbastecimentos} abastecimentos`} />
             <MetricCard title="Custo Total" value={`R$ ${totalValor.toFixed(2)}`} icon={<DollarSign className="h-4 w-4" />} />
             <MetricCard title="Preço Médio/Litro" value={`R$ ${avgPrecoLitro.toFixed(2)}`} icon={<Droplets className="h-4 w-4" />} />
@@ -1540,8 +1524,6 @@ Coordenação de Gestão de Frotas - CGF`;
               <Tooltip cursor={{ fill: 'transparent' }} />
               <Bar dataKey="value" radius={[0, 4, 4, 0]}>
                 {chartDesviosData.map((entry, index) => {
-                  const blues = ['#003f5c', '#2f4b7c', '#665191', '#a05195', '#d45087', '#f95d6a', '#ff7c43'];
-                  // Better blue scale as requested:
                   const blueScale = ['#082f49', '#0c4a6e', '#075985', '#0369a1', '#0284c7', '#0ea5e9', '#38bdf8'];
                   return <Cell key={`cell-${index}`} fill={blueScale[index % blueScale.length]} />;
                 })}
@@ -1865,7 +1847,73 @@ Coordenação de Gestão de Frotas - CGF`;
           </div>
         </CardContent>
       </Card>
-            </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className="sticky top-0 z-20 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-md pb-2 -mx-4 px-4 md:-mx-8 md:px-8">
+          <TabsList className="flex w-full justify-start gap-2 bg-transparent border-b border-slate-200 dark:border-slate-800 rounded-none h-11 p-0 mb-2 overflow-x-auto custom-scrollbar shadow-none">
+            <TabsTrigger 
+              value="analise" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Monitoramento
+            </TabsTrigger>
+            <TabsTrigger 
+              value="analise-desvios" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Monitoramento e Análise de Desvios
+            </TabsTrigger>
+            <TabsTrigger 
+              value="prices" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Análise de Preços
+            </TabsTrigger>
+            <TabsTrigger 
+              value="justificativas" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Justificativas
+            </TabsTrigger>
+            <TabsTrigger 
+              value="abast-perf" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Performance de Abastecimento
+            </TabsTrigger>
+            <TabsTrigger 
+              value="config" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Configurações
+            </TabsTrigger>
+            <TabsTrigger 
+              value="abast-telemetria" 
+              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+            >
+              Abastecimento x Telemetria
+            </TabsTrigger>
+            {(userRole === 'Master' || userRole === 'Gestão') && (
+              <TabsTrigger 
+                value="maq-report" 
+                className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
+              >
+                Relatório Máquinas
+              </TabsTrigger>
+            )}
+          </TabsList>
+        </div>
+
+        <TabsContent value="analise" className="space-y-6 mt-0">
+          {renderMonitoramentoContent()}
+        </TabsContent>
+
+        <TabsContent value="analise-desvios" className="space-y-6 mt-0">
+          {renderMonitoramentoContent()}
         </TabsContent>
 
         <TabsContent value="abast-perf" className="space-y-6 mt-0">

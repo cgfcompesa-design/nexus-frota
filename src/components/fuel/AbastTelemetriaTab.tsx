@@ -107,146 +107,8 @@ function limparMotorista(txt: string): string {
   return cleaned;
 }
 
-const LOCAL_BAIRROS_DICT: Record<string, string[]> = {
-  "RECIFE": [
-    "Bairro do Recife", "Boa Vista", "Cabanga", "Coelhos", "Ilha do Leite", "Ilha Joana Bezerra", "Paissandu", "Santo Amaro", "Santo Antônio", "São José", "Soledade", "Água Fria", "Alto Santa Terezinha", "Arruda", "Beberibe", "Bomba do Hemetério", "Cajueiro", "Campina do Barreto", "Campo Grande", "Dois Unidos", "Encruzilhada", "Fundão", "Hipódromo", "Linha do Tiro", "Peixinhos", "Ponto de Parada", "Porto da Madeira", "Rosarinho", "Torreão", "Aflitos", "Alto do Mandu", "Alto José Bonifácio", "Alto José do Pinho", "Apipucos", "Brejo da Guabiraba", "Brejo de Beberibe", "Casa Amarela", "Casa Forte", "Córrego do Jenipapo", "Derby", "Dois Irmãos", "Espinheiro", "Graças", "Guabiraba", "Jaqueira", "Macaxeira", "Mangabeira", "Monteiro", "Morro da Conceição", "Nova Descoberta", "Parnamirim", "Passarinho", "Pau-Ferro", "Poço da Panela", "Santana", "Sítio dos Pintos", "Tamarineira", "Vasco da Gama", "Caxangá", "Cidade Universitária", "Cordeiro", "Engenho do Meio", "Ilha do Retiro", "Iputinga", "Madalena", "Prado", "Torre", "Torrões", "Várzea", "Zumbi", "Afogados", "Areias", "Barro", "Bongi", "Caçote", "Coqueiral", "Curado", "Estância", "Jardim São Paulo", "Jiquiá", "Mangueira", "Mustardinha", "San Martin", "Sancho", "Tejipió", "Totó", "Boa Viagem", "Brasília Teimosa", "Cohab", "Ibura", "Imbiribeira", "Ipsep", "Jordão", "Pina"
-  ],
-  "OLINDA": [
-    "Águas Compridas", "Aguazinha", "Alto da Bondade", "Alto da Conquista", "Alto Jardim Conquista", "Alto da Nação", "Alto Nova Olinda", "Alto do Sol Nascente", "Amaro Branco", "Amparo", "Bairro Novo", "Bonsucesso", "Bultrins", "Casa Caiada", "Caixa D'água", "Carmo", "Corrego do Abacaxi", "Fragoso", "Guadalupe", "Jardim Atlântico", "Jardim Fragoso", "Jardim Brasil", "Jatobá", "Milagres", "Monte", "Ouro Preto", "Passarinho", "Peixinhos", "Rio Doce", "Santa Tereza", "Salgadinho", "São Benedito", "Sapucaia", "Sítio Novo", "Tabajara", "Umuarama", "Varadouro", "Vila Popular", "Zona Rural"
-  ],
-  "JABOATÃO DOS GUARARAPES": [
-    "Muribequinha", "Piedade", "Prazeres", "Santana", "Santo Aleixo", "Socorro", "Sucupira", "Vargem Fria", "Engenho Velho", "Floriano", "Guararapes", "Jardim Jordão", "Manassu", "Marcos Freire", "Muribeca", "Muribeca dos Guararapes", "Dois Carneiros", "Barra de Jangada", "Bulhões", "Cajueiro Seco", "Candeias", "Cavaleiro", "Centro", "Comportas", "Curado"
-  ],
-  "GRAVATÁ": [
-    "Alpes Suiços", "Área Rural de Gravatá", "Bairro Novo", "Boa Vista", "Campos do Jordão", "COHAB-ll", "Cruzeiro", "Ebenezer", "Gravatá Centro", "Nossa Senhora Aparecida"
-  ]
-};
-
-const CIDADES_PE = [
-  "RECIFE", "OLINDA", "JABOATÃO DOS GUARARAPES", "JABOATAO DOS GUARARAPES", "JABOATÃO", "JABOATAO", "GRAVATÁ", "GRAVATA",
-  "BEZERROS", "CARUARU", "CUPIRA", "VITÓRIA DE SANTO ANTÃO", "VITORIA DE SANTO ANTAO", "VITÓRIA", "VITORIA",
-  "CABO DE SANTO AGOSTINHO", "IPOJUCA", "MORENO", "PETROLINA", "ARCOVERDE", "CARPINA", "LIMOEIRO", "SURUBIM",
-  "BELO JARDIM", "SANTA CRUZ DO CAPIBARIBE", "TORITAMA", "AGRESTINA", "LAJEDO", "GARANHUNS", "SERRA TALHADA", "SALGUEIRO"
-];
-
-function parseEnderecoCompleto(input: string, database?: Record<string, string[]>): { bairro: string, municipio: string } {
-  if (!input) return { bairro: "", municipio: "" };
-  
-  let cleanStr = input.toUpperCase().trim();
-  
-  // Remove trailing suffix ", Brazil" or ", Brasil"
-  cleanStr = cleanStr.replace(/,\s*BRAZIL\s*$/i, "");
-  cleanStr = cleanStr.replace(/,\s*BRASIL\s*$/i, "");
-  
-  // Remove postal code (CEP) pattern
-  cleanStr = cleanStr.replace(/,?\s*\d{5}-\d{3}\s*/g, "");
-  cleanStr = cleanStr.replace(/,?\s*\d{8}\s*/g, "");
-  
-  let textBeforeState = cleanStr;
-  
-  const stateRegexes = [
-    /\s*[-–—,]\s*(PE|PERNAMBUCO)\b/i,
-    /\s+(PE|PERNAMBUCO)\b/i
-  ];
-  
-  for (const regex of stateRegexes) {
-    const match = textBeforeState.match(regex);
-    if (match && match.index !== undefined) {
-      textBeforeState = textBeforeState.substring(0, match.index).trim();
-      break;
-    }
-  }
-  
-  if (textBeforeState.endsWith("PERNAMBUCO")) {
-    textBeforeState = textBeforeState.slice(0, -10).replace(/[-–—,\s]+$/, "").trim();
-  } else if (textBeforeState.endsWith("PE")) {
-    textBeforeState = textBeforeState.slice(0, -2).replace(/[-–—,\s]+$/, "").trim();
-  }
-  
-  let municipio = "";
-  let bairro = "";
-  
-  const parts = textBeforeState.split(/[,–—\-]/).map(p => p.trim()).filter(Boolean);
-  
-  if (parts.length > 0) {
-    const lastPart = parts[parts.length - 1];
-    let matchedCity = "";
-    for (const city of CIDADES_PE) {
-      if (lastPart === city || lastPart.endsWith(" " + city)) {
-        matchedCity = city;
-        break;
-      }
-    }
-    
-    if (matchedCity) {
-      municipio = matchedCity;
-      if (parts.length > 1) {
-        let candidateBairro = "";
-        for (let idx = parts.length - 2; idx >= 0; idx--) {
-          const seg = parts[idx];
-          if (/^\d+$/.test(seg)) continue;
-          if (seg.match(/^(RUA|AV|AVENIDA|RODOVIA|ROD|ESTRADA|EST|PRACA|PRAÇA)\s/i) && idx === 0 && parts.length > 2) {
-            continue;
-          }
-          candidateBairro = seg;
-          break;
-        }
-        bairro = candidateBairro || "";
-      }
-    } else {
-      const lastSegText = parts[parts.length - 1];
-      for (const city of CIDADES_PE) {
-        if (lastSegText.endsWith(" " + city) || lastSegText === city) {
-          municipio = city;
-          const prefix = lastSegText.slice(0, lastSegText.length - city.length).trim();
-          if (prefix && !prefix.match(/^(RODOVIA|ROD|ESTRADA|EST|AV|AVENIDA|RUA)\s*LUIZ\s*GONZAGA$/i)) {
-            bairro = prefix;
-          }
-          break;
-        }
-      }
-      
-      if (!municipio) {
-        municipio = lastPart;
-        if (parts.length > 1) {
-          bairro = parts[parts.length - 2];
-        }
-      }
-    }
-  }
-  
-  if (bairro) {
-    bairro = bairro.replace(/^\d+\s*[-–—]?\s*/, "");
-    bairro = bairro.replace(/\b(RUA|AV|AVENIDA|RODOVIA|ROD|ESTRADA|EST|PRACA|PRAÇA)\b.*$/i, "").trim();
-    if (/^\d+$/.test(bairro)) {
-      bairro = "";
-    }
-  }
-
-  if (database) {
-    const upperInput = input.toUpperCase();
-    for (const city in database) {
-      const bairrosList = database[city];
-      for (const bOfList of bairrosList) {
-        const normalizedBOfList = bOfList.toUpperCase();
-        const regex = new RegExp(`\\b${normalizedBOfList.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&')}\\b`, 'i');
-        if (regex.test(upperInput)) {
-          bairro = normalizedBOfList;
-          municipio = city;
-          return { bairro, municipio };
-        }
-      }
-    }
-  }
-
-  return { 
-    bairro: bairro.trim(), 
-    municipio: municipio.trim() 
-  };
-}
-
-// 4. Address Compatibility (Enhanced with Bairro & Município parser and Spreadsheet dictionary)
-function enderecoCompativel(end1: string, end2: string, databaseBairros?: Record<string, string[]>): boolean {
+// 4. Address Compatibility (VBA rule)
+function enderecoCompativel(end1: string, end2: string): boolean {
   if (!end1 || !end2) return true; // Se um campo for vazio, a macro considera compatível
   
   let e1 = end1.toUpperCase();
@@ -265,32 +127,6 @@ function enderecoCompativel(end1: string, end2: string, databaseBairros?: Record
   
   e1 = e1.replace(/\s+/g, " ");
   e2 = e2.replace(/\s+/g, " ");
-
-  const p1 = parseEnderecoCompleto(end1, databaseBairros);
-  const p2 = parseEnderecoCompleto(end2, databaseBairros);
-
-  if (p1.municipio && p2.municipio) {
-    const m1Norm = p1.municipio.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-    const m2Norm = p2.municipio.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-    
-    // Normalize JABOATAO DOS GUARARAPES and JABOATAO equivalents
-    const cleanMun = (m: string) => m.replace("DOS GUARARAPES", "").trim();
-    
-    if (cleanMun(m1Norm) !== cleanMun(m2Norm)) {
-      return false; // Mismatch in city/município
-    }
-
-    if (p1.bairro && p2.bairro) {
-      const b1Norm = p1.bairro.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-      const b2Norm = p2.bairro.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-      
-      if (!b1Norm.includes(b2Norm) && !b2Norm.includes(b1Norm)) {
-        return false; // Mismatch in neighborhood under the same city
-      }
-    }
-    
-    return true; // Match!
-  }
   
   return e1.includes(e2) || e2.includes(e1);
 }
@@ -506,42 +342,6 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
   const { getEmailsByGerencia } = useContactsData();
 
   const [selectedPlaca, setSelectedPlaca] = useState<string>("all");
-  const [bairrosDict, setBairrosDict] = useState<Record<string, string[]>>(LOCAL_BAIRROS_DICT);
-
-  useEffect(() => {
-    const fetchBairros = async () => {
-      try {
-        const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR37Bg74eJKidI1-hxrKhgPydOW_u4moIy759I3wuRhWwMybpX7KvdEBg0pWsea9unmMLY4lvnP5vTN/pub?output=csv";
-        const res = await fetch(url);
-        const text = await res.text();
-        const lines = text.split("\n");
-        if (lines.length > 0) {
-          const headers = lines[0].split(",").map(h => h.trim().toUpperCase()).filter(Boolean);
-          const dict: Record<string, string[]> = {};
-          headers.forEach(h => { dict[h] = []; });
-          
-          for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            const row = lines[i].split(",");
-            for (let j = 0; j < headers.length; j++) {
-              const val = row[j] ? row[j].trim() : "";
-              if (val) {
-                const cleanedVal = val.replace(/^["']|["']$/g, "").trim();
-                if (cleanedVal) {
-                  dict[headers[j]].push(cleanedVal);
-                }
-              }
-            }
-          }
-          setBairrosDict(dict);
-          console.log("Dicionário de bairros atualizado com sucesso a partir da planilha!");
-        }
-      } catch (err) {
-        console.warn("Erro ao buscar a planilha de bairros de Pernambuco. Usando dicionário embutido.", err);
-      }
-    };
-    fetchBairros();
-  }, []);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
@@ -1105,7 +905,7 @@ Coordenação de Gestão de Frotas - CGF`;
 
         // REGRA 3 - DIVERGÊNCIA DE ENDEREÇO
         const localComparacao = enderecoCompletoPosto || postoA;
-        if (!enderecoCompativel(enderecoT, localComparacao, bairrosDict)) {
+        if (!enderecoCompativel(enderecoT, localComparacao)) {
           deviations.push({
             placa: placaA,
             dataAbast: dataA.toLocaleString('pt-BR'),
