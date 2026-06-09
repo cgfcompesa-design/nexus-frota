@@ -32,8 +32,23 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export const LocadosDashboard = () => {
-  const { data: locados = [], isLoading, isError, refetch } = useLocadosData();
-  const { data: veiculosDisponiveisCount = 0, isLoading: isLoadingVeiculos, isError: isErrorVeiculos } = useVeiculosLocadosDisponiveis();
+  const { data: rawLocados = [], isLoading, isError, refetch } = useLocadosData();
+  const { data: veiculosDisponiveisData, isLoading: isLoadingVeiculos, isError: isErrorVeiculos } = useVeiculosLocadosDisponiveis();
+  const veiculosDisponiveisCount = veiculosDisponiveisData?.count ?? 0;
+  
+  const titularPlatesSet = useMemo(() => {
+    return new Set(veiculosDisponiveisData?.plates || []);
+  }, [veiculosDisponiveisData]);
+
+  // Filter locados by TITULAR (only plates present in titularPlatesSet)
+  const locados = useMemo(() => {
+    return rawLocados.filter(item => {
+      const rawPlaca = String(item.placa || "").trim();
+      const cleanPlaca = rawPlaca.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      return titularPlatesSet.has(cleanPlaca);
+    });
+  }, [rawLocados, titularPlatesSet]);
+
   const { disponibilidade: globalDisp, totalDiasParados: globalDiasParados } = useDisponibilidadeLocados();
   const { data: preventiveLocados = [], isLoading: isLoadingPreventive, isError: isErrorPreventive } = usePreventiveLocadosData();
   const { data: assets = [], isLoading: isLoadingAssets, isError: isErrorAssets } = useAssets();
@@ -118,8 +133,8 @@ export const LocadosDashboard = () => {
         'jul': 6, 'ago': 7, 'set': 8, 'out': 9, 'nov': 10, 'dez': 11
       };
       
-      const [mesA, anoA] = a.toLowerCase().split('/');
-      const [mesB, anoB] = b.toLowerCase().split('/');
+      const [mesA, anoA] = (a as string).toLowerCase().split('/');
+      const [mesB, anoB] = (b as string).toLowerCase().split('/');
       
       if (!mesA || !anoA || !mesB || !anoB) return 0;
       

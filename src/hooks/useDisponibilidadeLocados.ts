@@ -55,18 +55,24 @@ const parseCsvLine = (line: string): string[] => {
   return result;
 };
 
+export interface VeiculosLocadosDisponiveisResponse {
+  count: number;
+  plates: string[];
+}
+
 export const useVeiculosLocadosDisponiveis = () => {
-  return useQuery<number>({
+  return useQuery<VeiculosLocadosDisponiveisResponse>({
     queryKey: ["veiculos-locados-disponiveis"],
     queryFn: async () => {
       const csvText = await fetchCSVWithRetry(ASSETS_API);
       const lines = csvText.split("\n");
       
+      // Coluna G (índice 6) = Placa
       // Coluna K (índice 10) = Propriedade
       // Coluna AB (índice 27) = Titularidade
       // Coluna X (índice 23) = Status Operacional
       
-      let count = 0;
+      const plates: string[] = [];
       
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
@@ -74,6 +80,7 @@ export const useVeiculosLocadosDisponiveis = () => {
         
         const values = parseCsvLine(line);
         
+        const placaRaw = values[6] || "";
         const propriedade = values[10] || "";
         const titularidade = (values[27] || "").toUpperCase().trim();
         const statusOperacional = (values[23] || "").toUpperCase().trim();
@@ -85,11 +92,17 @@ export const useVeiculosLocadosDisponiveis = () => {
         const isTitular = titularidade === "TITULAR";
         
         if (isOperacional && isPropriedadeValida && isTitular) {
-          count++;
+          const cleanPlaca = placaRaw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+          if (cleanPlaca) {
+            plates.push(cleanPlaca);
+          }
         }
       }
       
-      return count;
+      return {
+        count: plates.length,
+        plates
+      };
     },
     refetchInterval: 5 * 60 * 1000,
     staleTime: 2 * 60 * 1000,
@@ -97,8 +110,13 @@ export const useVeiculosLocadosDisponiveis = () => {
 };
 
 export const useDisponibilidadeLocados = () => {
-  const { data: veiculosDisponiveis = 0, isLoading: isLoadingVeiculos } = useVeiculosLocadosDisponiveis();
+  const { data: veiculosDisponiveisData, isLoading: isLoadingVeiculos } = useVeiculosLocadosDisponiveis();
   const { data: locados = [], isLoading: isLoadingLocados } = useLocadosData();
+  
+  const veiculosDisponiveis = veiculosDisponiveisData?.count ?? 0;
+  const titularPlatesSet = useMemo(() => {
+    return new Set(veiculosDisponiveisData?.plates || []);
+  }, [veiculosDisponiveisData]);
   
   // Total de dias parados e meses únicos representados
   const { totalDiasParados, uniqueMonthsCount } = useMemo(() => {
@@ -110,11 +128,13 @@ export const useDisponibilidadeLocados = () => {
       const cleanPlaca = rawPlaca.toUpperCase().replace(/[^A-Z0-9]/g, "");
       const isPlacaValida = cleanPlaca.length === 7;
       
-      if (isPlacaValida) {
+      const isTitular = titularPlatesSet.has(cleanPlaca);
+      
+      if (isPlacaValida && isTitular) {
         sum += (item.diasParados || 0);
       }
       
-      if (item.mesAno) {
+      if (item.mesAno && isTitular) {
         uniqueMonths.add(String(item.mesAno).trim().toLowerCase());
       }
     });
@@ -123,7 +143,7 @@ export const useDisponibilidadeLocados = () => {
       totalDiasParados: sum,
       uniqueMonthsCount: Math.max(1, uniqueMonths.size)
     };
-  }, [locados]);
+  }, [locados, titularPlatesSet]);
   
   // Total potencial de dias de disponibilidade = Veículos * 30 dias * quantidade de meses observados
   // A indisponibilidade por placa reduz esse total acumulado
