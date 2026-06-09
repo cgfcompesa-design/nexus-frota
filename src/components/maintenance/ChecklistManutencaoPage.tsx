@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAssets } from "@/hooks/useFleetData";
-import { db, handleFirestoreError } from "../../lib/firebase";
-import { collection, getDocs, query, orderBy, deleteDoc, doc, setDoc, where } from "firebase/firestore";
+import { db } from "../../lib/firebase";
+import { collection, getDocs, query, orderBy, deleteDoc, doc } from "firebase/firestore";
 import { 
   ClipboardCheck, 
   Search, 
@@ -25,11 +25,7 @@ import {
   X,
   FileText,
   Clock,
-  Printer,
-  Upload,
-  PlusCircle,
-  FileSpreadsheet,
-  Trash
+  Printer
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -90,15 +86,8 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
   const [copied, setCopied] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
-  // Custom templates / Bulk import state
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
-  const [bulkTemplateName, setBulkTemplateName] = useState("");
-  const [bulkText, setBulkText] = useState("");
-  const [parsedPreview, setParsedPreview] = useState<ChecklistItem[]>([]);
-  const [customTemplatesList, setCustomTemplatesList] = useState<string[]>([]);
-
   // Derived shareable checkin link
-  const shareableUrl = `${window.location.origin}/?view=responder-checklist`;
+  const shareableUrl = `${window.location.origin}/responder-checklist`;
 
   // Fetch submissions from Firestore
   const fetchSubmissions = async () => {
@@ -119,52 +108,28 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
     }
   };
 
-  // Fetch templates from proxy Excel endpoint + Firestore custom templates
+  // Fetch templates from proxy Excel endpoint
   const fetchTemplates = async (forceRefresh = false) => {
     setLoadingTemplates(true);
-    let mergedTemplates: Record<string, ChecklistItem[]> = {};
-    
-    // 1. Fetch spreadsheet templates from proxy local Endpoint
     try {
       const url = forceRefresh ? "/api/checklist-templates?force=true" : "/api/checklist-templates";
       const res = await fetch(url);
-      if (!res.ok) {
-        console.warn("API de checklist da planilha retornou status:", res.status);
-      } else {
-        const data = await res.json();
-        if (data.success && data.templates) {
-          mergedTemplates = { ...data.templates };
+      if (!res.ok) throw new Error("Falha ao obter resposta do servidor");
+      const data = await res.json();
+      if (data.success && data.templates) {
+        setTemplates(data.templates);
+        // Default selected template tab to first available
+        const keys = Object.keys(data.templates);
+        if (keys.length > 0 && !selectedTemplateTab) {
+          setSelectedTemplateTab(keys[0]);
         }
       }
     } catch (e: any) {
-      console.error("Erro ao obter modelos de checklist da planilha:", e);
+      console.error("Erro ao obter modelos de checklist:", e);
+      toast.error("Erro ao carregar modelos de checklist.");
+    } finally {
+      setLoadingTemplates(false);
     }
-
-    // 2. Fetch custom templates from Firestore
-    const customKeys: string[] = [];
-    try {
-      const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
-      customSnap.forEach(docSnap => {
-        const docData = docSnap.data();
-        if (docData.templateName && Array.isArray(docData.items)) {
-          mergedTemplates[docData.templateName] = docData.items as ChecklistItem[];
-          customKeys.push(docData.templateName);
-        }
-      });
-    } catch (fbErr: any) {
-      console.error("Erro ao obter modelos customizados do Firestore:", fbErr);
-    }
-
-    setCustomTemplatesList(customKeys);
-    setTemplates(mergedTemplates);
-    
-    const keys = Object.keys(mergedTemplates);
-    if (keys.length > 0) {
-      if (!selectedTemplateTab || !keys.includes(selectedTemplateTab)) {
-        setSelectedTemplateTab(keys[0]);
-      }
-    }
-    setLoadingTemplates(false);
   };
 
   useEffect(() => {
@@ -192,114 +157,6 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
     setCopied(true);
     toast.success("Link compartilhado copiado para a área de transferência!");
     setTimeout(() => setCopied(false), 2000);
-  };
-
-  // Parse pasted clipboard tab-separated values from Excel
-  const parseBulkText = (text: string) => {
-    if (!text) {
-      setParsedPreview([]);
-      return;
-    }
-
-    const lines = text.split(/\r?\n/);
-    const parsed: ChecklistItem[] = [];
-    let orderCounter = 1;
-
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      
-      const cells = line.split("\t").map(c => c.trim());
-      
-      const firstCellUpper = cells[0]?.toUpperCase() || "";
-      if (firstCellUpper.includes("GRUPO") || firstCellUpper.includes("SEÇÃO") || firstCellUpper.includes("CATEGORIA")) {
-        continue;
-      }
-      
-      const grupo = cells[0] || "Geral";
-      const nomeItem = cells[1] || "";
-      if (!nomeItem) continue;
-
-      const descricao = cells[2] || "";
-      const fotoObrRaw = (cells[3] || "").toLowerCase();
-      const itemObrRaw = (cells[4] || "").toLowerCase();
-
-      const fotoObrigatoria = fotoObrRaw === "sim" || fotoObrRaw === "s" || fotoObrRaw === "true" || fotoObrRaw === "1";
-      const itemObrigatorio = itemObrRaw === "sim" || itemObrRaw === "s" || itemObrRaw === "true" || itemObrRaw === "1" || cells[4] === undefined || cells[4] === ""; 
-
-      parsed.push({
-        grupo,
-        nomeItem,
-        descricao,
-        escopo: "veiculo",
-        tipoResposta: "ok_nok",
-        ordem: orderCounter++,
-        fotoObrigatoria,
-        itemObrigatorio
-      });
-    }
-
-    setParsedPreview(parsed);
-  };
-
-  useEffect(() => {
-    parseBulkText(bulkText);
-  }, [bulkText]);
-
-  const handleSaveBulkImport = async () => {
-    if (!bulkTemplateName.trim()) {
-      toast.error("Por favor, informe o nome do tipo de ativo (modelo).");
-      return;
-    }
-    if (parsedPreview.length === 0) {
-      toast.error("Nenhum item válido para importação. Verifique se copiou e colou as colunas corretas.");
-      return;
-    }
-
-    const docId = bulkTemplateName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    try {
-      await setDoc(doc(db, "checklist_custom_templates", docId), {
-        templateName: bulkTemplateName.trim(),
-        items: parsedPreview,
-        updatedAt: new Date().toISOString(),
-        updatedBy: "Gestão"
-      });
-
-      toast.success(`Modelo "${bulkTemplateName}" importado/atualizado com ${parsedPreview.length} itens no Firestore!`);
-      setBulkImportOpen(false);
-      setBulkText("");
-      setParsedPreview([]);
-      fetchTemplates(true);
-    } catch (err: any) {
-      console.error("Erro ao salvar modelo customizado:", err);
-      try {
-        handleFirestoreError(err, 'write', `checklist_custom_templates/${docId}`);
-      } catch (formattedErr: any) {
-        toast.error(`Falha ao salvar no Firebase: ${formattedErr.message}`);
-        return;
-      }
-      toast.error(`Falha ao salvar no Firebase: ${err.message}`);
-    }
-  };
-
-  const handleDeleteCustomTemplate = async (templateName: string) => {
-    if (!window.confirm(`Deseja realmente remover a customização de "${templateName}"? Isso restaurará a versão original da planilha para este modelo.`)) {
-      return;
-    }
-    const docId = templateName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    try {
-      await deleteDoc(doc(db, "checklist_custom_templates", docId));
-      toast.success(`Customização de "${templateName}" removida com sucesso!`);
-      fetchTemplates(true);
-    } catch (err: any) {
-      console.error("Erro ao remover customização:", err);
-      try {
-        handleFirestoreError(err, 'delete', `checklist_custom_templates/${docId}`);
-      } catch (formattedErr: any) {
-        toast.error(`Não foi possível remover: ${formattedErr.message}`);
-        return;
-      }
-      toast.error(`Não foi possível remover: ${err.message}`);
-    }
   };
 
   const hasNonConformity = (sub: SubmittedChecklist) => {
@@ -651,48 +508,13 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
 
             {/* Checklist items list */}
             <Card className="lg:col-span-3 border border-slate-200 dark:border-slate-800 shadow-sm">
-              <CardHeader className="bg-slate-50 dark:bg-slate-900/50 p-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <CardHeader className="bg-slate-50 dark:bg-slate-900/50 p-4 border-b border-slate-200 dark:border-slate-800 flex flex-row items-center justify-between">
                 <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <CardTitle className="text-base font-black uppercase tracking-tight text-slate-800 dark:text-white">
-                      {selectedTemplateTab || "Selecione um Ativo"}
-                    </CardTitle>
-                    {customTemplatesList.includes(selectedTemplateTab) && (
-                      <Badge className="bg-purple-150 text-purple-750 dark:bg-purple-950/40 dark:text-purple-400 font-bold text-[9px] uppercase tracking-widest border border-purple-200">
-                        Gerenciado no Firebase
-                      </Badge>
-                    )}
-                  </div>
+                  <CardTitle className="text-base font-black uppercase tracking-tight text-slate-800 dark:text-white">
+                    {selectedTemplateTab || "Selecione um Ativo"}
+                  </CardTitle>
                   <CardDescription className="text-xs uppercase font-medium tracking-widest text-slate-400">Configurações e itens contidos no checklist deste tipo de veículo</CardDescription>
                 </div>
-
-                {(userRole === 'Master' || userRole === 'Gestão') && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={() => {
-                        setBulkTemplateName(selectedTemplateTab || "");
-                        setBulkText("");
-                        setBulkImportOpen(true);
-                      }}
-                      className="bg-purple-600 hover:bg-purple-700 text-white text-xs font-black uppercase tracking-widest h-9 rounded-xl shadow-lg shadow-purple-500/10 flex items-center gap-1.5"
-                    >
-                      <Upload className="h-3.5 w-3.5" />
-                      Importar em Massa
-                    </Button>
-
-                    {customTemplatesList.includes(selectedTemplateTab) && (
-                      <Button
-                        variant="outline"
-                        onClick={() => handleDeleteCustomTemplate(selectedTemplateTab)}
-                        className="border-red-200 hover:bg-red-50 text-red-650 hover:text-red-700 text-xs font-black uppercase tracking-widest h-9 rounded-xl flex items-center gap-1.5 dark:border-red-950/20 dark:hover:bg-red-950/10"
-                        title="Restaurar versão original do Google Sheets"
-                      >
-                        <Trash className="h-3.5 w-3.5" />
-                        Restaurar Original
-                      </Button>
-                    )}
-                  </div>
-                )}
               </CardHeader>
               <CardContent className="p-0">
                 {!selectedTemplateTab || loadingTemplates ? (
@@ -994,127 +816,6 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
           </DialogContent>
         </Dialog>
       )}
-
-      {/* Dialog for Bulk import checklist items */}
-      <Dialog open={bulkImportOpen} onOpenChange={setBulkImportOpen}>
-        <DialogContent className="sm:max-w-5xl w-[95vw] md:w-[92vw] lg:w-[85vw] p-0 overflow-hidden rounded-3xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
-          <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-purple-600 rounded-2xl text-white">
-                <FileSpreadsheet className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-black uppercase tracking-tight text-slate-900 dark:text-white">
-                  Importação de Checklist em Massa (Excel)
-                </h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Copie e cole dados tabulares diretamente do Excel ou Google Sheets</p>
-              </div>
-            </div>
-            <button 
-              onClick={() => setBulkImportOpen(false)}
-              className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl transition-all text-slate-400"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
-            {/* Template type name */}
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Nome do Tipo de Ativo (Checklist Modelo)</label>
-              <Input
-                value={bulkTemplateName}
-                onChange={(e) => setBulkTemplateName(e.target.value)}
-                placeholder="Ex: PICAPE MÉDIA ou RETROESCAVADEIRA"
-                className="h-11 font-black uppercase text-xs rounded-xl border border-slate-200 dark:border-slate-800"
-              />
-              <p className="text-[9px] text-slate-400 uppercase font-medium tracking-wider">Atenção: Use exatamente o nome do tipo do ativo cadastrado na frota (ex: "PICAPE MÉDIA") para vinculação automática direta de placas.</p>
-            </div>
-
-            {/* Excel Paste Area */}
-            <div className="space-y-2">
-              <div className="flex justify-between items-center">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Área de Colagem de Células (Do Excel)</label>
-                <Badge variant="outline" className="text-[9px] rounded-lg border-purple-200 text-purple-600 font-bold uppercase tracking-wider">Tabulado / TSV</Badge>
-              </div>
-              <textarea
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                placeholder="Copie as linhas no Excel e cole aqui..."
-                className="w-full h-44 p-4 text-xs font-mono rounded-2xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-slate-50/50 dark:bg-slate-900/30"
-              />
-              
-              {/* Columns instruction */}
-              <div className="p-3.5 bg-purple-50/50 dark:bg-purple-950/10 border border-purple-100 dark:border-purple-900/20 rounded-2xl">
-                <h4 className="text-[10px] font-black text-purple-850 dark:text-purple-400 uppercase tracking-widest flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Instruções de Formato de Coluna no Excel</h4>
-                <p className="text-[9.5px] text-slate-500 font-medium leading-relaxed uppercase tracking-wider mt-1.5">
-                  Copie 5 colunas inteiras do seu Excel ou Planilha na seguinte ordem para melhor detecção:
-                </p>
-                <div className="grid grid-cols-5 gap-2 mt-2 font-mono text-[9px] font-bold text-center uppercase tracking-widest select-none">
-                  <div className="p-1 px-1.5 bg-indigo-50 border border-indigo-150 rounded text-indigo-750 dark:bg-indigo-950/20">1. Grupo</div>
-                  <div className="p-1 px-1.5 bg-indigo-50 border border-indigo-150 rounded text-indigo-750 dark:bg-indigo-950/20">2. Item</div>
-                  <div className="p-1 px-1.5 bg-indigo-50 border border-indigo-150 rounded text-indigo-750 dark:bg-indigo-950/20 col-span-1">3. Descrição</div>
-                  <div className="p-1 px-1.5 bg-indigo-50 border border-indigo-150 rounded text-indigo-750 dark:bg-indigo-950/20">4. Foto?(Sim)</div>
-                  <div className="p-1 px-1.5 bg-indigo-50 border border-indigo-150 rounded text-indigo-750 dark:bg-indigo-950/20">5. Obrig?(Sim)</div>
-                </div>
-                <p className="text-[8.5px] text-slate-450 uppercase font-medium tracking-wider mt-1.5">A primeira linha que contiver palavras do tipo "Grupo" ou "Item" será automaticamente ignorada como cabeçalho.</p>
-              </div>
-            </div>
-
-            {/* Preview Section */}
-            {parsedPreview.length > 0 && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between border-b pb-1.5">
-                  <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-1"><CheckCircle className="h-4 w-4 text-emerald-500" /> Pré-Visualização de Importação ({parsedPreview.length} itens detectados)</h3>
-                </div>
-                <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden max-h-[300px] overflow-y-auto custom-scrollbar">
-                  <Table>
-                    <TableHeader className="bg-slate-50/55 sticky top-0 z-10">
-                      <TableRow>
-                        <TableHead className="w-10 text-center text-[9px] font-black uppercase tracking-widest text-slate-400">#</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400">Grupo</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400">Nome do Item</TableHead>
-                        <TableHead className="text-[9px] font-black uppercase tracking-widest text-slate-400">Descrição</TableHead>
-                        <TableHead className="text-center text-[9px] font-black uppercase tracking-widest text-slate-400">Foto</TableHead>
-                        <TableHead className="text-center text-[9px] font-black uppercase tracking-widest text-slate-400">Obrigatório</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {parsedPreview.map((item, idx) => (
-                        <TableRow key={idx} className="hover:bg-slate-50/40 dark:hover:bg-slate-900/10">
-                          <TableCell className="text-center font-mono text-[9px] text-slate-400">{idx + 1}</TableCell>
-                          <TableCell className="text-[10px] font-black text-purple-700 uppercase">{item.grupo}</TableCell>
-                          <TableCell className="text-[10px] font-bold text-slate-850 dark:text-slate-200 uppercase">{item.nomeItem}</TableCell>
-                          <TableCell className="text-[10px] text-slate-500 truncate max-w-[150px] uppercase">{item.descricao || "-"}</TableCell>
-                          <TableCell className="text-center">
-                            {item.fotoObrigatoria ? <Badge className="bg-rose-50 border border-rose-100 text-rose-700 font-bold text-[8px] uppercase tracking-wider rounded-lg">Sim</Badge> : <Badge className="bg-slate-100 text-slate-400 font-bold text-[8px] uppercase tracking-wider rounded-lg border border-slate-150">Não</Badge>}
-                          </TableCell>
-                          <TableCell className="text-center">
-                            {item.itemObrigatorio ? <Badge className="bg-purple-150 border border-purple-200 text-purple-750 font-bold text-[8px] uppercase tracking-wider rounded-lg">Sim</Badge> : <Badge className="bg-slate-100 text-slate-400 font-bold text-[8px] uppercase tracking-wider rounded-lg border border-slate-150">Não</Badge>}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="bg-slate-50 dark:bg-slate-900/50 px-6 py-4 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2.5">
-            <Button onClick={() => setBulkImportOpen(false)} variant="ghost" className="rounded-xl font-bold uppercase tracking-widest text-xs h-10 px-5">
-              Cancelar
-            </Button>
-            <Button 
-              onClick={handleSaveBulkImport} 
-              disabled={parsedPreview.length === 0}
-              className="bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black uppercase tracking-widest text-xs h-10 px-6 shadow-md shadow-purple-500/10"
-            >
-              Salvar Modelo no Firebase
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

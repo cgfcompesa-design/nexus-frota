@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAssets } from "@/hooks/useFleetData";
 import { db } from "../../lib/firebase";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc } from "firebase/firestore";
 import { 
   ClipboardCheck, 
   User, 
@@ -142,48 +142,24 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch templates function (supports force parameter for live sheet sync)
-  const fetchAllTemplates = async (force = false) => {
-    setTemplatesLoading(true);
-    let mergedTemplates: Record<string, any[]> = {};
-
-    // 1. Fetch from proxy local sheet API
-    try {
-      const url = force ? "/api/checklist-templates?force=true" : "/api/checklist-templates";
-      const res = await fetch(url);
-      if (!res.ok) {
-        console.warn("API de checklist retornou status no responder:", res.status);
-      } else {
+  // Fetch templates once on mount
+  useEffect(() => {
+    const fetchAllTemplates = async () => {
+      setTemplatesLoading(true);
+      try {
+        const res = await fetch("/api/checklist-templates");
+        if (!res.ok) throw new Error("Falha ao obter templates");
         const data = await res.json();
         if (data.success && data.templates) {
-          mergedTemplates = { ...data.templates };
+          setTemplates(data.templates);
         }
+      } catch (e) {
+        console.error("Erro ao carregar os templates do servidor:", e);
+        toast.error("Erro ao carregar dados do checklist. Recarregue a página.");
+      } finally {
+        setTemplatesLoading(false);
       }
-    } catch (e: any) {
-      console.error("Erro ao carregar os templates do servidor de planilha:", e);
-    }
-
-    // 2. Fetch custom templates from Firestore
-    try {
-      const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
-      customSnap.forEach(docSnap => {
-        const docData = docSnap.data();
-        if (docData.templateName && Array.isArray(docData.items)) {
-          mergedTemplates[docData.templateName] = docData.items;
-        }
-      });
-    } catch (fbErr) {
-      console.error("Erro ao obter modelos de checklist customizados do Firestore:", fbErr);
-    }
-
-    setTemplates(mergedTemplates);
-    if (force) {
-      toast.success("Modelos sincronizados e carregados com sucesso!");
-    }
-    setTemplatesLoading(false);
-  };
-
-  useEffect(() => {
+    };
     fetchAllTemplates();
   }, []);
 
@@ -215,24 +191,15 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
     const p = String(asset["PLACA"] || asset["PLACA VEICULO"] || "").toUpperCase().trim();
     return p === selectedPlate.toUpperCase().trim();
   });
+
   // Match vehicle TIPO with one of the sheets keys
   useEffect(() => {
     if (selectedVehicle) {
       const vehicleTypeRaw = selectedVehicle["TIPO"] || selectedVehicle["TIPO VEICULO"] || "";
-      
-      // Helper function for ultra-normalization (standardized capitalization, no accents, no spacing/special chars)
-      const ultraNormalize = (str: string) => {
-        return String(str || "")
-          .normalize("NFD")
-          .replace(/[\u0300-\u036f]/g, "")
-          .toUpperCase()
-          .replace(/[^A-Z0-9]/g, "");
-      };
-
-      const normAssetType = ultraNormalize(vehicleTypeRaw);
+      const normAssetType = vehicleTypeRaw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
       
       const matchedKey = Object.keys(templates).find(tk => {
-        const normTk = ultraNormalize(tk);
+        const normTk = tk.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
         return normAssetType === normTk;
       });
 
@@ -240,25 +207,15 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
         setSelectedTemplateKey(matchedKey);
         setShowManualTemplateSelect(false);
       } else {
-        // No exact match found in sheets tabs, try direct inclusion check
-        const partialMatchedKey = Object.keys(templates).find(tk => {
-          const normTk = ultraNormalize(tk);
-          return normAssetType.includes(normTk) || normTk.includes(normAssetType);
-        });
-
-        if (partialMatchedKey) {
-          setSelectedTemplateKey(partialMatchedKey);
-          setShowManualTemplateSelect(false);
-        } else {
-          setSelectedTemplateKey("");
-          setShowManualTemplateSelect(true); // Allow manual selection
-        }
+        // No match found in sheets tabs
+        setSelectedTemplateKey("");
+        setShowManualTemplateSelect(true); // Allow them to select template layout manually
       }
     } else {
       setSelectedTemplateKey("");
       setShowManualTemplateSelect(false);
     }
-  }, [selectedPlate, templates, selectedVehicle]);;
+  }, [selectedPlate, templates, selectedVehicle]);
 
   // Handle KM Odometer photo upload
   const handleUsagePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -843,37 +800,25 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
 
               {/* Backup Checklist Template selector if automatic matching doesn't find exact tab */}
               {showManualTemplateSelect && (
-                <div className="p-4.5 bg-rose-50/20 border border-rose-250 dark:bg-rose-955/5 dark:border-rose-900/20 rounded-2xl animate-fadeIn space-y-3.5">
+                <div className="space-y-1.5 p-4.5 bg-rose-50/20 border border-rose-200 dark:bg-rose-955/5 dark:border-rose-900/20 rounded-2xl animate-fadeIn space-y-2">
                   <div className="flex gap-2">
                     <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 block mt-0.5" />
                     <div>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-450">Ajuste de Vinculação Requerido</h4>
-                      <p className="text-[9px] text-slate-450 uppercase font-medium mt-0.5 tracking-wider leading-relaxed">Não encontramos uma aba de checklist específica para "{selectedVehicle?.[ "TIPO" ] || selectedVehicle?.["TIPO VEICULO"]}". Selecione o modelo aproximado abaixo, ou clique para sincronizar os dados atualizados do Google Sheets:</p>
+                      <p className="text-[9px] text-slate-450 uppercase font-medium mt-0.5 tracking-wider leading-relaxed">Não encontramos uma aba de checklist específica para "{selectedVehicle?.[ "TIPO" ] || selectedVehicle?.["TIPO VEICULO"]}". Escolha o modelo que mais se aproxima abaixo:</p>
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedTemplateKey}
-                      onChange={(e) => setSelectedTemplateKey(e.target.value)}
-                      className="flex-1 h-11 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 text-xs font-black uppercase tracking-widest transition-all"
-                    >
-                      <option value="">-- Selecione o Modelo do Checklist --</option>
-                      {Object.keys(templates).map(k => (
-                        <option key={k} value={k}>{k}</option>
-                      ))}
-                    </select>
-
-                    <Button
-                      type="button"
-                      onClick={() => fetchAllTemplates(true)}
-                      variant="outline"
-                      title="Sincronizar abas do Google Sheets"
-                      className="h-11 px-3 rounded-xl border border-slate-200"
-                    >
-                      <RefreshCw className="h-4 w-4 animate-spin-hover" />
-                    </Button>
-                  </div>
+                  <select
+                    value={selectedTemplateKey}
+                    onChange={(e) => setSelectedTemplateKey(e.target.value)}
+                    className="w-full h-11 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 text-xs font-black uppercase tracking-widest transition-all"
+                  >
+                    <option value="">-- Selecione o Modelo do Checklist --</option>
+                    {Object.keys(templates).map(k => (
+                      <option key={k} value={k}>{k}</option>
+                    ))}
+                  </select>
                 </div>
               )}
 

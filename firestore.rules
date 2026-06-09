@@ -39,7 +39,7 @@ service cloud.firestore {
 
     function isAdmin() {
       return isSignedIn() && (
-        request.auth.token.email == 'cgf.compesa@gmail.com' ||
+        (request.auth.token.email == 'cgf.compesa@gmail.com' && request.auth.token.email_verified == true) ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
          get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Master')
       );
@@ -108,12 +108,6 @@ service cloud.firestore {
       allow create: if true; // Public drivers can submit checklists
       allow read, delete: if isGestor() || isAdmin(); // Only manager or master can read or delete
       allow update: if false; // Immutability for audit security
-    }
-
-    // --- Checklist Custom Templates ---
-    match /checklist_custom_templates/{templateId} {
-      allow read: if true; // Both public drivers and management can read checklist templates
-      allow write: if isGestor() || isAdmin(); // Only management/admin can write/delete
     }
 
     // Connection test

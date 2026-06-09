@@ -5,18 +5,37 @@ import https from "https";
 import * as XLSX from "xlsx";
 import { createServer as createViteServer } from "vite";
 
-// Helper function to fetch URL recursively following redirects using native fetch
-async function fetchUrlBinary(urlStr: string): Promise<Buffer> {
-  const res = await fetch(urlStr, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+// Helper function to fetch URL recursively following redirects
+function fetchUrlBinary(urlStr: string, redirectsRemaining = 5): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    if (redirectsRemaining <= 0) {
+      return reject(new Error("Too many redirects"));
     }
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    };
+    https.get(urlStr, options, (res) => {
+      const statusCode = res.statusCode || 0;
+      if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
+        let redirectUrl = res.headers.location;
+        if (!redirectUrl.startsWith("http")) {
+          const originalUrl = new URL(urlStr);
+          redirectUrl = originalUrl.origin + redirectUrl;
+        }
+        return fetchUrlBinary(redirectUrl, redirectsRemaining - 1).then(resolve, reject);
+      }
+      if (statusCode !== 200) {
+        return reject(new Error(`HTTP ${statusCode} for ${urlStr}`));
+      }
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => chunks.push(chunk));
+      res.on("end", () => {
+        resolve(Buffer.concat(chunks));
+      });
+    }).on("error", reject);
   });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ${res.statusText} for ${urlStr}`);
-  }
-  const arrayBuffer = await res.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }
 
 async function startServer() {
@@ -191,9 +210,7 @@ async function startServer() {
 
   app.get("/api/checklist-templates", async (req, res) => {
     try {
-      const forceFlag = req.query.force === "true";
-      // Lower cache threshold to 2 minutes (instead of 30min) to prevent stale templates
-      if (!forceFlag && checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 2 * 60 * 1000)) {
+      if (checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 30 * 60 * 1000)) {
         return res.json({ success: true, templates: checklistTemplatesCache, cached: true });
       }
       
@@ -204,52 +221,22 @@ async function startServer() {
       
       const templates: Record<string, any[]> = {};
       
-      console.log("[SERVER] Loaded workbook sheet names:", wb.SheetNames);
-      
       wb.SheetNames.forEach(sheetName => {
-        if (sheetName === "Sheet1" || sheetName.toUpperCase().includes("SHEET1")) return; // Skip default empty sheet if any
+        if (sheetName === "Sheet1") return; // Skip default empty sheet if any
         
         const sheet = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet) as any[];
         
-        const getRowValue = (row: any, ...keys: string[]) => {
-          const normalizedKeys = keys.map(k => k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ""));
-          for (const rawKey of Object.keys(row)) {
-            const normRawKey = rawKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
-            if (normalizedKeys.includes(normRawKey)) {
-              return row[rawKey];
-            }
-          }
-          return undefined;
-        };
-
-        const mappedRows = rows.map((row: any) => {
-          const grupo = String(getRowValue(row, 'Grupo', 'grupo') || "").trim();
-          const nomeItem = String(getRowValue(row, 'Nome do Item', 'Nome Item', 'Nome', 'nomeItem') || "").trim();
-          const descricao = String(getRowValue(row, 'Descrição', 'Descricao', 'descricao') || "").trim();
-          const escopo = String(getRowValue(row, 'Escopo', 'escopo') || "veiculo").trim();
-          const tipoResposta = String(getRowValue(row, 'Tipo de Resposta', 'Tipo Resposta', 'tipo_resposta') || "ok_nok").trim();
-          
-          const ordemVal = getRowValue(row, 'Ordem', 'ordem');
-          const ordem = (ordemVal !== undefined && !isNaN(Number(ordemVal))) ? Number(ordemVal) : 0;
-          
-          const fotoObrigatoriaRaw = String(getRowValue(row, 'Foto Obrigatória', 'Foto Obrigatoria', 'foto_obrigatoria') || 'não').toLowerCase().trim();
-          const fotoObrigatoria = fotoObrigatoriaRaw === 'sim' || fotoObrigatoriaRaw === 'true' || fotoObrigatoriaRaw === 's';
-          
-          const itemObrigatorioRaw = String(getRowValue(row, 'Item Obrigatório', 'Item Obrigatório', 'item_obrigatorio') || 'sim').toLowerCase().trim();
-          const itemObrigatorio = itemObrigatorioRaw === 'sim' || itemObrigatorioRaw === 'true' || itemObrigatorioRaw === 's' || itemObrigatorioRaw === '';
-          
-          return {
-            grupo,
-            nomeItem,
-            descricao,
-            escopo,
-            tipoResposta,
-            ordem,
-            fotoObrigatoria,
-            itemObrigatorio
-          };
-        }).filter(r => r.nomeItem && r.grupo);
+        const mappedRows = rows.map((row: any) => ({
+          grupo: row['Grupo'] || row['grupo'] || "",
+          nomeItem: row['Nome do Item'] || row['Nome Item'] || row['nomeItem'] || row['Nome'] || "",
+          descricao: row['Descrição'] || row['descricao'] || "",
+          escopo: row['Escopo'] || row['escopo'] || "veiculo",
+          tipoResposta: row['Tipo de Resposta'] || row['tipoResposta'] || "ok_nok",
+          ordem: row['Ordem'] || row['ordem'] || 0,
+          fotoObrigatoria: String(row['Foto Obrigatória'] || row['fotoObrigatoria'] || 'não').toLowerCase().trim() === 'sim' || String(row['Foto Obrigatória'] || row['fotoObrigatoria'] || 'não').toLowerCase().trim() === 'true',
+          itemObrigatorio: String(row['Item Obrigatório'] || row['itemObrigatorio'] || 'sim').toLowerCase().trim() === 'sim' || String(row['Item Obrigatório'] || row['itemObrigatorio'] || 'sim').toLowerCase().trim() === 'true'
+        })).filter(r => r.nomeItem && r.grupo);
         
         if (mappedRows.length > 0) {
           templates[sheetName] = mappedRows;
@@ -259,9 +246,7 @@ async function startServer() {
       checklistTemplatesCache = templates;
       lastChecklistFetchTime = Date.now();
       
-      console.log(`[SERVER] Successfully parsed ${Object.keys(templates).length} checklist templates!`);
-      
-      res.json({ success: true, templates, cached: false, debug: { sheetNames: wb.SheetNames } });
+      res.json({ success: true, templates, cached: false });
     } catch (e: any) {
       console.error("[SERVER] Failed to fetch checklist templates:", e.message);
       if (checklistTemplatesCache) {
@@ -335,7 +320,6 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
-    
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');

@@ -151,18 +151,6 @@
         "status": { "type": "string", "enum": ["completed"] }
       },
       "required": ["driverName", "currentUsage", "usagePhotoUrl", "plate", "assetType", "dateTime", "responses", "status"]
-    },
-    "ChecklistCustomTemplate": {
-      "title": "Checklist Custom Template",
-      "description": "Modelos de checklist salvos localmente ou customizados no banco de dados",
-      "type": "object",
-      "properties": {
-        "templateName": { "type": "string", "description": "Nome do modelo (ex: PICAPE MÉDIA)" },
-        "items": { "type": "array", "description": "Lista de itens do checklist" },
-        "updatedAt": { "type": "string", "format": "date-time" },
-        "updatedBy": { "type": "string" }
-      },
-      "required": ["templateName", "items"]
     }
   },
   "firestore": {
@@ -205,10 +193,6 @@
     "/checklist_submissions/{submissionId}": {
       "schema": "ChecklistSubmission",
       "description": "Checklists preenchidos pelos condutores"
-    },
-    "/checklist_custom_templates/{templateId}": {
-      "schema": "ChecklistCustomTemplate",
-      "description": "Modelos customizados/importados de checklist"
     }
   }
 }

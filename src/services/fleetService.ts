@@ -179,84 +179,68 @@ export async function fetchFuelData(): Promise<any[]> {
   let rows: any[][] = [];
   
   try {
-    console.log("Fetching fuel data from local backend API proxy (/api/fuel-data) to avoid CORS blocks...");
-    const res = await fetch("/api/fuel-data");
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && Array.isArray(data.data) && data.data.length > 0) {
-        rows = data.data;
-        console.log(`Loaded ${rows.length} rows from backend proxy, sheetName: "${data.sheetName || ''}"`);
-      } else {
-        throw new Error(data.error || "Empty data returned from proxy");
-      }
-    } else {
-      throw new Error(`HTTP status ${res.status}`);
-    }
-  } catch (proxyError: any) {
-    console.warn("Backend proxy failed, falling back to direct XLSX fetch in browser (might fail due to CORS)...", proxyError);
-    try {
-      const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      
-      const buf = await res.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-      
-      // Find the first sheet that has rows and contains headers like PLACA, DATA, LITROS, etc.
-      let targetSheetName = "";
-      let bestMatchHeadersCount = -1;
-      let selectedRows: any[][] = [];
+    const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';
+    console.log("Fetching fuel data from Google Sheets directly in XLSX format...");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    
+    // Find the first sheet that has rows and contains headers like PLACA, DATA, LITROS, etc.
+    let targetSheetName = "";
+    let bestMatchHeadersCount = -1;
+    let selectedRows: any[][] = [];
 
-      for (const name of wb.SheetNames) {
-        const sheet = wb.Sheets[name];
-        const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-        if (sheetRows.length === 0) continue;
+    for (const name of wb.SheetNames) {
+      const sheet = wb.Sheets[name];
+      const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      if (sheetRows.length === 0) continue;
 
-        // Look for a header row containing keywords
-        const headerRowIndex = sheetRows.findIndex(row => 
-          row.some(cell => {
-            const c = String(cell || "").toUpperCase();
-            return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR") || c.includes("LITROS") || c.includes("TRANSACAO");
-          })
-        );
+      // Look for a header row containing keywords
+      const headerRowIndex = sheetRows.findIndex(row => 
+        row.some(cell => {
+          const c = String(cell || "").toUpperCase();
+          return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR") || c.includes("LITROS") || c.includes("TRANSACAO");
+        })
+      );
 
-        if (headerRowIndex !== -1) {
-          const headerRow = sheetRows[headerRowIndex];
-          const keywords = ["PLACA", "DATA", "LITROS", "VALOR", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM"];
-          const matchCount = headerRow.filter(cell => {
-            const c = String(cell || "").toUpperCase();
-            return keywords.some(k => c.includes(k));
-          }).length;
+      if (headerRowIndex !== -1) {
+        const headerRow = sheetRows[headerRowIndex];
+        const keywords = ["PLACA", "DATA", "LITROS", "VALOR", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM"];
+        const matchCount = headerRow.filter(cell => {
+          const c = String(cell || "").toUpperCase();
+          return keywords.some(k => c.includes(k));
+        }).length;
 
-          // Prioritize sheets with name containing 'Transacoes' or 'Transações' (case and accent insensitive)
-          const normalizedSheetName = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-          const isTransacoesSheet = normalizedSheetName.includes("TRANSACAO") || normalizedSheetName.includes("ABASTEC");
-          const totalScore = matchCount + (isTransacoesSheet ? 500 : 0);
+        // Prioritize sheets with name containing 'Transacoes' or 'Transações' (case and accent insensitive)
+        const normalizedSheetName = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const isTransacoesSheet = normalizedSheetName.includes("TRANSACAO") || normalizedSheetName.includes("ABASTEC");
+        const totalScore = matchCount + (isTransacoesSheet ? 500 : 0);
 
-          if (totalScore > bestMatchHeadersCount) {
-            bestMatchHeadersCount = totalScore;
-            targetSheetName = name;
-            selectedRows = sheetRows;
-          }
+        if (totalScore > bestMatchHeadersCount) {
+          bestMatchHeadersCount = totalScore;
+          targetSheetName = name;
+          selectedRows = sheetRows;
         }
       }
+    }
 
-      if (!targetSheetName && wb.SheetNames.length > 0) {
-        targetSheetName = wb.SheetNames[0];
-        const sheet = wb.Sheets[targetSheetName];
-        selectedRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
-      }
+    if (!targetSheetName && wb.SheetNames.length > 0) {
+      targetSheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[targetSheetName];
+      selectedRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+    }
 
-      rows = selectedRows;
-      console.log(`Loaded ${rows.length} rows directly from Excel sheet: "${targetSheetName}"`);
-    } catch (error) {
-      console.warn("Failed to load xlsx fuel data, falling back to CSV...", error);
-      try {
-        rows = await fetchCsv(FUEL_URL);
-      } catch (csvError) {
-        console.error("Failed to load CSV fuel data as well:", csvError);
-        return [];
-      }
+    rows = selectedRows;
+    console.log(`Loaded ${rows.length} rows directly from Excel sheet: "${targetSheetName}"`);
+  } catch (error) {
+    console.warn("Failed to load xlsx fuel data, falling back to CSV...", error);
+    try {
+      rows = await fetchCsv(FUEL_URL);
+    } catch (csvError) {
+      console.error("Failed to load CSV fuel data as well:", csvError);
+      return [];
     }
   }
 
@@ -713,7 +697,6 @@ export async function fetchFleetData(): Promise<Asset[]> {
       ...item,
       __raw: row,
       PLACA: placa,
-      TIPO: String(row[16] || item["TIPO"] || item["TIPO VEICULO"] || item["TIPO_VEICULO"] || "").trim(),
       STATUS_OPERACIONAL: isOperational ? 'OPERACIONAL' : status || 'NÃO OPERACIONAL',
       PROPRIEDADE_TIPO: isProprio ? 'Próprio' : 'Locado',
       "COMBUSTÍVEL": combustivel,
