@@ -142,24 +142,29 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch templates once on mount
-  useEffect(() => {
-    const fetchAllTemplates = async () => {
-      setTemplatesLoading(true);
-      try {
-        const res = await fetch("/api/checklist-templates");
-        if (!res.ok) throw new Error("Falha ao obter templates");
-        const data = await res.json();
-        if (data.success && data.templates) {
-          setTemplates(data.templates);
+  // Fetch templates function (supports force parameter for live sheet sync)
+  const fetchAllTemplates = async (force = false) => {
+    setTemplatesLoading(true);
+    try {
+      const url = force ? "/api/checklist-templates?force=true" : "/api/checklist-templates";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Falha ao obter templates");
+      const data = await res.json();
+      if (data.success && data.templates) {
+        setTemplates(data.templates);
+        if (force) {
+          toast.success("Modelos sincronizados com a planilha com sucesso!");
         }
-      } catch (e) {
-        console.error("Erro ao carregar os templates do servidor:", e);
-        toast.error("Erro ao carregar dados do checklist. Recarregue a página.");
-      } finally {
-        setTemplatesLoading(false);
       }
-    };
+    } catch (e) {
+      console.error("Erro ao carregar os templates do servidor:", e);
+      toast.error("Erro ao carregar dados do checklist. Recarregue a página.");
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchAllTemplates();
   }, []);
 
@@ -819,25 +824,37 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
 
               {/* Backup Checklist Template selector if automatic matching doesn't find exact tab */}
               {showManualTemplateSelect && (
-                <div className="space-y-1.5 p-4.5 bg-rose-50/20 border border-rose-200 dark:bg-rose-955/5 dark:border-rose-900/20 rounded-2xl animate-fadeIn space-y-2">
+                <div className="p-4.5 bg-rose-50/20 border border-rose-250 dark:bg-rose-955/5 dark:border-rose-900/20 rounded-2xl animate-fadeIn space-y-3.5">
                   <div className="flex gap-2">
                     <AlertCircle className="h-4 w-4 text-rose-500 shrink-0 block mt-0.5" />
                     <div>
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-rose-700 dark:text-rose-450">Ajuste de Vinculação Requerido</h4>
-                      <p className="text-[9px] text-slate-450 uppercase font-medium mt-0.5 tracking-wider leading-relaxed">Não encontramos uma aba de checklist específica para "{selectedVehicle?.[ "TIPO" ] || selectedVehicle?.["TIPO VEICULO"]}". Escolha o modelo que mais se aproxima abaixo:</p>
+                      <p className="text-[9px] text-slate-450 uppercase font-medium mt-0.5 tracking-wider leading-relaxed">Não encontramos uma aba de checklist específica para "{selectedVehicle?.[ "TIPO" ] || selectedVehicle?.["TIPO VEICULO"]}". Selecione o modelo aproximado abaixo, ou clique para sincronizar os dados atualizados do Google Sheets:</p>
                     </div>
                   </div>
 
-                  <select
-                    value={selectedTemplateKey}
-                    onChange={(e) => setSelectedTemplateKey(e.target.value)}
-                    className="w-full h-11 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 text-xs font-black uppercase tracking-widest transition-all"
-                  >
-                    <option value="">-- Selecione o Modelo do Checklist --</option>
-                    {Object.keys(templates).map(k => (
-                      <option key={k} value={k}>{k}</option>
-                    ))}
-                  </select>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedTemplateKey}
+                      onChange={(e) => setSelectedTemplateKey(e.target.value)}
+                      className="flex-1 h-11 px-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 text-xs font-black uppercase tracking-widest transition-all"
+                    >
+                      <option value="">-- Selecione o Modelo do Checklist --</option>
+                      {Object.keys(templates).map(k => (
+                        <option key={k} value={k}>{k}</option>
+                      ))}
+                    </select>
+
+                    <Button
+                      type="button"
+                      onClick={() => fetchAllTemplates(true)}
+                      variant="outline"
+                      title="Sincronizar abas do Google Sheets"
+                      className="h-11 px-3 rounded-xl border border-slate-200"
+                    >
+                      <RefreshCw className="h-4 w-4 animate-spin-hover" />
+                    </Button>
+                  </div>
                 </div>
               )}
 

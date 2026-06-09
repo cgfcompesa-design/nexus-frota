@@ -192,7 +192,8 @@ async function startServer() {
   app.get("/api/checklist-templates", async (req, res) => {
     try {
       const forceFlag = req.query.force === "true";
-      if (!forceFlag && checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 30 * 60 * 1000)) {
+      // Lower cache threshold to 2 minutes (instead of 30min) to prevent stale templates
+      if (!forceFlag && checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 2 * 60 * 1000)) {
         return res.json({ success: true, templates: checklistTemplatesCache, cached: true });
       }
       
