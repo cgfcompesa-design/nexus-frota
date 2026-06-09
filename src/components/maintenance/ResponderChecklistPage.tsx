@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAssets } from "@/hooks/useFleetData";
 import { db } from "../../lib/firebase";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs } from "firebase/firestore";
 import { 
   ClipboardCheck, 
   User, 
@@ -150,11 +150,29 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
       const res = await fetch(url);
       if (!res.ok) throw new Error("Falha ao obter templates");
       const data = await res.json();
+      
+      let mergedTemplates: Record<string, any[]> = {};
+
       if (data.success && data.templates) {
-        setTemplates(data.templates);
-        if (force) {
-          toast.success("Modelos sincronizados com a planilha com sucesso!");
-        }
+        mergedTemplates = { ...data.templates };
+      }
+
+      // Fetch custom templates from Firestore
+      try {
+        const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
+        customSnap.forEach(docSnap => {
+          const docData = docSnap.data();
+          if (docData.templateName && Array.isArray(docData.items)) {
+            mergedTemplates[docData.templateName] = docData.items;
+          }
+        });
+      } catch (fbErr) {
+        console.error("Erro ao obter modelos de checklist customizados do Firestore:", fbErr);
+      }
+
+      setTemplates(mergedTemplates);
+      if (force) {
+        toast.success("Modelos sincronizados e carregados com sucesso!");
       }
     } catch (e) {
       console.error("Erro ao carregar os templates do servidor:", e);

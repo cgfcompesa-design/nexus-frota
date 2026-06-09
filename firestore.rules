@@ -110,6 +110,12 @@ service cloud.firestore {
       allow update: if false; // Immutability for audit security
     }
 
+    // --- Checklist Custom Templates ---
+    match /checklist_custom_templates/{templateId} {
+      allow read: if true; // Both public drivers and management can read checklist templates
+      allow write: if isGestor() || isAdmin(); // Only management/admin can write/delete
+    }
+
     // Connection test
     match /test/connection {
       allow read: if true;
