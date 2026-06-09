@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useAssets } from "@/hooks/useFleetData";
-import { db } from "../../lib/firebase";
+import { db, handleFirestoreError } from "../../lib/firebase";
 import { collection, getDocs, query, orderBy, deleteDoc, doc, setDoc, where } from "firebase/firestore";
 import { 
   ClipboardCheck, 
@@ -252,9 +252,8 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
       return;
     }
 
+    const docId = bulkTemplateName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     try {
-      const docId = bulkTemplateName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-      
       await setDoc(doc(db, "checklist_custom_templates", docId), {
         templateName: bulkTemplateName.trim(),
         items: parsedPreview,
@@ -269,6 +268,12 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
       fetchTemplates(true);
     } catch (err: any) {
       console.error("Erro ao salvar modelo customizado:", err);
+      try {
+        handleFirestoreError(err, 'write', `checklist_custom_templates/${docId}`);
+      } catch (formattedErr: any) {
+        toast.error(`Falha ao salvar no Firebase: ${formattedErr.message}`);
+        return;
+      }
       toast.error(`Falha ao salvar no Firebase: ${err.message}`);
     }
   };
@@ -277,13 +282,19 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
     if (!window.confirm(`Deseja realmente remover a customização de "${templateName}"? Isso restaurará a versão original da planilha para este modelo.`)) {
       return;
     }
+    const docId = templateName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
     try {
-      const docId = templateName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/[^A-Z0-9]/g, "");
       await deleteDoc(doc(db, "checklist_custom_templates", docId));
       toast.success(`Customização de "${templateName}" removida com sucesso!`);
       fetchTemplates(true);
     } catch (err: any) {
       console.error("Erro ao remover customização:", err);
+      try {
+        handleFirestoreError(err, 'delete', `checklist_custom_templates/${docId}`);
+      } catch (formattedErr: any) {
+        toast.error(`Não foi possível remover: ${formattedErr.message}`);
+        return;
+      }
       toast.error(`Não foi possível remover: ${err.message}`);
     }
   };
