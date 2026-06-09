@@ -697,6 +697,7 @@ export async function fetchFleetData(): Promise<Asset[]> {
       ...item,
       __raw: row,
       PLACA: placa,
+      TIPO: String(row[16] || item["TIPO"] || item["TIPO VEICULO"] || item["TIPO_VEICULO"] || "").trim(),
       STATUS_OPERACIONAL: isOperational ? 'OPERACIONAL' : status || 'NÃO OPERACIONAL',
       PROPRIEDADE_TIPO: isProprio ? 'Próprio' : 'Locado',
       "COMBUSTÍVEL": combustivel,

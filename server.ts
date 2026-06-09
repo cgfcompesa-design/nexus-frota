@@ -210,7 +210,8 @@ async function startServer() {
 
   app.get("/api/checklist-templates", async (req, res) => {
     try {
-      if (checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 30 * 60 * 1000)) {
+      const forceFlag = req.query.force === "true";
+      if (!forceFlag && checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 30 * 60 * 1000)) {
         return res.json({ success: true, templates: checklistTemplatesCache, cached: true });
       }
       
@@ -221,22 +222,52 @@ async function startServer() {
       
       const templates: Record<string, any[]> = {};
       
+      console.log("[SERVER] Loaded workbook sheet names:", wb.SheetNames);
+      
       wb.SheetNames.forEach(sheetName => {
-        if (sheetName === "Sheet1") return; // Skip default empty sheet if any
+        if (sheetName === "Sheet1" || sheetName.toUpperCase().includes("SHEET1")) return; // Skip default empty sheet if any
         
         const sheet = wb.Sheets[sheetName];
         const rows = XLSX.utils.sheet_to_json(sheet) as any[];
         
-        const mappedRows = rows.map((row: any) => ({
-          grupo: row['Grupo'] || row['grupo'] || "",
-          nomeItem: row['Nome do Item'] || row['Nome Item'] || row['nomeItem'] || row['Nome'] || "",
-          descricao: row['Descrição'] || row['descricao'] || "",
-          escopo: row['Escopo'] || row['escopo'] || "veiculo",
-          tipoResposta: row['Tipo de Resposta'] || row['tipoResposta'] || "ok_nok",
-          ordem: row['Ordem'] || row['ordem'] || 0,
-          fotoObrigatoria: String(row['Foto Obrigatória'] || row['fotoObrigatoria'] || 'não').toLowerCase().trim() === 'sim' || String(row['Foto Obrigatória'] || row['fotoObrigatoria'] || 'não').toLowerCase().trim() === 'true',
-          itemObrigatorio: String(row['Item Obrigatório'] || row['itemObrigatorio'] || 'sim').toLowerCase().trim() === 'sim' || String(row['Item Obrigatório'] || row['itemObrigatorio'] || 'sim').toLowerCase().trim() === 'true'
-        })).filter(r => r.nomeItem && r.grupo);
+        const getRowValue = (row: any, ...keys: string[]) => {
+          const normalizedKeys = keys.map(k => k.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, ""));
+          for (const rawKey of Object.keys(row)) {
+            const normRawKey = rawKey.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
+            if (normalizedKeys.includes(normRawKey)) {
+              return row[rawKey];
+            }
+          }
+          return undefined;
+        };
+
+        const mappedRows = rows.map((row: any) => {
+          const grupo = String(getRowValue(row, 'Grupo', 'grupo') || "").trim();
+          const nomeItem = String(getRowValue(row, 'Nome do Item', 'Nome Item', 'Nome', 'nomeItem') || "").trim();
+          const descricao = String(getRowValue(row, 'Descrição', 'Descricao', 'descricao') || "").trim();
+          const escopo = String(getRowValue(row, 'Escopo', 'escopo') || "veiculo").trim();
+          const tipoResposta = String(getRowValue(row, 'Tipo de Resposta', 'Tipo Resposta', 'tipo_resposta') || "ok_nok").trim();
+          
+          const ordemVal = getRowValue(row, 'Ordem', 'ordem');
+          const ordem = (ordemVal !== undefined && !isNaN(Number(ordemVal))) ? Number(ordemVal) : 0;
+          
+          const fotoObrigatoriaRaw = String(getRowValue(row, 'Foto Obrigatória', 'Foto Obrigatoria', 'foto_obrigatoria') || 'não').toLowerCase().trim();
+          const fotoObrigatoria = fotoObrigatoriaRaw === 'sim' || fotoObrigatoriaRaw === 'true' || fotoObrigatoriaRaw === 's';
+          
+          const itemObrigatorioRaw = String(getRowValue(row, 'Item Obrigatório', 'Item Obrigatório', 'item_obrigatorio') || 'sim').toLowerCase().trim();
+          const itemObrigatorio = itemObrigatorioRaw === 'sim' || itemObrigatorioRaw === 'true' || itemObrigatorioRaw === 's' || itemObrigatorioRaw === '';
+          
+          return {
+            grupo,
+            nomeItem,
+            descricao,
+            escopo,
+            tipoResposta,
+            ordem,
+            fotoObrigatoria,
+            itemObrigatorio
+          };
+        }).filter(r => r.nomeItem && r.grupo);
         
         if (mappedRows.length > 0) {
           templates[sheetName] = mappedRows;
@@ -246,7 +277,9 @@ async function startServer() {
       checklistTemplatesCache = templates;
       lastChecklistFetchTime = Date.now();
       
-      res.json({ success: true, templates, cached: false });
+      console.log(`[SERVER] Successfully parsed ${Object.keys(templates).length} checklist templates!`);
+      
+      res.json({ success: true, templates, cached: false, debug: { sheetNames: wb.SheetNames } });
     } catch (e: any) {
       console.error("[SERVER] Failed to fetch checklist templates:", e.message);
       if (checklistTemplatesCache) {
@@ -320,6 +353,15 @@ async function startServer() {
       server: { middlewareMode: true },
       appType: "spa",
     });
+    
+    // SPA fallback middleware for dev mode
+    app.use((req, res, next) => {
+      if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.includes('.')) {
+        req.url = '/index.html';
+      }
+      next();
+    });
+    
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');

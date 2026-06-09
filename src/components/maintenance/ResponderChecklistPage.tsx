@@ -196,10 +196,10 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
   useEffect(() => {
     if (selectedVehicle) {
       const vehicleTypeRaw = selectedVehicle["TIPO"] || selectedVehicle["TIPO VEICULO"] || "";
-      const normAssetType = vehicleTypeRaw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      const normAssetType = vehicleTypeRaw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
       
       const matchedKey = Object.keys(templates).find(tk => {
-        const normTk = tk.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+        const normTk = tk.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
         return normAssetType === normTk;
       });
 
