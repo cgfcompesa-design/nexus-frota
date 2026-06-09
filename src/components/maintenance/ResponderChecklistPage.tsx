@@ -191,15 +191,24 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
     const p = String(asset["PLACA"] || asset["PLACA VEICULO"] || "").toUpperCase().trim();
     return p === selectedPlate.toUpperCase().trim();
   });
-
   // Match vehicle TIPO with one of the sheets keys
   useEffect(() => {
     if (selectedVehicle) {
       const vehicleTypeRaw = selectedVehicle["TIPO"] || selectedVehicle["TIPO VEICULO"] || "";
-      const normAssetType = vehicleTypeRaw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+      
+      // Helper function for ultra-normalization (standardized capitalization, no accents, no spacing/special chars)
+      const ultraNormalize = (str: string) => {
+        return String(str || "")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toUpperCase()
+          .replace(/[^A-Z0-9]/g, "");
+      };
+
+      const normAssetType = ultraNormalize(vehicleTypeRaw);
       
       const matchedKey = Object.keys(templates).find(tk => {
-        const normTk = tk.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+        const normTk = ultraNormalize(tk);
         return normAssetType === normTk;
       });
 
@@ -207,15 +216,25 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
         setSelectedTemplateKey(matchedKey);
         setShowManualTemplateSelect(false);
       } else {
-        // No match found in sheets tabs
-        setSelectedTemplateKey("");
-        setShowManualTemplateSelect(true); // Allow them to select template layout manually
+        // No exact match found in sheets tabs, try direct inclusion check
+        const partialMatchedKey = Object.keys(templates).find(tk => {
+          const normTk = ultraNormalize(tk);
+          return normAssetType.includes(normTk) || normTk.includes(normAssetType);
+        });
+
+        if (partialMatchedKey) {
+          setSelectedTemplateKey(partialMatchedKey);
+          setShowManualTemplateSelect(false);
+        } else {
+          setSelectedTemplateKey("");
+          setShowManualTemplateSelect(true); // Allow manual selection
+        }
       }
     } else {
       setSelectedTemplateKey("");
       setShowManualTemplateSelect(false);
     }
-  }, [selectedPlate, templates, selectedVehicle]);
+  }, [selectedPlate, templates, selectedVehicle]);;
 
   // Handle KM Odometer photo upload
   const handleUsagePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

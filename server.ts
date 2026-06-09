@@ -5,37 +5,18 @@ import https from "https";
 import * as XLSX from "xlsx";
 import { createServer as createViteServer } from "vite";
 
-// Helper function to fetch URL recursively following redirects
-function fetchUrlBinary(urlStr: string, redirectsRemaining = 5): Promise<Buffer> {
-  return new Promise((resolve, reject) => {
-    if (redirectsRemaining <= 0) {
-      return reject(new Error("Too many redirects"));
+// Helper function to fetch URL recursively following redirects using native fetch
+async function fetchUrlBinary(urlStr: string): Promise<Buffer> {
+  const res = await fetch(urlStr, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
     }
-    const options = {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
-    };
-    https.get(urlStr, options, (res) => {
-      const statusCode = res.statusCode || 0;
-      if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
-        let redirectUrl = res.headers.location;
-        if (!redirectUrl.startsWith("http")) {
-          const originalUrl = new URL(urlStr);
-          redirectUrl = originalUrl.origin + redirectUrl;
-        }
-        return fetchUrlBinary(redirectUrl, redirectsRemaining - 1).then(resolve, reject);
-      }
-      if (statusCode !== 200) {
-        return reject(new Error(`HTTP ${statusCode} for ${urlStr}`));
-      }
-      const chunks: Buffer[] = [];
-      res.on("data", (chunk) => chunks.push(chunk));
-      res.on("end", () => {
-        resolve(Buffer.concat(chunks));
-      });
-    }).on("error", reject);
   });
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status} ${res.statusText} for ${urlStr}`);
+  }
+  const arrayBuffer = await res.arrayBuffer();
+  return Buffer.from(arrayBuffer);
 }
 
 async function startServer() {
