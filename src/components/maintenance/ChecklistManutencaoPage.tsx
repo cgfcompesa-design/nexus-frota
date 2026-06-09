@@ -122,46 +122,49 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
   // Fetch templates from proxy Excel endpoint + Firestore custom templates
   const fetchTemplates = async (forceRefresh = false) => {
     setLoadingTemplates(true);
+    let mergedTemplates: Record<string, ChecklistItem[]> = {};
+    
+    // 1. Fetch spreadsheet templates from proxy local Endpoint
     try {
       const url = forceRefresh ? "/api/checklist-templates?force=true" : "/api/checklist-templates";
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Falha ao obter resposta do servidor");
-      const data = await res.json();
-      
-      let mergedTemplates: Record<string, ChecklistItem[]> = {};
-
-      if (data.success && data.templates) {
-        mergedTemplates = { ...data.templates };
-      }
-
-      // Fetch custom templates from Firestore
-      const customKeys: string[] = [];
-      try {
-        const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
-        customSnap.forEach(docSnap => {
-          const docData = docSnap.data();
-          if (docData.templateName && Array.isArray(docData.items)) {
-            mergedTemplates[docData.templateName] = docData.items as ChecklistItem[];
-            customKeys.push(docData.templateName);
-          }
-        });
-      } catch (fbErr) {
-        console.error("Erro ao obter modelos customizados do Firestore:", fbErr);
-      }
-
-      setCustomTemplatesList(customKeys);
-      setTemplates(mergedTemplates);
-      
-      const keys = Object.keys(mergedTemplates);
-      if (keys.length > 0 && (!selectedTemplateTab || !keys.includes(selectedTemplateTab))) {
-        setSelectedTemplateTab(keys[0]);
+      if (!res.ok) {
+        console.warn("API de checklist da planilha retornou status:", res.status);
+      } else {
+        const data = await res.json();
+        if (data.success && data.templates) {
+          mergedTemplates = { ...data.templates };
+        }
       }
     } catch (e: any) {
-      console.error("Erro ao obter modelos de checklist:", e);
-      toast.error("Erro ao carregar modelos de checklist.");
-    } finally {
-      setLoadingTemplates(false);
+      console.error("Erro ao obter modelos de checklist da planilha:", e);
     }
+
+    // 2. Fetch custom templates from Firestore
+    const customKeys: string[] = [];
+    try {
+      const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
+      customSnap.forEach(docSnap => {
+        const docData = docSnap.data();
+        if (docData.templateName && Array.isArray(docData.items)) {
+          mergedTemplates[docData.templateName] = docData.items as ChecklistItem[];
+          customKeys.push(docData.templateName);
+        }
+      });
+    } catch (fbErr: any) {
+      console.error("Erro ao obter modelos customizados do Firestore:", fbErr);
+    }
+
+    setCustomTemplatesList(customKeys);
+    setTemplates(mergedTemplates);
+    
+    const keys = Object.keys(mergedTemplates);
+    if (keys.length > 0) {
+      if (!selectedTemplateTab || !keys.includes(selectedTemplateTab)) {
+        setSelectedTemplateTab(keys[0]);
+      }
+    }
+    setLoadingTemplates(false);
   };
 
   useEffect(() => {

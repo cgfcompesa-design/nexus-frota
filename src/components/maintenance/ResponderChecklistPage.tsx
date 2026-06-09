@@ -145,41 +145,42 @@ export default function ResponderChecklistPage({ onBack }: ResponderChecklistPag
   // Fetch templates function (supports force parameter for live sheet sync)
   const fetchAllTemplates = async (force = false) => {
     setTemplatesLoading(true);
+    let mergedTemplates: Record<string, any[]> = {};
+
+    // 1. Fetch from proxy local sheet API
     try {
       const url = force ? "/api/checklist-templates?force=true" : "/api/checklist-templates";
       const res = await fetch(url);
-      if (!res.ok) throw new Error("Falha ao obter templates");
-      const data = await res.json();
-      
-      let mergedTemplates: Record<string, any[]> = {};
-
-      if (data.success && data.templates) {
-        mergedTemplates = { ...data.templates };
+      if (!res.ok) {
+        console.warn("API de checklist retornou status no responder:", res.status);
+      } else {
+        const data = await res.json();
+        if (data.success && data.templates) {
+          mergedTemplates = { ...data.templates };
+        }
       }
-
-      // Fetch custom templates from Firestore
-      try {
-        const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
-        customSnap.forEach(docSnap => {
-          const docData = docSnap.data();
-          if (docData.templateName && Array.isArray(docData.items)) {
-            mergedTemplates[docData.templateName] = docData.items;
-          }
-        });
-      } catch (fbErr) {
-        console.error("Erro ao obter modelos de checklist customizados do Firestore:", fbErr);
-      }
-
-      setTemplates(mergedTemplates);
-      if (force) {
-        toast.success("Modelos sincronizados e carregados com sucesso!");
-      }
-    } catch (e) {
-      console.error("Erro ao carregar os templates do servidor:", e);
-      toast.error("Erro ao carregar dados do checklist. Recarregue a página.");
-    } finally {
-      setTemplatesLoading(false);
+    } catch (e: any) {
+      console.error("Erro ao carregar os templates do servidor de planilha:", e);
     }
+
+    // 2. Fetch custom templates from Firestore
+    try {
+      const customSnap = await getDocs(collection(db, "checklist_custom_templates"));
+      customSnap.forEach(docSnap => {
+        const docData = docSnap.data();
+        if (docData.templateName && Array.isArray(docData.items)) {
+          mergedTemplates[docData.templateName] = docData.items;
+        }
+      });
+    } catch (fbErr) {
+      console.error("Erro ao obter modelos de checklist customizados do Firestore:", fbErr);
+    }
+
+    setTemplates(mergedTemplates);
+    if (force) {
+      toast.success("Modelos sincronizados e carregados com sucesso!");
+    }
+    setTemplatesLoading(false);
   };
 
   useEffect(() => {
