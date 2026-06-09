@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth, db, handleFirestoreError } from './lib/firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -27,6 +28,8 @@ import KanbanBoard from './components/kanban/KanbanBoard';
 import GestaoVista from './components/gestao/GestaoVista';
 import DrivePage from './components/drive/DrivePage';
 import ActivityManagement from './components/config/ActivityManagement';
+import ChecklistManutencaoPage from './components/maintenance/ChecklistManutencaoPage';
+import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
 import { LoadingState } from './components/dashboard/LoadingState';
 import AlertConfig from './components/config/AlertConfig';
@@ -42,7 +45,16 @@ function useAppLogic() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [currentView, setCurrentView] = useState('home');
+  const [currentView, setCurrentView] = useState(() => {
+    const path = window.location.pathname;
+    if (path === '/responder-checklist' || path.startsWith('/responder-checklist')) {
+      return 'responder-checklist';
+    }
+    if (path === '/checklist-manutencao') {
+      return 'checklist-manutencao';
+    }
+    return 'home';
+  });
   const [showAlerts, setShowAlerts] = useState(false);
 
   useEffect(() => {
@@ -78,11 +90,18 @@ function useAppLogic() {
         } catch (error) {
           console.error("Erro ao buscar perfil:", error);
         }
-        setCurrentView('home');
+        
+        const path = window.location.pathname;
+        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/checklist-manutencao') {
+          setCurrentView('home');
+        }
       } else {
         setUser(null);
         setUserProfile(null);
-        setCurrentView('home');
+        const path = window.location.pathname;
+        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist')) {
+          setCurrentView('home');
+        }
         setShowAlerts(false);
       }
       setLoading(false);
@@ -173,10 +192,48 @@ function ErrorFallback({ error, resetErrorBoundary }: any) {
 
 export default function App() {
   const { user, loading, userProfile, currentView, setCurrentView, showAlerts, setShowAlerts } = useAppLogic();
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // 1. Sync React Router location changes with our state-driven views (backward/forward buttons)
+  useEffect(() => {
+    const path = location.pathname;
+    if (path === '/responder-checklist' || path.startsWith('/responder-checklist')) {
+      if (currentView !== 'responder-checklist') {
+        setCurrentView('responder-checklist');
+      }
+    } else if (path === '/checklist-manutencao') {
+      if (currentView !== 'checklist-manutencao') {
+        setCurrentView('checklist-manutencao');
+      }
+    } else if (currentView === 'responder-checklist' || currentView === 'checklist-manutencao') {
+      if (path === '/' || path === '/home') {
+        setCurrentView('home');
+      }
+    }
+  }, [location.pathname]);
+
+  // 2. Sync state-driven views changes with React Router URL (programmatic redirects, link clicks)
+  useEffect(() => {
+    const path = location.pathname;
+    if (currentView === 'responder-checklist') {
+      if (!path.startsWith('/responder-checklist')) {
+        navigate('/responder-checklist');
+      }
+    } else if (currentView === 'checklist-manutencao') {
+      if (path !== '/checklist-manutencao') {
+        navigate('/checklist-manutencao');
+      }
+    } else {
+      if (path === '/checklist-manutencao' || path === '/responder-checklist') {
+        navigate('/');
+      }
+    }
+  }, [currentView]);
 
   useEffect(() => {
     if (!loading && !user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist'];
       if (!publicViews.includes(currentView)) {
         setCurrentView('home');
       }
@@ -189,7 +246,7 @@ export default function App() {
   const renderView = () => {
     // Visitor protection
     if (!user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist'];
       if (!publicViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
@@ -197,7 +254,7 @@ export default function App() {
 
     // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
@@ -213,6 +270,8 @@ export default function App() {
       case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
       case 'gestao-vista': return <GestaoVista onBack={() => setCurrentView('home')} />;
       case 'gerenciamento-atividades': return <ActivityManagement onBack={() => setCurrentView('home')} />;
+      case 'checklist-manutencao': return <ChecklistManutencaoPage onBack={() => setCurrentView('gerenciamento-atividades')} userRole={effectiveRole} />;
+      case 'responder-checklist': return <ResponderChecklistPage onBack={user ? () => setCurrentView('gerenciamento-atividades') : undefined} />;
       case 'abast-desvios': return <AbastDesviosView desviosOnly={true} userRole={effectiveRole} />;
       case 'abast-perf': return <AbastPerformanceView userRole={effectiveRole} />;
       case 'rankings': return <RankingView />;
@@ -247,11 +306,17 @@ export default function App() {
   }
 
     // Handle Fullscreen views (No Auth Required for Drive, Auth depends on component for others)
-    if (currentView === 'drive' || currentView === 'abast-maquinas') {
+    if (currentView === 'drive' || currentView === 'abast-maquinas' || currentView === 'responder-checklist') {
       return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <div className="min-h-screen">
-            {currentView === 'drive' ? <DrivePage onBack={() => setCurrentView('home')} /> : <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />}
+            {currentView === 'drive' ? (
+              <DrivePage onBack={() => setCurrentView('home')} />
+            ) : currentView === 'abast-maquinas' ? (
+              <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />
+            ) : (
+              <ResponderChecklistPage onBack={user ? () => setCurrentView('gerenciamento-atividades') : undefined} />
+            )}
             {managementAlerts}
             <Toaster position="top-right" />
           </div>
@@ -261,7 +326,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive'];
+    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">

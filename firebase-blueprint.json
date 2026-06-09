@@ -135,6 +135,22 @@
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["date", "selectedTypes"]
+    },
+    "ChecklistSubmission": {
+      "title": "Checklist Submission",
+      "description": "Respostas do checklist enviadas pelos motoristas/condutores",
+      "type": "object",
+      "properties": {
+        "driverName": { "type": "string" },
+        "currentUsage": { "type": "number", "description": "KM ou Horímetro atual do ativo" },
+        "usagePhotoUrl": { "type": "string", "description": "Foto comprovante do KM ou Horímetro em Base64" },
+        "plate": { "type": "string", "description": "Placa do ativo" },
+        "assetType": { "type": "string", "description": "Tipo do ativo correspondente à aba da planilha" },
+        "dateTime": { "type": "string", "format": "date-time" },
+        "responses": { "type": "array" },
+        "status": { "type": "string", "enum": ["completed"] }
+      },
+      "required": ["driverName", "currentUsage", "usagePhotoUrl", "plate", "assetType", "dateTime", "responses", "status"]
     }
   },
   "firestore": {
@@ -173,6 +189,10 @@
     "/calendar_selections/{selectionId}": {
       "schema": "CalendarSelection",
       "description": "Seleções de tipos de ativos feitos no dia pelo usuário"
+    },
+    "/checklist_submissions/{submissionId}": {
+      "schema": "ChecklistSubmission",
+      "description": "Checklists preenchidos pelos condutores"
     }
   }
 }

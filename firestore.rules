@@ -103,6 +103,13 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // --- Checklist Submissions ---
+    match /checklist_submissions/{submissionId} {
+      allow create: if true; // Public drivers can submit checklists
+      allow read, delete: if isGestor() || isAdmin(); // Only manager or master can read or delete
+      allow update: if false; // Immutability for audit security
+    }
+
     // Connection test
     match /test/connection {
       allow read: if true;

@@ -1,6 +1,6 @@
 {
   "name": "Nexus Frota BI | Inteligência de Dados CGF",
-  "description": "Sistema unificado de gestão e monitoria de frota com telemetria BI e Kanban de manutenção, integrando performance e ordens de serviço.",
+  "description": "Sistema unificado de gestão e monitoria de frota com telemetria BI, Kanban de manutenção e Gestão do Checklist de Manutenção (CHM).",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

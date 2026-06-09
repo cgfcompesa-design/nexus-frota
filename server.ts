@@ -203,6 +203,59 @@ async function startServer() {
     }
   });
 
+  // Checklist template cache
+  let checklistTemplatesCache: any = null;
+  let lastChecklistFetchTime = 0;
+  let isChecklistFetching = false;
+
+  app.get("/api/checklist-templates", async (req, res) => {
+    try {
+      if (checklistTemplatesCache && (Date.now() - lastChecklistFetchTime < 30 * 60 * 1000)) {
+        return res.json({ success: true, templates: checklistTemplatesCache, cached: true });
+      }
+      
+      console.log("[SERVER] Fetching checklist templates from Google Sheets...");
+      const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTqVrg62SecM_o3GAnntzZoymFoNyi7JkNZ6xxNDiNGgItbx11wO01SCP_F1G9Wr3oWAcYONNt6W7zu/pub?output=xlsx";
+      const buffer = await fetchUrlBinary(url);
+      const wb = XLSX.read(buffer, { type: "buffer" });
+      
+      const templates: Record<string, any[]> = {};
+      
+      wb.SheetNames.forEach(sheetName => {
+        if (sheetName === "Sheet1") return; // Skip default empty sheet if any
+        
+        const sheet = wb.Sheets[sheetName];
+        const rows = XLSX.utils.sheet_to_json(sheet) as any[];
+        
+        const mappedRows = rows.map((row: any) => ({
+          grupo: row['Grupo'] || row['grupo'] || "",
+          nomeItem: row['Nome do Item'] || row['Nome Item'] || row['nomeItem'] || row['Nome'] || "",
+          descricao: row['Descrição'] || row['descricao'] || "",
+          escopo: row['Escopo'] || row['escopo'] || "veiculo",
+          tipoResposta: row['Tipo de Resposta'] || row['tipoResposta'] || "ok_nok",
+          ordem: row['Ordem'] || row['ordem'] || 0,
+          fotoObrigatoria: String(row['Foto Obrigatória'] || row['fotoObrigatoria'] || 'não').toLowerCase().trim() === 'sim' || String(row['Foto Obrigatória'] || row['fotoObrigatoria'] || 'não').toLowerCase().trim() === 'true',
+          itemObrigatorio: String(row['Item Obrigatório'] || row['itemObrigatorio'] || 'sim').toLowerCase().trim() === 'sim' || String(row['Item Obrigatório'] || row['itemObrigatorio'] || 'sim').toLowerCase().trim() === 'true'
+        })).filter(r => r.nomeItem && r.grupo);
+        
+        if (mappedRows.length > 0) {
+          templates[sheetName] = mappedRows;
+        }
+      });
+      
+      checklistTemplatesCache = templates;
+      lastChecklistFetchTime = Date.now();
+      
+      res.json({ success: true, templates, cached: false });
+    } catch (e: any) {
+      console.error("[SERVER] Failed to fetch checklist templates:", e.message);
+      if (checklistTemplatesCache) {
+        return res.json({ success: true, templates: checklistTemplatesCache, cached: true, warning: e.message });
+      }
+      res.status(500).json({ success: false, error: e.message });
+    }
+  });
+
   app.post("/api/send-management-report", async (req, res) => {
     const { alerts, targetEmail, vehicleType } = req.body;
     const email = targetEmail || (vehicleType === 'Locado' ? 'gadlocados@compesa.com.br' : 'gadveiculos@compesa.com.br');

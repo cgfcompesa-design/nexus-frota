@@ -11,8 +11,7 @@ const TITULOS_DESPESAS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS
 const MAINTENANCE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1765787451&single=true&output=csv';
 const PREVENTIVE_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=57968629&single=true&output=csv';
 const PREVENTIVE_LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_A1EB7zQfuUlE4LCa_PbXGmtPHoXTyibIStoSW0T8Pe4jense43xIP4uRbgS77KFUKyM5FEX5w99N/pub?gid=698675285&single=true&output=csv';
-// URL direto da aba "Transações" — confirmado como funcional pelo usuário
-const FUEL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=csv';
+const FUEL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?gid=1282350705&single=true&output=csv';
 const HISTORICO_MANUTENCAO_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT3pRYxrmBebjhyQCfcApeQwfwnL2XZdNPxFCvyXUEQ3LW7epLEz0emED0BKFpiivo371IJ6pz3l4m_/pub?gid=449761634&single=true&output=csv';
 const ORCAMENTOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1278375363&single=true&output=csv';
 const CUSTOS_DETALHADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1041597392&single=true&output=csv';
@@ -178,25 +177,82 @@ export async function fetchPreventiveLocadosData(): Promise<any[]> {
 
 export async function fetchFuelData(): Promise<any[]> {
   let rows: any[][] = [];
-
-  // Busca direta ao CSV da aba "Transações" do Google Sheets — sem proxy, sem XLSX intermediário
-  console.log("Fetching fuel data from Google Sheets CSV (aba Transações)...");
+  
   try {
-    rows = await fetchCsv(FUEL_URL);
-    console.log(`Loaded ${rows.length} rows from fuel CSV (Transações).`);
-  } catch (csvError) {
-    console.error("Failed to load fuel CSV data:", csvError);
-    return [];
+    const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';
+    console.log("Fetching fuel data from Google Sheets directly in XLSX format...");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+    
+    const buf = await res.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
+    
+    // Find the first sheet that has rows and contains headers like PLACA, DATA, LITROS, etc.
+    let targetSheetName = "";
+    let bestMatchHeadersCount = -1;
+    let selectedRows: any[][] = [];
+
+    for (const name of wb.SheetNames) {
+      const sheet = wb.Sheets[name];
+      const sheetRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+      if (sheetRows.length === 0) continue;
+
+      // Look for a header row containing keywords
+      const headerRowIndex = sheetRows.findIndex(row => 
+        row.some(cell => {
+          const c = String(cell || "").toUpperCase();
+          return c.includes("PLACA") || c.includes("RESUMO") || c.includes("MES/ANO") || c.includes("VALOR") || c.includes("LITROS") || c.includes("TRANSACAO");
+        })
+      );
+
+      if (headerRowIndex !== -1) {
+        const headerRow = sheetRows[headerRowIndex];
+        const keywords = ["PLACA", "DATA", "LITROS", "VALOR", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM"];
+        const matchCount = headerRow.filter(cell => {
+          const c = String(cell || "").toUpperCase();
+          return keywords.some(k => c.includes(k));
+        }).length;
+
+        // Prioritize sheets with name containing 'Transacoes' or 'Transações' (case and accent insensitive)
+        const normalizedSheetName = name.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const isTransacoesSheet = normalizedSheetName.includes("TRANSACAO") || normalizedSheetName.includes("ABASTEC");
+        const totalScore = matchCount + (isTransacoesSheet ? 500 : 0);
+
+        if (totalScore > bestMatchHeadersCount) {
+          bestMatchHeadersCount = totalScore;
+          targetSheetName = name;
+          selectedRows = sheetRows;
+        }
+      }
+    }
+
+    if (!targetSheetName && wb.SheetNames.length > 0) {
+      targetSheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[targetSheetName];
+      selectedRows = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][];
+    }
+
+    rows = selectedRows;
+    console.log(`Loaded ${rows.length} rows directly from Excel sheet: "${targetSheetName}"`);
+  } catch (error) {
+    console.warn("Failed to load xlsx fuel data, falling back to CSV...", error);
+    try {
+      rows = await fetchCsv(FUEL_URL);
+    } catch (csvError) {
+      console.error("Failed to load CSV fuel data as well:", csvError);
+      return [];
+    }
   }
 
   if (rows.length <= 1) return [];
   
-  // Advanced keyword-scoring-based header row finder - scan ALL rows of the spreadsheet!
+  // Advanced keyword-scoring-based header row finder - scan first 100 rows of the spreadsheet instead of ALL 96k!
   let headerRowIndex = -1;
   let maxScore = -1;
   const keywords = ["PLACA", "DATA", "LITROS", "VOLUME", "VALOR", "UNITARIO", "TOTAL", "MOTORISTA", "CONDUTOR", "POSTO", "ESTABELECIMENTO", "KM", "TRANSACAO", "ODOMETRO", "HODOMETRO"];
   
-  for (let i = 0; i < rows.length; i++) {
+  const scanLimit = Math.min(100, rows.length);
+  for (let i = 0; i < scanLimit; i++) {
     const row = rows[i];
     if (!row || !Array.isArray(row)) continue;
     
@@ -272,6 +328,12 @@ export async function fetchFuelData(): Promise<any[]> {
         if (!val) return;
 
         // Priority Mapping for Core Fields
+        if (key === "CODIGO TRANSACAO" || key === "N TRANSACAO" || key === "TRANSACAO" || key === "Nº TRANSACAO" || key === "COD_TRANSACAO") {
+          obj._txId = String(val).trim();
+        } else if (key.includes("TRANSACAO") && !obj._txId) {
+          obj._txId = String(val).trim();
+        }
+
         if (key === "PLACA" || key === "PLACA VEICULO" || key === "PLACA_VEICULO" || key === "PREFIXO") {
           obj._placa = String(val).toUpperCase().replace(/[^A-Z0-9]/gi, "");
         } else if (key.includes("PLACA") && !obj._placa) {
@@ -373,7 +435,7 @@ export async function fetchFuelData(): Promise<any[]> {
     
     if (!obj._txId) obj._txId = row[0] || row[8] || "N/A";
     if (!obj._date) obj._date = row[4]; // Column E
-    if (!obj._placa) obj._placa = String(row[10] || row[11] || row[5] || obj._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
+    if (!obj._placa) obj._placa = String(row[5] || row[10] || row[11] || obj._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
     if (!obj._fuelType) obj._fuelType = row[19] || row[2];
     if (!obj._litros) obj._litros = parseNum(row[21]);
     
@@ -392,7 +454,7 @@ export async function fetchFuelData(): Promise<any[]> {
     // If E is Data/Hora, maybe the Transaction ID is in F? Or I should keep searching.
     // Let's try to map txId to a different column if it's currently showing Time.
     // Usually Ticket Log has it in index 3 or 4.
-    if (!obj._txId) obj._txId = row[8] || row[4] || "N/A";
+    if (!obj._txId) obj._txId = row[0] || row[8] || row[4] || "N/A";
     if (!obj._posto) obj._posto = row[21] || row[16] || row[23] || "N/A";
     if (!obj._cidade) obj._cidade = row[25] || row[21] || row[20] || "N/A";
     if (!obj._endereco) obj._endereco = row[23] || row[18] || "N/A";
