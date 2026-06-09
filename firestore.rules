@@ -1,0 +1,118 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function getUserData(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data;
+    }
+
+    function hasRole(role) {
+      return isSignedIn() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'cgf.compesa@gmail.com' && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Master')
+      );
+    }
+
+    function isGestor() {
+      return isAdmin() || hasRole('Gestão');
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      // Permitir que o proprietário sempre veja seu próprio perfil (get e create)
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId); // Permitir criação inicial
+      
+      // Administradores vejam qualquer perfil e listem usuários
+      allow get, list: if isAdmin();
+        
+      allow update: if isAdmin() || (isOwner(userId) && 
+        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'email', 'uid']));
+    }
+
+    // --- Maintenance Tasks ---
+    match /maintenance_tasks/{taskId} {
+      allow read: if isSignedIn();
+      allow create, update: if isGestor() || hasRole('Operador') || hasRole('Gestão'); // Keeping Operador if it existed but using Gestão
+      allow delete: if isAdmin() || isGestor();
+    }
+
+    // --- Telemetry Logs ---
+    match /telemetry_logs/{logId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin() || isGestor();
+    }
+
+    // --- Kanban System ---
+    match /kanban_tasks/{taskId} {
+      allow read, write: if true;
+    }
+
+    match /kanban_responsibles/{responsibleId} {
+      allow read, write: if true;
+    }
+
+    // --- Indicators ---
+    match /indicators/{indicatorId} {
+      allow read, write: if true;
+    }
+
+    match /indicator_values/{valueId} {
+      allow read, write: if true;
+    }
+
+    // --- Machine Supply Assignments ---
+    match /machine_supply_assignments/{assignmentId} {
+      allow read, write: if true;
+    }
+
+    // --- Calendar Selections ---
+    match /calendar_selections/{selectionId} {
+      allow read, write: if true;
+    }
+
+    // --- Checklist Submissions ---
+    match /checklist_submissions/{submissionId} {
+      allow create: if true; // Public drivers can submit checklists
+      allow read, delete: if isGestor() || isAdmin(); // Only manager or master can read or delete
+      allow update: if false; // Immutability for audit security
+    }
+
+    // Connection test
+    match /test/connection {
+      allow read: if true;
+    }
+  }
+}
