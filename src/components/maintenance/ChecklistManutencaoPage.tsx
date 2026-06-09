@@ -983,7 +983,7 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
 
       {/* Dialog for Bulk import checklist items */}
       <Dialog open={bulkImportOpen} onOpenChange={setBulkImportOpen}>
-        <DialogContent className="max-w-4xl p-0 overflow-hidden rounded-3xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+        <DialogContent className="sm:max-w-5xl w-[95vw] md:w-[92vw] lg:w-[85vw] p-0 overflow-hidden rounded-3xl border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
           <div className="bg-slate-50 dark:bg-slate-900/80 px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2.5 bg-purple-600 rounded-2xl text-white">
