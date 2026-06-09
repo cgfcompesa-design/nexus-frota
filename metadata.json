@@ -1,6 +1,10 @@
 {
-  "name": "Nexus Frota BI | Inteligência de Dados CGF",
-  "description": "Sistema unificado de gestão e monitoria de frota com telemetria BI, Kanban de manutenção e Gestão do Checklist de Manutenção (CHM).",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "name": "COMPESA - Gestão de Frotas",
+  "description": "Painel para monitoramento de combustíveis, telemetria e controle de manutenção de veículos da COMPESA.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
