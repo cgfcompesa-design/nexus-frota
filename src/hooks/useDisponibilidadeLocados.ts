@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocadosData } from "./useLocadosData";
 
@@ -99,24 +100,38 @@ export const useDisponibilidadeLocados = () => {
   const { data: veiculosDisponiveis = 0, isLoading: isLoadingVeiculos } = useVeiculosLocadosDisponiveis();
   const { data: locados = [], isLoading: isLoadingLocados } = useLocadosData();
   
-  // Total de dias parados (numerador de indisponibilidade):
-  // TotalDiasParados = Σ (Dias Parados de cada linha com placa válida)
-  const totalDiasParados = locados.reduce((sum, item) => {
-    const rawPlaca = String(item.placa || "").trim();
-    const cleanPlaca = rawPlaca.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  // Total de dias parados e meses únicos representados
+  const { totalDiasParados, uniqueMonthsCount } = useMemo(() => {
+    let sum = 0;
+    const uniqueMonths = new Set<string>();
     
-    // A plate in Brazil is valid if it has exactly 7 alphanumeric characters
-    const isPlacaValida = cleanPlaca.length === 7;
+    locados.forEach((item) => {
+      const rawPlaca = String(item.placa || "").trim();
+      const cleanPlaca = rawPlaca.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      const isPlacaValida = cleanPlaca.length === 7;
+      
+      if (isPlacaValida) {
+        sum += (item.diasParados || 0);
+      }
+      
+      if (item.mesAno) {
+        uniqueMonths.add(String(item.mesAno).trim().toLowerCase());
+      }
+    });
     
-    if (isPlacaValida) {
-      return sum + (item.diasParados || 0);
-    }
-    return sum;
-  }, 0);
+    return {
+      totalDiasParados: sum,
+      uniqueMonthsCount: Math.max(1, uniqueMonths.size)
+    };
+  }, [locados]);
   
-  // Disponibilidade = ((Veículos − TotalDiasParados) / Veículos) × 100
-  const disponibilidade = veiculosDisponiveis > 0 
-    ? ((veiculosDisponiveis - totalDiasParados) / veiculosDisponiveis) * 100 
+  // Total potencial de dias de disponibilidade = Veículos * 30 dias * quantidade de meses observados
+  // A indisponibilidade por placa reduz esse total acumulado
+  const totalPotentialDays = veiculosDisponiveis * 30 * uniqueMonthsCount;
+  
+  // Disponibilidade = ((Total Potencial de Dias - Total de Dias Parados) / Total Potencial de Dias) * 100
+  const disponibilidade = totalPotentialDays > 0 
+    ? ((totalPotentialDays - totalDiasParados) / totalPotentialDays) * 100 
     : 0;
   
   // DisponibilidadeFinal = MAX(0, Disponibilidade)

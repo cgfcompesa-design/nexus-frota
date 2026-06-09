@@ -150,10 +150,16 @@ export const LocadosDashboard = () => {
     const totalVeiculos = filteredData.length;
     const mediaDiasParados = totalVeiculos > 0 ? (totalDiasParados / totalVeiculos).toFixed(1) : "0";
     
-    // Alinhando com a lógica que o usuário pediu
-    // Disponibilidade = (veiculosDisponiveisCount - totalDiasParados) / veiculosDisponiveisCount * 100
-    const disponibilidade = veiculosDisponiveisCount > 0 
-      ? ((veiculosDisponiveisCount - totalDiasParados) / veiculosDisponiveisCount) * 100 
+    // Alinhando com a lógica descrita pelo usuário:
+    // Todos os veículos da planilha de ativos têm direito a 30 dias de disponibilidade por mês.
+    // Reduzimos o total de dias de indisponibilidade deste total potencial do período.
+    const uniqueFilteredMonths = new Set(filteredData.map(item => String(item.mesAno).trim().toLowerCase()).filter(Boolean));
+    const monthsCount = selectedMesAno !== "all" ? 1 : Math.max(1, uniqueFilteredMonths.size);
+    
+    const totalPotentialDays = veiculosDisponiveisCount * 30 * monthsCount;
+    
+    const disponibilidade = totalPotentialDays > 0 
+      ? ((totalPotentialDays - totalDiasParados) / totalPotentialDays) * 100 
       : 0;
     const disponibilidadeFinal = Math.max(0, disponibilidade);
     const metaAtingida = disponibilidadeFinal >= 100;
@@ -670,10 +676,11 @@ export const LocadosDashboard = () => {
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="space-y-1 text-sm">
                 <p><strong>Cálculo Realizado conforme solicitado:</strong></p>
-                <p>Veículos Disponíveis (Base): <strong>{veiculosDisponiveisCount}</strong></p>
+                <p>Veículos Ativos Operacionais: <strong>{veiculosDisponiveisCount}</strong></p>
                 <p>Dias Parados Acumulados: <strong>{metrics.totalDiasParados}</strong></p>
+                <p>Capacidade Potencial (Dias): <strong>{veiculosDisponiveisCount * 30 * (selectedMesAno !== "all" ? 1 : Math.max(1, new Set(filteredData.map(i => i.mesAno).filter(Boolean)).size))}</strong></p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  (Veículos - Dias Parados) / Veículos × 100
+                  ((Veículos × 30 × Meses) - Dias Parados) / (Veículos × 30 × Meses) × 100
                 </p>
               </div>
             </TooltipContent>
