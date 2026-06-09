@@ -87,7 +87,7 @@ export default function ChecklistManutencaoPage({ onBack, userRole = 'Visualizad
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   // Derived shareable checkin link
-  const shareableUrl = `${window.location.origin}/responder-checklist`;
+  const shareableUrl = `${window.location.origin}/?view=responder-checklist`;
 
   // Fetch submissions from Firestore
   const fetchSubmissions = async () => {

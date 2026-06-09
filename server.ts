@@ -354,14 +354,6 @@ async function startServer() {
       appType: "spa",
     });
     
-    // SPA fallback middleware for dev mode
-    app.use((req, res, next) => {
-      if (req.method === 'GET' && !req.path.startsWith('/api') && !req.path.includes('.')) {
-        req.url = '/index.html';
-      }
-      next();
-    });
-    
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');

@@ -47,10 +47,16 @@ function useAppLogic() {
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState(() => {
     const path = window.location.pathname;
-    if (path === '/responder-checklist' || path.startsWith('/responder-checklist')) {
+    const hash = window.location.hash;
+    const searchParams = new URLSearchParams(window.location.search);
+    const viewParam = searchParams.get('view');
+    
+    if (path === '/responder-checklist' || path.startsWith('/responder-checklist') || 
+        hash === '#/responder-checklist' || hash.startsWith('#/responder-checklist') ||
+        viewParam === 'responder-checklist') {
       return 'responder-checklist';
     }
-    if (path === '/checklist-manutencao') {
+    if (path === '/checklist-manutencao' || hash === '#/checklist-manutencao' || viewParam === 'checklist-manutencao') {
       return 'checklist-manutencao';
     }
     return 'home';
@@ -92,14 +98,27 @@ function useAppLogic() {
         }
         
         const path = window.location.pathname;
-        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/checklist-manutencao') {
+        const hash = window.location.hash;
+        const searchParams = new URLSearchParams(window.location.search);
+        const viewParam = searchParams.get('view');
+        const isChecklistPath = path === '/responder-checklist' || path.startsWith('/responder-checklist') ||
+                                hash === '#/responder-checklist' || hash.startsWith('#/responder-checklist') ||
+                                viewParam === 'responder-checklist' ||
+                                path === '/checklist-manutencao' || hash === '#/checklist-manutencao' || viewParam === 'checklist-manutencao';
+        if (!isChecklistPath) {
           setCurrentView('home');
         }
       } else {
         setUser(null);
         setUserProfile(null);
         const path = window.location.pathname;
-        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist')) {
+        const hash = window.location.hash;
+        const searchParams = new URLSearchParams(window.location.search);
+        const viewParam = searchParams.get('view');
+        const isChecklistPath = path === '/responder-checklist' || path.startsWith('/responder-checklist') ||
+                                hash === '#/responder-checklist' || hash.startsWith('#/responder-checklist') ||
+                                viewParam === 'responder-checklist';
+        if (!isChecklistPath) {
           setCurrentView('home');
         }
         setShowAlerts(false);
@@ -198,11 +217,17 @@ export default function App() {
   // 1. Sync React Router location changes with our state-driven views (backward/forward buttons)
   useEffect(() => {
     const path = location.pathname;
-    if (path === '/responder-checklist' || path.startsWith('/responder-checklist')) {
+    const hash = window.location.hash;
+    const searchParams = new URLSearchParams(location.search);
+    const viewParam = searchParams.get('view');
+
+    if (path === '/responder-checklist' || path.startsWith('/responder-checklist') || 
+        hash === '#/responder-checklist' || hash.startsWith('#/responder-checklist') ||
+        viewParam === 'responder-checklist') {
       if (currentView !== 'responder-checklist') {
         setCurrentView('responder-checklist');
       }
-    } else if (path === '/checklist-manutencao') {
+    } else if (path === '/checklist-manutencao' || hash === '#/checklist-manutencao' || viewParam === 'checklist-manutencao') {
       if (currentView !== 'checklist-manutencao') {
         setCurrentView('checklist-manutencao');
       }
@@ -211,21 +236,24 @@ export default function App() {
         setCurrentView('home');
       }
     }
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   // 2. Sync state-driven views changes with React Router URL (programmatic redirects, link clicks)
   useEffect(() => {
     const path = location.pathname;
+    const searchParams = new URLSearchParams(location.search);
+    const viewParam = searchParams.get('view');
+
     if (currentView === 'responder-checklist') {
-      if (!path.startsWith('/responder-checklist')) {
-        navigate('/responder-checklist');
+      if (!path.startsWith('/responder-checklist') && viewParam !== 'responder-checklist') {
+        navigate('/?view=responder-checklist');
       }
     } else if (currentView === 'checklist-manutencao') {
-      if (path !== '/checklist-manutencao') {
+      if (path !== '/checklist-manutencao' && viewParam !== 'checklist-manutencao') {
         navigate('/checklist-manutencao');
       }
     } else {
-      if (path === '/checklist-manutencao' || path === '/responder-checklist') {
+      if (path === '/checklist-manutencao' || path === '/responder-checklist' || viewParam === 'checklist-manutencao' || viewParam === 'responder-checklist') {
         navigate('/');
       }
     }
