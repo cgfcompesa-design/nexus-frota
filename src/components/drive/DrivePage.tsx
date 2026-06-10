@@ -9,6 +9,7 @@ import ExtraCreditEstimation from "./ExtraCreditEstimation";
 import ControleDocumentosView from "./ControleDocumentosView";
 import FuelStationsView from "./FuelStationsView";
 import ProcedimentoLigarVeiculoView from "./ProcedimentoLigarVeiculoView";
+import ManutencaoFrotaView from "./ManutencaoFrotaView";
 
 const sections = [
   {
@@ -30,10 +31,9 @@ const sections = [
   {
     id: "manutencao",
     title: "Manutenção da Frota",
-    description: "Informações sobre manutenção e cuidados com os veículos",
+    description: "Abertura de chamados, procedimentos operacionais padrão e manual de uso",
     icon: Wrench,
-    href: "#",
-    available: false,
+    available: true,
   },
   {
     id: "regularizacao",
@@ -111,6 +111,16 @@ export default function DrivePage({ onBack }: { onBack?: () => void }) {
     );
   }
 
+  if (activeSubview === "manutencao") {
+    return (
+      <main className="min-h-screen bg-slate-50 dark:bg-slate-950 p-8">
+        <div className="mx-auto max-w-7xl">
+          <ManutencaoFrotaView onBack={() => setActiveSubview(null)} />
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <header className="relative overflow-hidden border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
@@ -145,19 +155,6 @@ export default function DrivePage({ onBack }: { onBack?: () => void }) {
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed max-w-2xl">
               Acesse rapidamente materiais, procedimentos e consultas essenciais da Nexus BI Frota através deste portal centralizado.
             </p>
-
-            <div className="mt-6 flex flex-wrap justify-center gap-4">
-              <a 
-                href="https://drive.google.com/file/d/11kClx8GFoNgajFv6rxsJVlN0gcdoaWG1/view?usp=sharing"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex"
-              >
-                <Button className="rounded-2xl font-black uppercase text-xs tracking-widest gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 dark:shadow-none h-11 px-6">
-                  <BookOpen size={16} /> Manual do Motorista
-                </Button>
-              </a>
-            </div>
           </div>
         </div>
       </header>
@@ -178,7 +175,7 @@ export default function DrivePage({ onBack }: { onBack?: () => void }) {
 
             const handleSectionClick = (e: React.MouseEvent) => {
               if (!section.available) return;
-              const subviews = ["estimativa-credito", "regularizacao", "postos", "telemetria"];
+              const subviews = ["estimativa-credito", "regularizacao", "postos", "telemetria", "manutencao"];
               if (subviews.includes(section.id)) {
                 e.preventDefault();
                 setActiveSubview(section.id);
@@ -229,7 +226,7 @@ export default function DrivePage({ onBack }: { onBack?: () => void }) {
               </Card>
             );
 
-            if (section.available && !["estimativa-credito", "regularizacao", "postos", "telemetria"].includes(section.id)) {
+            if (section.available && !["estimativa-credito", "regularizacao", "postos", "telemetria", "manutencao"].includes(section.id)) {
               if (section.external) {
                 return (
                   <a
