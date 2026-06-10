@@ -117,11 +117,38 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     });
   }, [alerts]);
 
-  const proprios = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio' && a.categoria !== 'Infrações'), [sortedAlerts]);
-  const locados = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Locado' && a.categoria !== 'Infrações'), [sortedAlerts]);
-  const infracoes = useMemo(() => sortedAlerts.filter(a => a.categoria === 'Infrações'), [sortedAlerts]);
-
   const [activeTab, setActiveTab] = useState('proprios');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'vencido' | 'a_vencer'>('all');
+  const [propFilter, setPropFilter] = useState<'all' | 'proprio' | 'locado'>('all');
+  const [catFilter, setCatFilter] = useState<'all' | 'manutencao' | 'taxas'>('all');
+
+  const propriosBase = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio' && a.categoria !== 'Infrações'), [sortedAlerts]);
+  const locadosBase = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Locado' && a.categoria !== 'Infrações'), [sortedAlerts]);
+  const infracoesBase = useMemo(() => sortedAlerts.filter(a => a.categoria === 'Infrações'), [sortedAlerts]);
+
+  const proprios = useMemo(() => {
+    return propriosBase.filter(a => {
+      const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
+      const matchCat = catFilter === 'all' ? true : (catFilter === 'manutencao' ? a.categoria === 'Manutenção' : a.categoria === 'Taxas');
+      return matchStatus && matchCat;
+    });
+  }, [propriosBase, statusFilter, catFilter]);
+
+  const locados = useMemo(() => {
+    return locadosBase.filter(a => {
+      const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
+      const matchCat = catFilter === 'all' ? true : (catFilter === 'manutencao' ? a.categoria === 'Manutenção' : a.categoria === 'Taxas');
+      return matchStatus && matchCat;
+    });
+  }, [locadosBase, statusFilter, catFilter]);
+
+  const infracoes = useMemo(() => {
+    return infracoesBase.filter(a => {
+      const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
+      const matchProp = propFilter === 'all' ? true : (propFilter === 'proprio' ? a.propriedade === 'Próprio' : a.propriedade === 'Locado');
+      return matchStatus && matchProp;
+    });
+  }, [infracoesBase, statusFilter, propFilter]);
 
   const handleCopyWhatsApp = () => {
     try {
@@ -245,18 +272,27 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
           </div>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-6 bg-slate-50 dark:bg-slate-950/20">
-          <Tabs defaultValue="proprios" onValueChange={setActiveTab} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+         <div className="flex-1 overflow-hidden min-h-0 flex flex-col px-6 bg-slate-50 dark:bg-slate-950/20">
+          <Tabs 
+            defaultValue="proprios" 
+            onValueChange={(val) => {
+              setActiveTab(val);
+              setStatusFilter('all');
+              setPropFilter('all');
+              setCatFilter('all');
+            }} 
+            className="flex-1 flex flex-col min-h-0 overflow-hidden"
+          >
             <div className="flex items-center justify-between py-4 shrink-0">
               <TabsList className="bg-slate-200/50 dark:bg-slate-900/50 p-1">
                 <TabsTrigger value="proprios" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
-                  Próprios ({proprios.length})
+                  Próprios {proprios.length === propriosBase.length ? `(${proprios.length})` : `(${proprios.length}/${propriosBase.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="locados" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
-                  Locados ({locados.length})
+                  Locados {locados.length === locadosBase.length ? `(${locados.length})` : `(${locados.length}/${locadosBase.length})`}
                 </TabsTrigger>
                 <TabsTrigger value="infracoes" className="text-[10px] uppercase font-black px-4 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800 shadow-none">
-                  Infrações ({infracoes.length})
+                  Infrações {infracoes.length === infracoesBase.length ? `(${infracoes.length})` : `(${infracoes.length}/${infracoesBase.length})`}
                 </TabsTrigger>
               </TabsList>
               
@@ -264,6 +300,102 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                 <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-rose-500 mr-1.5" /> Vencidos</div>
                 <div className="flex items-center"><div className="w-2 h-2 rounded-full bg-amber-500 mr-1.5" /> Próximos</div>
               </div>
+            </div>
+
+            {/* Elegant Filters Bar */}
+            <div className="flex flex-wrap gap-2 items-center justify-between pb-3 mb-1 border-b border-slate-200 dark:border-white/5 bg-slate-100/30 dark:bg-slate-900/20 p-2 text-xs rounded-xl shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Situação:</span>
+                <button 
+                  type="button"
+                  onClick={() => setStatusFilter('all')}
+                  className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${statusFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                >
+                  Todas
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setStatusFilter('vencido')}
+                  className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${statusFilter === 'vencido' ? 'bg-rose-500 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                >
+                  Vencidos
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setStatusFilter('a_vencer')}
+                  className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${statusFilter === 'a_vencer' ? 'bg-amber-500 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-810'}`}
+                >
+                  A Vencer
+                </button>
+
+                {activeTab !== 'infracoes' ? (
+                  <>
+                    <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1" />
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Categoria:</span>
+                    <button 
+                      type="button"
+                      onClick={() => setCatFilter('all')}
+                      className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${catFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                    >
+                      Todas
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setCatFilter('manutencao')}
+                      className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${catFilter === 'manutencao' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                    >
+                      Manutenção
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setCatFilter('taxas')}
+                      className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${catFilter === 'taxas' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                    >
+                      Taxas
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1" />
+                    <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Propriedade:</span>
+                    <button 
+                      type="button"
+                      onClick={() => setPropFilter('all')}
+                      className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${propFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                    >
+                      Todos
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setPropFilter('proprio')}
+                      className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${propFilter === 'proprio' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                    >
+                      Próprio
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setPropFilter('locado')}
+                      className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${propFilter === 'locado' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                    >
+                      Locado
+                    </button>
+                  </>
+                )}
+              </div>
+              
+              {(statusFilter !== 'all' || catFilter !== 'all' || propFilter !== 'all') && (
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('all');
+                    setCatFilter('all');
+                    setPropFilter('all');
+                  }}
+                  className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-amber-100 transition-colors"
+                >
+                  Limpar Filtros
+                </button>
+              )}
             </div>
             
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">

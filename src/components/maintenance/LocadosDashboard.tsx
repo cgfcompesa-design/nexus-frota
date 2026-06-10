@@ -34,7 +34,6 @@ const STATUS_COLORS: Record<string, string> = {
 export const LocadosDashboard = () => {
   const { data: rawLocados = [], isLoading, isError, refetch } = useLocadosData();
   const { data: veiculosDisponiveisData, isLoading: isLoadingVeiculos, isError: isErrorVeiculos } = useVeiculosLocadosDisponiveis();
-  const veiculosDisponiveisCount = veiculosDisponiveisData?.count ?? 0;
   
   const titularPlatesSet = useMemo(() => {
     return new Set(veiculosDisponiveisData?.plates || []);
@@ -79,7 +78,7 @@ export const LocadosDashboard = () => {
     assets.forEach(asset => {
       const placa = asset.PLACA || asset.placa || "";
       if (placa) {
-        map.set(placa.toUpperCase(), {
+        map.set(placa.toUpperCase().replace(/[^A-Z0-9]/g, "").trim(), {
           diretoria: asset.DIRETORIA || "",
           gerencia: asset.GERENCIA || "",
           propriedade: asset.PROPRIEDADE || "",
@@ -88,6 +87,34 @@ export const LocadosDashboard = () => {
     });
     return map;
   }, [assets]);
+
+  // Dynamically calculate operational vehicles count based on filters for Disponibilidade
+  const veiculosDisponiveisCount = useMemo(() => {
+    const rawCount = veiculosDisponiveisData?.count ?? 0;
+    if (selectedDiretoria === "all" && selectedGerencia === "all" && selectedPropriedade === "all") {
+      return rawCount;
+    }
+    if (!veiculosDisponiveisData || !veiculosDisponiveisData.plates) return 0;
+    
+    let count = 0;
+    veiculosDisponiveisData.plates.forEach(placaStr => {
+      const cleanPlaca = String(placaStr || "").toUpperCase().replace(/[^A-Z0-9]/g, "").trim();
+      const asset = assetInfoMap.get(cleanPlaca);
+      
+      const diretoria = asset?.diretoria || "N/A";
+      const gerencia = asset?.gerencia || "N/A";
+      const propriedade = asset?.propriedade || "N/A";
+      
+      const matchDiretoria = selectedDiretoria === "all" || diretoria.toUpperCase() === selectedDiretoria.toUpperCase();
+      const matchGerencia = selectedGerencia === "all" || gerencia.toUpperCase() === selectedGerencia.toUpperCase();
+      const matchPropriedade = selectedPropriedade === "all" || propriedade.toUpperCase() === selectedPropriedade.toUpperCase();
+      
+      if (matchDiretoria && matchGerencia && matchPropriedade) {
+        count++;
+      }
+    });
+    return count;
+  }, [veiculosDisponiveisData, assetInfoMap, selectedDiretoria, selectedGerencia, selectedPropriedade]);
 
   // Extract unique values for filters
   const diretorias = useMemo(() => {
@@ -358,29 +385,33 @@ export const LocadosDashboard = () => {
     return { data: timelineData, propriedades: propriedadesUnicas };
   }, [filteredData]);
 
-  // Timeline da disponibilidade ao longo dos meses
+  // Timeline da disponibilidade ao longo dos meses (Comparação Ano a Ano / Mês a Mês)
   const disponibilidadeTimeline = useMemo(() => {
     const mesesMap: Record<string, number> = {
       'jan': 0, 'fev': 1, 'mar': 2, 'abr': 3, 'mai': 4, 'jun': 5,
       'jul': 6, 'ago': 7, 'set': 8, 'out': 9, 'nov': 10, 'dez': 11
     };
-    const mesesNomes = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+    const mesesNomesAbreviados = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+    const mesesNomesExibicao = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
     
     const parseDateForTimeline = (val: any) => {
       if (!val || typeof val !== 'string') return new Date(0);
       const parts = val.toLowerCase().trim().split('/');
       if (parts.length < 2) return new Date(0);
-      const [mes, ano] = parts;
+      const [mesRaw, ano] = parts;
+      const mes = mesRaw.replace(/[^a-z]/g, "");
       let year = parseInt(ano);
       if (isNaN(year)) return new Date(0);
       if (year < 100) year += 2000;
-      return new Date(year, mesesMap[mes] || 0);
+      return new Date(year, mesesMap[mes] ?? 0);
     };
 
     // Obter todos os meses da base geral de locados (não filtrada) para determinar o range
     const allMesesFromBase = Array.from(new Set(locados.map(l => l.mesAno).filter(Boolean)));
     
-    if (allMesesFromBase.length === 0) return [];
+    if (allMesesFromBase.length === 0) {
+      return { data: [], years: [2025, 2026] };
+    }
     
     // Ordenar para encontrar primeiro e último mês
     const sortedMeses = allMesesFromBase.sort((a, b) => {
@@ -388,28 +419,25 @@ export const LocadosDashboard = () => {
       const dateB = parseDateForTimeline(b);
       return dateA.getTime() - dateB.getTime();
     });
-    
-    const primeiroMes = sortedMeses[0];
-    const ultimoMes = sortedMeses[sortedMeses.length - 1];
-    
-    const startDate = parseDateForTimeline(primeiroMes);
-    const endDate = parseDateForTimeline(ultimoMes);
-    
-    const allMonths: string[] = [];
-    const currentDate = new Date(startDate);
-    
-    // Se a data for inválida (1970), evitar loop infinito
-    if (currentDate.getFullYear() < 2000) currentDate.setFullYear(2024);
 
-    while (currentDate <= endDate && allMonths.length < 60) {
-      const mesIndex = currentDate.getMonth();
-      const ano = currentDate.getFullYear() - 2000;
-      const mesAnoStr = `${mesesNomes[mesIndex]}/${ano.toString().padStart(2, '0')}`;
-      allMonths.push(mesAnoStr);
-      currentDate.setMonth(currentDate.getMonth() + 1);
+    // Obter todos os anos presentes no dataset
+    const uniqueYears = Array.from(new Set(
+      locados.map(l => {
+        if (!l.mesAno || typeof l.mesAno !== 'string') return null;
+        const parts = l.mesAno.split('/');
+        if (parts.length < 2) return null;
+        let yearNum = parseInt(parts[1]);
+        if (isNaN(yearNum)) return null;
+        if (yearNum < 100) yearNum += 2000;
+        return yearNum;
+      }).filter((y): y is number => y !== null)
+    )).sort() as number[];
+
+    if (uniqueYears.length === 0) {
+      uniqueYears.push(2025, 2026);
     }
 
-    // Para o gráfico de evolução, vamos filtrar por tudo EXCETO o mês/ano selecionado para mostrar a linha do tempo
+    // Para o gráfico de evolução, vamos filtrar por todos os filtros selecionados
     const dataForTimeline = locados.filter(item => {
       const matchPlaca = !searchPlaca || item.placa.toUpperCase().includes(searchPlaca.toUpperCase());
       const matchDiretoria = selectedDiretoria === "all" || item.diretoria === selectedDiretoria;
@@ -420,32 +448,47 @@ export const LocadosDashboard = () => {
       return matchPlaca && matchDiretoria && matchGerencia && matchModelo && matchPropriedade;
     });
 
-    return allMonths.map(mesAno => {
-      const targetDate = parseDateForTimeline(mesAno);
-      const dadosDoMes = dataForTimeline.filter(l => {
-        const itemDate = parseDateForTimeline(l.mesAno);
-        return itemDate.getMonth() === targetDate.getMonth() && 
-               itemDate.getFullYear() === targetDate.getFullYear();
-      });
-      
-      const diasParadosMes = dadosDoMes.reduce((sum, item) => sum + item.diasParados, 0);
-      
-      // A disponibilidade realizada deve ser calculada da mesma forma que o card principal
-      // Capacidade de um mês = veículos * 30 dias
-      const capacidadeMensal = veiculosDisponiveisCount * 30;
-      const disponibilidade = capacidadeMensal > 0 
-        ? Math.max(0, ((capacidadeMensal - diasParadosMes) / capacidadeMensal) * 100)
-        : 100;
-      
-      return {
-        mesAno,
-        disponibilidade: Number(disponibilidade.toFixed(1)),
-        meta: 100,
-        diasParados: diasParadosMes,
-        hasData: dadosDoMes.length > 0,
-        semDados: dadosDoMes.length === 0
+    const data = mesesNomesExibicao.map((mesNome, index) => {
+      const mesAbrev = mesesNomesAbreviados[index];
+      const dataPoint: Record<string, any> = {
+        mes: mesNome,
+        mesIndex: index,
       };
+
+      // Para cada ano, calculamos a disponibilidade neste mês específico
+      uniqueYears.forEach(year => {
+        const dadosDoMesAno = dataForTimeline.filter(l => {
+          if (!l.mesAno || typeof l.mesAno !== 'string') return false;
+          const parts = l.mesAno.toLowerCase().trim().split('/');
+          if (parts.length < 2) return false;
+          const m = parts[0].replace(/[^a-z]/g, "");
+          let y = parseInt(parts[1]);
+          if (isNaN(y)) return false;
+          if (y < 100) y += 2000;
+          return m === mesAbrev && y === year;
+        });
+
+        const diasParados = dadosDoMesAno.reduce((sum, item) => sum + (item.diasParados || 0), 0);
+        const capacidadeMensal = veiculosDisponiveisCount * 30;
+        const disponibilidade = capacidadeMensal > 0
+          ? Math.max(0, ((capacidadeMensal - diasParados) / capacidadeMensal) * 100)
+          : 100;
+
+        // Limitar se o mês-ano está além do limite máximo de dados disponíveis no banco (para não mostrar linhas flat no futuro)
+        const latestYearMonthLimit = sortedMeses[sortedMeses.length - 1];
+        const limitDate = parseDateForTimeline(latestYearMonthLimit);
+        const currentMonthDate = new Date(year, index);
+
+        if (currentMonthDate <= limitDate) {
+          dataPoint[`disp_${year}`] = Number(disponibilidade.toFixed(1));
+          dataPoint[`diasParados_${year}`] = diasParados;
+        }
+      });
+
+      return dataPoint;
     });
+
+    return { data, years: uniqueYears };
   }, [locados, veiculosDisponiveisCount, searchPlaca, selectedDiretoria, selectedGerencia, selectedModelo, selectedPropriedade]);
 
   // Preventiva data processing
@@ -806,55 +849,78 @@ export const LocadosDashboard = () => {
         <CardContent>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={disponibilidadeTimeline}>
+              <AreaChart data={disponibilidadeTimeline.data}>
                 <defs>
-                  <linearGradient id="disponibilidadeGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="hsl(var(--success))" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="hsl(var(--success))" stopOpacity={0}/>
-                  </linearGradient>
+                  {disponibilidadeTimeline.years.map((year) => {
+                    const color = year === 2026 ? "#10b981" : (year === 2025 ? "#3b82f6" : "#f59e0b");
+                    return (
+                      <linearGradient key={year} id={`gradient_${year}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={color} stopOpacity={0.2}/>
+                        <stop offset="95%" stopColor={color} stopOpacity={0}/>
+                      </linearGradient>
+                    );
+                  })}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="mesAno" fontSize={12} className="fill-muted-foreground" />
+                <XAxis dataKey="mes" fontSize={11} className="fill-muted-foreground" />
                 <YAxis 
-                  fontSize={12} 
-                  domain={[dataMin => Math.max(0, Math.min(80, Math.floor(dataMin - 10))), 105]} 
+                  fontSize={11} 
+                  domain={[dataMin => Math.max(0, Math.min(80, Math.floor(dataMin - 5))), 105]} 
                   tickFormatter={(v) => `${v}%`} 
                   className="fill-muted-foreground" 
                 />
                 <RechartsTooltip 
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
-                      const data = payload[0].payload;
                       return (
                         <div className="bg-background border border-border rounded-lg p-3 shadow-lg">
-                          <p className="font-semibold text-foreground mb-2">{label}</p>
-                          <p className="text-sm text-success">
-                            Disponibilidade: {data.disponibilidade}%
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Dias Parados: {data.diasParados}
-                          </p>
-                          {data.semDados && (
-                            <p className="text-xs text-amber-500 mt-2 italic">
-                              * 100% assumido (sem registros de indisponibilidade)
-                            </p>
-                          )}
+                          <p className="font-semibold text-foreground mb-2 text-xs uppercase tracking-wider">{label}</p>
+                          <div className="space-y-1.5">
+                            {payload.map((p) => {
+                              const yearStr = p.dataKey?.replace('disp_', '');
+                              const colorStr = p.color;
+                              const val = p.value;
+                              const diasParadosStr = p.payload[`diasParados_${yearStr}`];
+                              return (
+                                <div key={p.dataKey} className="flex flex-col border-t border-slate-100 dark:border-white/5 pt-1.5 first:border-0 first:pt-0">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: colorStr }} />
+                                    <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Ano {yearStr}:</span>
+                                    <span className="text-xs font-extrabold text-slate-900 dark:text-white">{val}%</span>
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground pl-4">
+                                    Dias Parados: {diasParadosStr !== undefined ? diasParadosStr : 0} dias
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       );
                     }
                     return null;
                   }}
                 />
-                <ReferenceLine y={100} stroke="hsl(var(--destructive))" strokeDasharray="5 5" label={{ value: 'Meta 100%', fill: 'hsl(var(--destructive))', fontSize: 11 }} />
-                <Area
-                  type="monotone"
-                  dataKey="disponibilidade"
-                  stroke="hsl(var(--success))"
-                  strokeWidth={2}
-                  fill="url(#disponibilidadeGradient)"
-                  dot={{ r: 4, fill: "hsl(var(--success))" }}
-                  activeDot={{ r: 6 }}
-                />
+                <ReferenceLine y={100} stroke="hsl(var(--destructive))" strokeDasharray="5 5" label={{ value: 'Meta 100%', fill: 'hsl(var(--destructive))', fontSize: 10, position: 'top' }} />
+                
+                {disponibilidadeTimeline.years.map((year) => {
+                  const color = year === 2026 ? "#10b981" : (year === 2025 ? "#3b82f6" : "#f59e0b");
+                  return (
+                    <Area
+                      key={year}
+                      type="monotone"
+                      name={`Ano 20${String(year).slice(-2)}`}
+                      dataKey={`disp_${year}`}
+                      stroke={color}
+                      strokeWidth={2}
+                      fill={`url(#gradient_${year})`}
+                      connectNulls={true}
+                      dot={{ r: 3, fill: color }}
+                      activeDot={{ r: 5 }}
+                    />
+                  );
+                })}
+                <Legend iconType="circle" wrapperStyle={{ fontSize: 11, fontWeight: 'bold' }} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
