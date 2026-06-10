@@ -121,6 +121,14 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   const [statusFilter, setStatusFilter] = useState<'all' | 'vencido' | 'a_vencer'>('all');
   const [propFilter, setPropFilter] = useState<'all' | 'proprio' | 'locado'>('all');
   const [catFilter, setCatFilter] = useState<'all' | 'manutencao' | 'taxas'>('all');
+  const [selectedGerencia, setSelectedGerencia] = useState<string>('all');
+
+  const allGerencias = useMemo(() => {
+    const list = sortedAlerts
+      .map(a => a.gerencia)
+      .filter((g): g is string => !!g && g.trim() !== "");
+    return Array.from(new Set(list)).sort();
+  }, [sortedAlerts]);
 
   const propriosBase = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio' && a.categoria !== 'Infrações'), [sortedAlerts]);
   const locadosBase = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Locado' && a.categoria !== 'Infrações'), [sortedAlerts]);
@@ -130,25 +138,28 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
     return propriosBase.filter(a => {
       const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
       const matchCat = catFilter === 'all' ? true : (catFilter === 'manutencao' ? a.categoria === 'Manutenção' : a.categoria === 'Taxas');
-      return matchStatus && matchCat;
+      const matchGerencia = selectedGerencia === 'all' ? true : String(a.gerencia || "").toUpperCase().trim() === selectedGerencia.toUpperCase().trim();
+      return matchStatus && matchCat && matchGerencia;
     });
-  }, [propriosBase, statusFilter, catFilter]);
+  }, [propriosBase, statusFilter, catFilter, selectedGerencia]);
 
   const locados = useMemo(() => {
     return locadosBase.filter(a => {
       const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
       const matchCat = catFilter === 'all' ? true : (catFilter === 'manutencao' ? a.categoria === 'Manutenção' : a.categoria === 'Taxas');
-      return matchStatus && matchCat;
+      const matchGerencia = selectedGerencia === 'all' ? true : String(a.gerencia || "").toUpperCase().trim() === selectedGerencia.toUpperCase().trim();
+      return matchStatus && matchCat && matchGerencia;
     });
-  }, [locadosBase, statusFilter, catFilter]);
+  }, [locadosBase, statusFilter, catFilter, selectedGerencia]);
 
   const infracoes = useMemo(() => {
     return infracoesBase.filter(a => {
       const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
       const matchProp = propFilter === 'all' ? true : (propFilter === 'proprio' ? a.propriedade === 'Próprio' : a.propriedade === 'Locado');
-      return matchStatus && matchProp;
+      const matchGerencia = selectedGerencia === 'all' ? true : String(a.gerencia || "").toUpperCase().trim() === selectedGerencia.toUpperCase().trim();
+      return matchStatus && matchProp && matchGerencia;
     });
-  }, [infracoesBase, statusFilter, propFilter]);
+  }, [infracoesBase, statusFilter, propFilter, selectedGerencia]);
 
   const handleCopyWhatsApp = () => {
     try {
@@ -280,6 +291,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
               setStatusFilter('all');
               setPropFilter('all');
               setCatFilter('all');
+              setSelectedGerencia('all');
             }} 
             className="flex-1 flex flex-col min-h-0 overflow-hidden"
           >
@@ -381,15 +393,29 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                     </button>
                   </>
                 )}
+
+                <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1" />
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Gerência:</span>
+                <select
+                  value={selectedGerencia}
+                  onChange={(e) => setSelectedGerencia(e.target.value)}
+                  className="px-2 py-1 text-[9px] bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold uppercase rounded-lg border border-slate-200 dark:border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[130px]"
+                >
+                  <option value="all">TODAS ({allGerencias.length})</option>
+                  {allGerencias.map((g) => (
+                    <option key={g} value={g}>{g}</option>
+                  ))}
+                </select>
               </div>
               
-              {(statusFilter !== 'all' || catFilter !== 'all' || propFilter !== 'all') && (
+              {(statusFilter !== 'all' || catFilter !== 'all' || propFilter !== 'all' || selectedGerencia !== 'all') && (
                 <button 
                   type="button"
                   onClick={() => {
                     setStatusFilter('all');
                     setCatFilter('all');
                     setPropFilter('all');
+                    setSelectedGerencia('all');
                   }}
                   className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-amber-100 transition-colors"
                 >

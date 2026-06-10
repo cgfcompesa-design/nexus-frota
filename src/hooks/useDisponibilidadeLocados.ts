@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocadosData } from "./useLocadosData";
+import Papa from "papaparse";
 
 const ASSETS_API = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSFg3m2gRlhFtmKMTDcVQW3YmIZXOhlWCN6693HLNHH9kR7GJ7mMayr2U35OOSze6VfJTGOB0GCJsYP/pub?gid=1689333411&single=true&output=csv";
 
@@ -65,44 +66,52 @@ export const useVeiculosLocadosDisponiveis = () => {
     queryKey: ["veiculos-locados-disponiveis"],
     queryFn: async () => {
       const csvText = await fetchCSVWithRetry(ASSETS_API);
-      const lines = csvText.split("\n");
       
-      // Coluna G (índice 6) = Placa
-      // Coluna K (índice 10) = Propriedade
-      // Coluna AB (índice 27) = Titularidade
-      // Coluna X (índice 23) = Status Operacional
-      
-      const plates: string[] = [];
-      
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-        
-        const values = parseCsvLine(line);
-        
-        const placaRaw = values[6] || "";
-        const propriedade = values[10] || "";
-        const titularidade = (values[27] || "").toUpperCase().trim();
-        const statusOperacional = (values[23] || "").toUpperCase().trim();
-        
-        // Filtrar: Status Operacional = OPERACIONAL, Propriedade não está na lista de exclusão, Titularidade = TITULAR
-        const isOperacional = statusOperacional === "OPERACIONAL";
-        const normProp = normalizeString(propriedade);
-        const isPropriedadeValida = normProp && !EXCLUDED_PROPRIEDADES.includes(normProp);
-        const isTitular = titularidade === "TITULAR";
-        
-        if (isOperacional && isPropriedadeValida && isTitular) {
-          const cleanPlaca = placaRaw.toUpperCase().replace(/[^A-Z0-9]/g, "");
-          if (cleanPlaca) {
-            plates.push(cleanPlaca);
+      return new Promise<VeiculosLocadosDisponiveisResponse>((resolve, reject) => {
+        Papa.parse(csvText, {
+          header: false,
+          skipEmptyLines: true,
+          complete: (results) => {
+            const rows = results.data as string[][];
+            if (!rows || rows.length === 0) {
+              resolve({ count: 0, plates: [] });
+              return;
+            }
+            
+            const plates: string[] = [];
+            
+            for (let i = 1; i < rows.length; i++) {
+              const values = rows[i];
+              if (!values || values.length <= 27) continue;
+              
+              const placaRaw = values[6] || "";
+              const propriedade = values[10] || "";
+              const titularidade = (values[27] || "").toUpperCase().trim();
+              const statusOperacional = (values[23] || "").toUpperCase().trim();
+              
+              const isOperacional = statusOperacional === "OPERACIONAL";
+              const normProp = normalizeString(propriedade);
+              const isPropriedadeValida = normProp && !EXCLUDED_PROPRIEDADES.includes(normProp);
+              const isTitular = titularidade === "TITULAR";
+              
+              if (isOperacional && isPropriedadeValida && isTitular) {
+                const cleanPlaca = placaRaw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+                if (cleanPlaca) {
+                  plates.push(cleanPlaca);
+                }
+              }
+            }
+            
+            resolve({
+              count: plates.length,
+              plates
+            });
+          },
+          error: (error) => {
+            reject(error);
           }
-        }
-      }
-      
-      return {
-        count: plates.length,
-        plates
-      };
+        });
+      });
     },
     refetchInterval: 5 * 60 * 1000,
     staleTime: 2 * 60 * 1000,

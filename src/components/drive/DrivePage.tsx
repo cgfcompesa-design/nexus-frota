@@ -1,6 +1,6 @@
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { MapPin, Wrench, FileCheck, Radio, ArrowUpRight, Share2, Calculator, ChevronLeft } from "lucide-react";
+import { MapPin, Wrench, FileCheck, Radio, ArrowUpRight, Share2, Calculator, ChevronLeft, BookOpen } from "lucide-react";
 import * as React from "react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -17,6 +17,15 @@ const sections = [
     description: "Consulte e localize postos de combustível no mapa",
     icon: MapPin,
     available: true,
+  },
+  {
+    id: "manual",
+    title: "Manual do Motorista",
+    description: "Cartilha oficial com diretrizes, deveres e boas práticas para motoristas da frota",
+    icon: BookOpen,
+    href: "https://drive.google.com/file/d/11kClx8GFoNgajFv6rxsJVlN0gcdoaWG1/view?usp=sharing",
+    available: true,
+    external: true,
   },
   {
     id: "manutencao",
@@ -136,6 +145,19 @@ export default function DrivePage({ onBack }: { onBack?: () => void }) {
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium leading-relaxed max-w-2xl">
               Acesse rapidamente materiais, procedimentos e consultas essenciais da Nexus BI Frota através deste portal centralizado.
             </p>
+
+            <div className="mt-6 flex flex-wrap justify-center gap-4">
+              <a 
+                href="https://drive.google.com/file/d/11kClx8GFoNgajFv6rxsJVlN0gcdoaWG1/view?usp=sharing"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex"
+              >
+                <Button className="rounded-2xl font-black uppercase text-xs tracking-widest gap-2 bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-200 dark:shadow-none h-11 px-6">
+                  <BookOpen size={16} /> Manual do Motorista
+                </Button>
+              </a>
+            </div>
           </div>
         </div>
       </header>
@@ -208,10 +230,23 @@ export default function DrivePage({ onBack }: { onBack?: () => void }) {
             );
 
             if (section.available && !["estimativa-credito", "regularizacao", "postos", "telemetria"].includes(section.id)) {
+              if (section.external) {
+                return (
+                  <a
+                    key={section.title}
+                    href={section.href}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block no-underline"
+                  >
+                    {CardInner}
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={section.title}
-                  to={section.href}
+                  to={section.href || ""}
                   className="block no-underline"
                 >
                   {CardInner}
