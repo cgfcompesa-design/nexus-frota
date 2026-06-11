@@ -106,8 +106,8 @@ export const useControleDocumentosData = () => {
           anexoCrlv: (values[6] || '').trim(),
           anexoCsv: (values[7] || '').trim(),
           anexoTacografo: (values[8] || '').trim(),
-          anexoCivCipp: (values[9] || '').trim(),
-          anexoCarroceriaInmetro: (values[10] || '').trim(),
+          anexoCivCipp: (values[10] || '').trim(),
+          anexoCarroceriaInmetro: (values[9] || '').trim(),
         });
       }
       
