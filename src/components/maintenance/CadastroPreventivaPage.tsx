@@ -9,8 +9,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Wrench, Search, Save, Check, Fuel, ArrowLeft, RefreshCw, AlertCircle, Sparkles, LogOut } from "lucide-react";
-import { auth } from "../../lib/firebase";
+import { 
+  Wrench, 
+  Search, 
+  Save, 
+  Check, 
+  Fuel, 
+  ArrowLeft, 
+  RefreshCw, 
+  AlertCircle, 
+  Sparkles, 
+  LogOut,
+  FileText,
+  TrendingUp,
+  Layers,
+  Clock,
+  History,
+  Bell,
+  Mail,
+  Settings,
+  AlertTriangle
+} from "lucide-react";
+import { auth, db } from "../../lib/firebase";
+import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, doc, getDoc, setDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
 import { toast } from "sonner";
 
@@ -64,6 +85,217 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
   }>>({});
 
   const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
+
+  interface ActivityLog {
+    id: string;
+    placa: string;
+    odometroRevisao: number;
+    revisaoPrevista: number;
+    dataRevisao: string;
+    locadora: string;
+    usuarioEmail: string;
+    usuarioNome: string;
+    timestamp: any;
+    tipo: "individual" | "lote";
+  }
+
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+  // States for Email Configuration and Scheduled Notification Logs
+  const [emailConfig, setEmailConfig] = useState<{
+    active: boolean;
+    emails: string;
+    frequencia: "imediato" | "diario" | "semanal";
+    horario: string;
+  }>({
+    active: false,
+    emails: "gestao.compesa@gmail.com, cgf.compesa@gmail.com",
+    frequencia: "imediato",
+    horario: "08:00"
+  });
+  const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+
+  interface ScheduledEmailLog {
+    id: string;
+    placa: string;
+    modelo: string;
+    odometroAtual: number;
+    odometroRevisao: number;
+    revisaoPrevista: number;
+    odometroProximaRevisao: number;
+    porcentagemUso: number;
+    destinatarios: string[];
+    frequencia: string;
+    envioAgendadoPara: string;
+    status: "Agendado" | "Enviado";
+    locadora: string;
+    createdAt: any;
+    subject: string;
+    body: string;
+  }
+  const [scheduledEmails, setScheduledEmails] = useState<ScheduledEmailLog[]>([]);
+  const [isLoadingScheduledEmails, setIsLoadingScheduledEmails] = useState(false);
+
+  const fetchEmailConfigAndLogs = async () => {
+    if (!selectedLocadora) return;
+    setIsLoadingConfig(true);
+    setIsLoadingScheduledEmails(true);
+    try {
+      const configDocRef = doc(db, "preventiva_email_configs", selectedLocadora.toUpperCase().trim());
+      const docSnap = await getDoc(configDocRef);
+      if (docSnap.exists()) {
+        const d = docSnap.data();
+        setEmailConfig({
+          active: d.active ?? false,
+          emails: d.emails || "gestao.compesa@gmail.com, cgf.compesa@gmail.com",
+          frequencia: d.frequencia || "imediato",
+          horario: d.horario || "08:00",
+        });
+      } else {
+        setEmailConfig({
+          active: false,
+          emails: "gestao.compesa@gmail.com, cgf.compesa@gmail.com",
+          frequencia: "imediato",
+          horario: "08:00"
+        });
+      }
+
+      const q = query(
+        collection(db, "preventiva_scheduled_emails"),
+        where("locadora", "==", selectedLocadora.toUpperCase().trim())
+      );
+      const querySnapshot = await getDocs(q);
+      const list: ScheduledEmailLog[] = [];
+      querySnapshot.forEach((doc) => {
+        const d = doc.data();
+        list.push({
+          id: doc.id,
+          placa: d.placa || "",
+          modelo: d.modelo || "",
+          odometroAtual: Number(d.odometroAtual || 0),
+          odometroRevisao: Number(d.odometroRevisao || 0),
+          revisaoPrevista: Number(d.revisaoPrevista || 10000),
+          odometroProximaRevisao: Number(d.odometroProximaRevisao || 0),
+          porcentagemUso: Number(d.porcentagemUso || 0),
+          destinatarios: d.destinatarios || [],
+          frequencia: d.frequencia || "imediato",
+          envioAgendadoPara: d.envioAgendadoPara || "",
+          status: d.status || "Agendado",
+          locadora: d.locadora || "",
+          createdAt: d.createdAt,
+          subject: d.subject || "",
+          body: d.body || ""
+        });
+      });
+      list.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0);
+        const timeB = b.createdAt?.seconds || (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0);
+        return timeB - timeA;
+      });
+      setScheduledEmails(list.slice(0, 50));
+    } catch (err) {
+      console.error("Erro ao carregar configurações de e-mail:", err);
+    } finally {
+      setIsLoadingConfig(false);
+      setIsLoadingScheduledEmails(false);
+    }
+  };
+
+  const handleSaveEmailConfig = async () => {
+    if (!selectedLocadora) return;
+    setIsSavingConfig(true);
+    try {
+      const configDocRef = doc(db, "preventiva_email_configs", selectedLocadora.toUpperCase().trim());
+      await setDoc(configDocRef, {
+        locadora: selectedLocadora.toUpperCase().trim(),
+        active: emailConfig.active,
+        emails: emailConfig.emails,
+        frequencia: emailConfig.frequencia,
+        horario: emailConfig.horario,
+        updatedBy: auth.currentUser?.email || "anonimo@compesa.com.br",
+        updatedAt: serverTimestamp()
+      });
+      toast.success("Configuração de alertas de e-mail atualizada com sucesso!");
+      fetchEmailConfigAndLogs();
+    } catch (err) {
+      console.error("Erro ao salvar configuração de e-mail:", err);
+      toast.error("Erro ao atualizar configuração de e-mail.");
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
+  const logActivity = async (
+    placa: string,
+    odoRev: number,
+    revPrev: number,
+    dataRev: string,
+    tipo: "individual" | "lote"
+  ) => {
+    try {
+      await addDoc(collection(db, "preventiva_locadora_logs"), {
+        placa,
+        odometroRevisao: Number(odoRev),
+        revisaoPrevista: Number(revPrev),
+        dataRevisao: dataRev,
+        locadora: selectedLocadora.toUpperCase().trim(),
+        usuarioEmail: auth.currentUser?.email || "anonimo@compesa.com.br",
+        usuarioNome: auth.currentUser?.displayName || "Usuário",
+        timestamp: serverTimestamp(),
+        tipo
+      });
+    } catch (err) {
+      console.error("Erro ao registrar log de atividade:", err);
+    }
+  };
+
+  const fetchActivityLogs = async () => {
+    if (!selectedLocadora) return;
+    setIsLoadingLogs(true);
+    try {
+      const q = query(
+        collection(db, "preventiva_locadora_logs"),
+        where("locadora", "==", selectedLocadora.toUpperCase().trim())
+      );
+      const querySnapshot = await getDocs(q);
+      const logsList: ActivityLog[] = [];
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        logsList.push({
+          id: doc.id,
+          placa: data.placa || "",
+          odometroRevisao: Number(data.odometroRevisao || 0),
+          revisaoPrevista: Number(data.revisaoPrevista || 10000),
+          dataRevisao: data.dataRevisao || "",
+          locadora: data.locadora || "",
+          usuarioEmail: data.usuarioEmail || "",
+          usuarioNome: data.usuarioNome || "Usuário",
+          timestamp: data.timestamp,
+          tipo: data.tipo || "individual",
+        });
+      });
+      // Sort client-side desc avoiding compound index prerequisite
+      logsList.sort((a, b) => {
+        const timeA = a.timestamp?.seconds || (a.timestamp instanceof Date ? a.timestamp.getTime() / 1000 : 0);
+        const timeB = b.timestamp?.seconds || (b.timestamp instanceof Date ? b.timestamp.getTime() / 1000 : 0);
+        return timeB - timeA;
+      });
+      setActivityLogs(logsList.slice(0, 20));
+    } catch (error) {
+      console.error("Erro ao carregar histórico de atividades:", error);
+    } finally {
+      setIsLoadingLogs(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedLocadora) {
+      fetchActivityLogs();
+      fetchEmailConfigAndLogs();
+    }
+  }, [selectedLocadora]);
 
   // Get active vehicle odometers
   const latestOdometersMap = useMemo(() => {
@@ -173,6 +405,73 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
     setEditedRows(initialRows);
   }, [locadoraVehicles, firebasePreventivas, sheetPreventivas]);
 
+  // Check if saved odometer creates "Pendente" status and schedule notification e-mail
+  const checkAndScheduleEmail = async (placa: string, odoRev: number, revPrev: number, dataRev: string) => {
+    if (!emailConfig.active || !selectedLocadora) return;
+    
+    // Find vehicle info
+    const vehicle = locadoraVehicles.find(v => {
+      const p = String(v.PLACA || v.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      return p === placa;
+    });
+    
+    const odometroAtual = latestOdometersMap.get(placa) || 0;
+    const odometroProximaRevisao = odoRev + revPrev;
+    const odometroRestante = odometroProximaRevisao - odometroAtual;
+    const isOverdue = odometroRestante < 0;
+    
+    // Only schedule if status is 'Pendente'
+    if (isOverdue) {
+      const parsedEmails = emailConfig.emails.split(",").map(e => e.trim()).filter(Boolean);
+      if (parsedEmails.length === 0) return;
+
+      const percentUso = revPrev > 0 ? ((odometroAtual - odoRev) / revPrev) * 100 : 100;
+      
+      // Calculate scheduled date based on selected frequency
+      const scheduledDate = new Date();
+      if (emailConfig.frequencia === 'diario') {
+        scheduledDate.setDate(scheduledDate.getDate() + 1);
+        const [h, m] = emailConfig.horario.split(":");
+        scheduledDate.setHours(Number(h || 8), Number(m || 0), 0, 0);
+      } else if (emailConfig.frequencia === 'semanal') {
+        const day = scheduledDate.getDay();
+        const dist = (7 - day + 1) % 7; // Distance to next Monday
+        scheduledDate.setDate(scheduledDate.getDate() + (dist === 0 ? 7 : dist));
+        const [h, m] = emailConfig.horario.split(":");
+        scheduledDate.setHours(Number(h || 8), Number(m || 0), 0, 0);
+      }
+
+      const modelo = vehicle ? String(vehicle.MODELO || vehicle.modelo || "N/A").trim() : "N/A";
+      const subject = `[Nexus Frota - Alerta Preventiva] Veículo Placa ${placa} com Odômetro Pendente (${Math.round(percentUso)}% Consumido)`;
+      const body = `Olá Gestão Nexus Frota,\n\nA locadora ${selectedLocadora} registrou uma atualização de manutenção para o veículo de placa ${placa} e o status foi classificado como PENDENTE (Excedeu KM).\n\nDetalhes do veículo:\n- Modelo: ${modelo}\n- Marca: ${vehicle ? String(vehicle.MARCA || vehicle.marca || "N/A").trim() : "N/A"}\n- Diretoria: ${vehicle ? String(vehicle.DIRETORIA || vehicle.diretoria || "N/A").trim() : "N/A"}\n\nMétricas da Revisão:\n- Odômetro Atual: ${odometroAtual.toLocaleString()} KM\n- Última Revisão Registrada: ${odoRev.toLocaleString()} KM\n- Intervalo Configurado: ${revPrev.toLocaleString()} KM\n- KM de Próxima Revisão: ${odometroProximaRevisao.toLocaleString()} KM\n- KM de Atraso: ${Math.abs(odometroRestante).toLocaleString()} KM\n- Percentual de Consumo: ${Math.round(percentUso)}%\n\nEsta é uma notificação automática agendada com frequência "${emailConfig.frequencia.toUpperCase()}" para envio em ${scheduledDate.toLocaleString("pt-BR")}.\n\nAtenciosamente,\nHub Nexus Frota`;
+
+      try {
+        await addDoc(collection(db, "preventiva_scheduled_emails"), {
+          placa,
+          modelo,
+          odometroAtual,
+          odometroRevisao: odoRev,
+          revisaoPrevista: revPrev,
+          odometroProximaRevisao,
+          porcentagemUso: Math.round(percentUso),
+          destinatarios: parsedEmails,
+          frequencia: emailConfig.frequencia,
+          envioAgendadoPara: scheduledDate.toISOString(),
+          status: "Agendado",
+          locadora: selectedLocadora.toUpperCase().trim(),
+          createdAt: serverTimestamp(),
+          subject,
+          body
+        });
+        
+        toast.info(`Email de notificação para a placa ${placa} agendado para ${scheduledDate.toLocaleDateString("pt-BR")} às ${emailConfig.horario}!`);
+        fetchEmailConfigAndLogs();
+      } catch (err) {
+        console.error("Erro ao agendar e-mail de notificação:", err);
+      }
+    }
+  };
+
   // Handle cell changes
   const handleCellChange = (placa: string, field: "odometroRevisao" | "revisaoPrevista" | "dataRevisao", value: string) => {
     setEditedRows(prev => ({
@@ -213,6 +512,9 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
         dataRevisao: dataRev,
         locadora: selectedLocadora,
       });
+      await logActivity(placa, odoRev, revPrev, dataRev, "individual");
+      await checkAndScheduleEmail(placa, odoRev, revPrev, dataRev);
+      fetchActivityLogs();
       toast.success(`Dados da placa ${placa} salvos com sucesso!`);
     } catch (e: any) {
       console.error(e);
@@ -254,12 +556,18 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
           dataRevisao: dataRev,
           locadora: selectedLocadora,
         });
+        await logActivity(placa, odoRev, revPrev, dataRev, "lote");
+        await checkAndScheduleEmail(placa, odoRev, revPrev, dataRev);
       } catch (err) {
         console.error(`Erro ao salvar placa ${placa}:`, err);
       }
     });
 
-    toast.promise(Promise.all(promises), {
+    const savePromise = Promise.all(promises).then(() => {
+      fetchActivityLogs();
+    });
+
+    toast.promise(savePromise, {
       loading: "Salvando todos os registros...",
       success: "Revisões salvas com sucesso!",
       error: "Erro parcial ao salvar alguns registros.",
@@ -274,6 +582,257 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
       return placa.includes(cleanSearch);
     });
   }, [locadoraVehicles, searchTerm]);
+
+  // Calculate stats for Meu Desempenho
+  const stats = useMemo(() => {
+    if (!selectedLocadora || locadoraVehicles.length === 0) {
+      return { total: 0, cadastrado: 0, pendenteDados: 0, emDia: 0, pendenteKM: 0, percent: 0 };
+    }
+
+    let total = locadoraVehicles.length;
+    let cadastrado = 0;
+    let emDia = 0;
+    let pendenteKM = 0;
+
+    locadoraVehicles.forEach(vehicle => {
+      const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      const state = editedRows[placa];
+      if (state && state.odometroRevisao) {
+        cadastrado++;
+        const odometroRevisaoNum = Number(state.odometroRevisao || 0);
+        const revisaoPrevistaNum = Number(state.revisaoPrevista || 10000);
+        const odometroProximaRevisao = odometroRevisaoNum + revisaoPrevistaNum;
+        const odometroAtual = latestOdometersMap.get(placa) || 0;
+        const odometroRestante = odometroProximaRevisao - odometroAtual;
+        if (odometroRestante < 0) {
+          pendenteKM++;
+        } else {
+          emDia++;
+        }
+      }
+    });
+
+    const pendenteDados = total - cadastrado;
+    const percent = total > 0 ? Math.round((cadastrado / total) * 100) : 0;
+
+    return { total, cadastrado, pendenteDados, emDia, pendenteKM, percent };
+  }, [locadoraVehicles, editedRows, latestOdometersMap, selectedLocadora]);
+
+  // Notifications for LOCADORA users when a vehicle reaches 80% or more of its revision limit
+  const alertNotifications = useMemo(() => {
+    if (!selectedLocadora || locadoraVehicles.length === 0) return [];
+    
+    return locadoraVehicles.map(vehicle => {
+      const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      const state = editedRows[placa];
+      const modelo = vehicle.MODELO || vehicle.modelo || "Não especificado";
+      
+      if (!state || !state.odometroRevisao) {
+        return null;
+      }
+      
+      const odometroRevisaoNum = Number(state.odometroRevisao || 0);
+      const revisaoPrevistaNum = Number(state.revisaoPrevista || 10000);
+      const odometroProximaRevisao = odometroRevisaoNum + revisaoPrevistaNum;
+      const odometroAtual = latestOdometersMap.get(placa) || 0;
+      
+      const kmTrajetos = odometroAtual - odometroRevisaoNum;
+      const porcentagemUso = revisaoPrevistaNum > 0 ? (kmTrajetos / revisaoPrevistaNum) * 100 : 0;
+      
+      if (porcentagemUso >= 80) {
+        const kmRestantes = odometroProximaRevisao - odometroAtual;
+        return {
+          placa,
+          modelo,
+          odometroAtual,
+          odometroRevisao: odometroRevisaoNum,
+          revisaoPrevista: revisaoPrevistaNum,
+          odometroProximaRevisao,
+          porcentagemUso: Math.round(porcentagemUso),
+          kmRestantes,
+          status: porcentagemUso >= 100 ? ("excedido" as const) : ("alerta" as const)
+        };
+      }
+      return null;
+    }).filter(Boolean) as {
+      placa: string;
+      modelo: string;
+      odometroAtual: number;
+      odometroRevisao: number;
+      revisaoPrevista: number;
+      odometroProximaRevisao: number;
+      porcentagemUso: number;
+      kmRestantes: number;
+      status: "excedido" | "alerta";
+    }[];
+  }, [locadoraVehicles, editedRows, latestOdometersMap, selectedLocadora]);
+
+  // PDF report exporter
+  const handleExportPDF = () => {
+    if (!selectedLocadora) {
+      toast.error("Por favor, selecione uma locadora para exportar o relatório.");
+      return;
+    }
+
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "absolute";
+    iframe.style.width = "0px";
+    iframe.style.height = "0px";
+    iframe.style.border = "none";
+    document.body.appendChild(iframe);
+
+    const iframeDoc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!iframeDoc) {
+      toast.error("Não foi possível gerar a visualização para impressão.");
+      return;
+    }
+
+    const total = locadoraVehicles.length;
+    let emDiaCount = 0;
+    let pendenteCount = 0;
+    let naoIniciadaCount = 0;
+
+    const rowsHtml = locadoraVehicles.map(vehicle => {
+      const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      const state = editedRows[placa] || { odometroRevisao: "", revisaoPrevista: "10000", dataRevisao: "" };
+      const odometroRevisaoNum = Number(state.odometroRevisao || 0);
+      const revisaoPrevistaNum = Number(state.revisaoPrevista || 10000);
+      const odometroProximaRevisao = odometroRevisaoNum + revisaoPrevistaNum;
+      const odometroAtual = latestOdometersMap.get(placa) || 0;
+      const odometroRestante = state.odometroRevisao ? (odometroProximaRevisao - odometroAtual) : 0;
+      const isOverdue = odometroRestante < 0;
+      const status = state.odometroRevisao ? (isOverdue ? "Pendente" : "Em Dia") : "Não Iniciada";
+
+      if (state.odometroRevisao) {
+        if (isOverdue) pendenteCount++;
+        else emDiaCount++;
+      } else {
+        naoIniciadaCount++;
+      }
+
+      const model = String(vehicle.MODELO || vehicle.modelo || "N/A").trim();
+      const brand = String(vehicle.MARCA || vehicle.marca || "N/A").trim();
+      const dir = String(vehicle.DIRETORIA || vehicle.diretoria || "N/A").trim();
+      const ger = String(vehicle.GERENCIA || vehicle["GERÊNCIA"] || vehicle.gerencia || "N/A").trim();
+
+      return `
+        <tr style="border-bottom: 1px solid #e2e8f0;">
+          <td style="padding: 10px; font-weight: bold; font-family: monospace; font-size: 13px;">${placa}</td>
+          <td style="padding: 10px;">${state.dataRevisao ? new Date(state.dataRevisao + 'T12:00:00').toLocaleDateString('pt-BR') : '-'}</td>
+          <td style="padding: 10px; text-align: right;">${state.odometroRevisao ? odometroRevisaoNum.toLocaleString('pt-BR') + ' km' : '-'}</td>
+          <td style="padding: 10px; text-align: right;">${revisaoPrevistaNum.toLocaleString('pt-BR')} km</td>
+          <td style="padding: 10px; text-align: right; font-weight: bold;">${state.odometroRevisao ? odometroProximaRevisao.toLocaleString('pt-BR') + ' km' : '-'}</td>
+          <td style="padding: 10px; text-align: right;">${odometroAtual.toLocaleString('pt-BR')} km</td>
+          <td style="padding: 10px; text-align: right; font-weight: bold; color: ${isOverdue ? '#e11d48' : '#10b981'}">
+            ${state.odometroRevisao ? (odometroRestante > 0 ? '+' : '') + odometroRestante.toLocaleString('pt-BR') + ' km' : '-'}
+          </td>
+          <td style="padding: 10px; text-align: center;">
+            <span style="display: inline-block; padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; text-transform: uppercase;
+              background-color: ${status === 'Em Dia' ? '#ecfdf5' : status === 'Pendente' ? '#fff1f2' : '#f1f5f9'};
+              color: ${status === 'Em Dia' ? '#059669' : status === 'Pendente' ? '#be123c' : '#475569'};">
+              ${status}
+            </span>
+          </td>
+          <td style="padding: 10px; font-size: 11px;">${model} / ${brand}</td>
+          <td style="padding: 10px; font-size: 11px;">${dir} (${ger})</td>
+        </tr>
+      `;
+    }).join("");
+
+    const timestamp = new Date().toLocaleString("pt-BR");
+
+    iframeDoc.write(`
+      <html>
+        <head>
+          <title>Relatorio_Preventiva_${selectedLocadora}</title>
+          <style>
+            body { font-family: 'Inter', system-ui, -apple-system, sans-serif; color: #1e293b; padding: 30px; }
+            h1 { font-size: 22px; font-weight: 950; text-transform: uppercase; letter-spacing: -0.5px; margin: 0; color: #1e1b4b; }
+            h2 { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin: 5px 0 20px 0; color: #4338ca; }
+            .header-table { width: 100%; border-collapse: collapse; margin-bottom: 25px; }
+            .stats-container { display: flex; gap: 15px; margin-bottom: 30px; }
+            .stat-card { flex: 1; padding: 15px; border-radius: 12px; border: 1px solid #e2e8f0; background: #f8fafc; }
+            .stat-title { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; margin-bottom: 4px; }
+            .stat-value { font-size: 20px; font-weight: 955; color: #1e293b; }
+            table.main-table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            table.main-table th { background-color: #f1f5f9; padding: 10px; font-size: 10px; font-weight: bold; text-transform: uppercase; text-align: left; border-bottom: 2px solid #cbd5e1; }
+            table.main-table td { font-size: 12px; border-bottom: 1px solid #e2e8f0; }
+            .footer { margin-top: 40px; font-size: 10px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 15px; }
+          </style>
+        </head>
+             <table class="header-table">
+            <tr>
+              <td>
+                <h1>Controle Preventiva</h1>
+                <h2>Relatório de Frota - ${selectedLocadora}</h2>
+              </td>
+              <td style="text-align: right; font-size: 11px; color: #64748b; line-height: 1.5;">
+                <strong>Gerado em:</strong> ${timestamp}<br>
+                <strong>Total da Frota:</strong> ${total} veículos
+              </td>
+            </tr>
+          </table>
+ 
+          <div style="display: flex; gap: 15px; margin-bottom: 30px;">
+            <div class="stat-card">
+              <div class="stat-title">Total de Veículos</div>
+              <div class="stat-value">${total}</div>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #10b981;">
+              <div class="stat-title" style="color: #059669;">Em Dia (Odo Cadastrado)</div>
+              <div class="stat-value" style="color: #059669;">${emDiaCount}</div>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #e11d48;">
+              <div class="stat-title" style="color: #be123c;">Pendente (Excedeu KM)</div>
+              <div class="stat-value" style="color: #be123c;">${pendenteCount}</div>
+            </div>
+            <div class="stat-card" style="border-left: 4px solid #64748b;">
+              <div class="stat-title">Pendente Dados</div>
+              <div class="stat-value">${naoIniciadaCount}</div>
+            </div>
+          </div>
+
+          <table class="main-table">
+            <thead>
+              <tr>
+                <th>Placa</th>
+                <th>Última Revisão</th>
+                <th style="padding: 10px; text-align: right;">Odo Revisão</th>
+                <th style="padding: 10px; text-align: right;">Revisão Prevista</th>
+                <th style="padding: 10px; text-align: right;">Próxima Revisão</th>
+                <th style="padding: 10px; text-align: right;">Odo Atual</th>
+                <th style="padding: 10px; text-align: right;">Odo Restante</th>
+                <th style="padding: 10px; text-align: center;">Status</th>
+                <th>Modelo / Marca</th>
+                <th>Uso / Diretoria</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsHtml}
+            </tbody>
+          </table>
+
+          <div class="footer">
+            NEXUS FROTA — Sistema Integrado de Gestão Preventiva de Frotas de Veículos Comissionados / Locados.<br>
+            Compesa — Central de Gestão de Frotas (CGF).
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() {
+                if (window.frameElement) {
+                  window.frameElement.remove();
+                }
+              }, 1000);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+
+    iframeDoc.close();
+  };
 
   return (
     <div className="w-full bg-slate-50 dark:bg-slate-950/20 min-h-screen py-8 px-4 md:px-8 space-y-6">
@@ -361,14 +920,503 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
           </div>
         </CardContent>
       </Card>
+ 
+      {/* Meu Desempenho & Histórico Panels for LOCADORA profile */}
+      {userProfile?.role === 'LOCADORA' && selectedLocadora && (
+        <div className="space-y-6 mb-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <Card className="border-2 border-indigo-150 dark:border-indigo-950/40 rounded-3xl shadow-lg bg-white dark:bg-slate-900/60 overflow-hidden h-full">
+                <CardHeader className="bg-indigo-50/40 dark:bg-indigo-900/15 border-b border-indigo-100/60 dark:border-indigo-950/20 py-4 px-6 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                      <TrendingUp size={14} className="text-indigo-600 dark:text-indigo-400" /> Painel Meu Desempenho — {selectedLocadora}
+                    </CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                      Métricas de frota e visão consolidada das preventivas enviadas
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center">
+                    <span className="text-[10px] font-black uppercase bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2.5 py-1 rounded-full border border-indigo-200/50 dark:border-indigo-900/40">
+                      {stats.percent}% Concluído
+                    </span>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    
+                    {/* Stat 1: Total Frota */}
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                      <div className="rounded-xl p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                        <Layers size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Frota sob Gestão</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mt-1">{stats.total}</p>
+                      </div>
+                    </div>
 
+                    {/* Stat 2: Cadastrados */}
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                      <div className="rounded-xl p-3 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500 dark:text-indigo-400">
+                        <FileText size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Preventivas Enviadas</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mt-1">
+                          {stats.cadastrado} <span className="text-xs font-normal text-slate-400">/ {stats.total}</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stat 3: Preventivas Em Dia */}
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                      <div className="rounded-xl p-3 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 dark:text-emerald-400">
+                        <Check size={20} className="stroke-[3]" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider font-extrabold text-emerald-600 dark:text-emerald-400">Revisões Em Dia</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mt-1">{stats.emDia}</p>
+                      </div>
+                    </div>
+
+                    {/* Stat 4: Preventivas Vencidas (Excederam KM) */}
+                    <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center gap-4">
+                      <div className="rounded-xl p-3 bg-rose-50 dark:bg-rose-900/20 text-rose-500 dark:text-rose-400">
+                        <AlertCircle size={20} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider font-extrabold text-rose-600 dark:text-rose-400">Revisões Excedidas</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100 leading-none mt-1 text-rose-600 dark:text-rose-400">{stats.pendenteKM}</p>
+                      </div>
+                    </div>
+
+                  </div>
+
+                  {/* Progress Bar of overall coverage */}
+                  <div className="mt-5 space-y-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold uppercase text-slate-500 dark:text-slate-400">Status Geral do Preenchimento</span>
+                      <span className="font-black text-indigo-600 dark:text-indigo-400">{stats.cadastrado} de {stats.total} veículos preenchidos ({stats.percent}%)</span>
+                    </div>
+                    <div className="w-full h-3 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-200/50 dark:border-slate-700/60">
+                      <div 
+                        className="h-full bg-indigo-600 rounded-full transition-all duration-500 animate-pulse" 
+                        style={{ width: `${stats.percent}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            <div className="lg:col-span-1">
+              <Card className="border-2 border-slate-100 dark:border-slate-800 rounded-3xl shadow-lg bg-white dark:bg-slate-900/60 overflow-hidden flex flex-col h-full">
+                <CardHeader className="bg-slate-50/40 dark:bg-slate-950/15 border-b border-indigo-100/60 dark:border-indigo-950/20 py-4 px-6 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Clock size={14} className="text-indigo-600 dark:text-indigo-400" /> Histórico de Atividades
+                    </CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                      Logs de auditoria em tempo real
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchActivityLogs}
+                    disabled={isLoadingLogs}
+                    className="h-8 w-8 rounded-full hover:bg-slate-100 text-slate-400"
+                  >
+                    <RefreshCw size={14} className={isLoadingLogs ? "animate-spin" : ""} />
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-4 flex-1 flex flex-col min-h-[280px]">
+                  {isLoadingLogs ? (
+                    <div className="flex-1 flex items-center justify-center text-xs text-slate-400 font-bold uppercase tracking-wider">
+                      <RefreshCw size={16} className="animate-spin mr-2" /> Carregando logs...
+                    </div>
+                  ) : activityLogs.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-slate-400">
+                      <History size={24} className="text-slate-300 mb-2" />
+                      <p className="text-[10px] uppercase font-black tracking-wider">Nenhuma alteração recente</p>
+                      <p className="text-[9px] mt-1 uppercase font-semibold text-slate-400 text-center leading-normal">Os logs aparecerão à medida que você atualizar os dados da frota.</p>
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[280px] pr-2">
+                      <div className="space-y-3">
+                        {activityLogs.map((log) => {
+                          const formattedDate = log.timestamp
+                            ? new Date(log.timestamp.seconds * 1000).toLocaleString("pt-BR")
+                            : new Date().toLocaleString("pt-BR");
+                          return (
+                            <div 
+                              key={log.id} 
+                              className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100/60 dark:border-slate-800 text-xs transition-all hover:bg-slate-100/50"
+                            >
+                              <div className="flex items-center justify-between mb-1">
+                                <span className="font-mono font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded text-[10px]">
+                                  {log.placa}
+                                </span>
+                                <span className="text-[9px] text-slate-400 font-semibold">{formattedDate}</span>
+                              </div>
+                              <div className="space-y-0.5 text-[11px]">
+                                <p className="text-slate-700 dark:text-slate-300">
+                                  Odômetro: <strong className="font-extrabold text-slate-900 dark:text-white">{log.odometroRevisao.toLocaleString()} km</strong>
+                                </p>
+                                <p className="text-slate-500 text-[10px]">
+                                  Revisão Prevista: {log.revisaoPrevista.toLocaleString()} km
+                                </p>
+                                <p className="text-slate-500 text-[10px]">
+                                  Data Ref: {log.dataRevisao ? new Date(log.dataRevisao + "T00:00:00").toLocaleDateString("pt-BR") : "-"}
+                                </p>
+                              </div>
+                              <div className="mt-2 pt-1.5 border-t border-dashed border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[9px] text-slate-400">
+                                <span className="truncate max-w-[120px] font-medium italic" title={log.usuarioEmail}>
+                                  Por: {log.usuarioEmail.split("@")[0]}
+                                </span>
+                                <span className={`px-1.5 py-0.2 rounded-full font-bold text-[9px] uppercase ${log.tipo === "lote" ? "bg-amber-100 dark:bg-amber-950/40 text-amber-600" : "bg-blue-100 dark:bg-blue-950/40 text-blue-600"}`}>
+                                  {log.tipo}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Central de Notificações */}
+          <Card className="border-2 border-amber-150 dark:border-amber-950/40 rounded-3xl shadow-lg bg-white dark:bg-slate-900/60 overflow-hidden">
+            <CardHeader className="bg-amber-50/40 dark:bg-amber-950/15 border-b border-amber-100/60 dark:border-amber-950/20 py-4 px-6 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 rounded-xl relative">
+                  <Bell className="animate-bounce" size={16} />
+                  {alertNotifications.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4.5 h-4.5 bg-red-500 text-white font-mono font-black text-[9px] rounded-full flex items-center justify-center animate-pulse">
+                      {alertNotifications.length}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <CardTitle className="text-xs font-black uppercase tracking-widest text-amber-800 dark:text-amber-400">
+                    Central de Notificações — Alertas Preventivos
+                  </CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                    Veículos com ≥ 80% do intervalo de revisão preventiva consumido
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              {alertNotifications.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center py-6 text-slate-500">
+                  <div className="w-12 h-12 rounded-full bg-emerald-50 dark:bg-emerald-900/20 text-emerald-500 flex items-center justify-center mb-3">
+                    <Check size={24} className="stroke-[3]" />
+                  </div>
+                  <p className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Nenhum veículo em alerta</p>
+                  <p className="text-[10px] mt-1 font-semibold text-slate-400 uppercase tracking-tight">Todas as revisões sob gestão da locadora estão reguladas e em dia!</p>
+                </div>
+              ) : (
+                <div className="max-h-[300px] overflow-y-auto pr-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {alertNotifications.map((alert) => (
+                      <div 
+                        key={alert.placa}
+                        onClick={() => {
+                          setSearchTerm(alert.placa);
+                          toast.info(`Filtrando tabela para placa: ${alert.placa}`);
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer hover:shadow-md flex flex-col justify-between ${
+                          alert.status === "excedido"
+                            ? "bg-red-50/20 dark:bg-red-950/10 border-red-200/60 dark:border-red-900/40 hover:border-red-400"
+                            : "bg-amber-50/20 dark:bg-amber-950/10 border-amber-200/60 dark:border-amber-900/40 hover:border-amber-400"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2">
+                            <Badge className={`font-mono text-[9px] font-black tracking-widest uppercase px-2 py-0.5 rounded-md ${
+                              alert.status === "excedido"
+                                ? "bg-red-500 text-white"
+                                : "bg-amber-500 text-white"
+                            }`}>
+                              {alert.placa}
+                            </Badge>
+                            <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                              alert.status === "excedido"
+                                ? "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-400"
+                                : "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400"
+                            }`}>
+                              {alert.porcentagemUso}% utilizado
+                            </span>
+                          </div>
+                          
+                          <h4 className="text-xs font-extrabold text-slate-850 dark:text-white mt-3 truncate uppercase tracking-tight">
+                            {alert.modelo}
+                          </h4>
+                          
+                          <div className="mt-3 space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                            <div className="flex justify-between">
+                              <span>Odômetro Atual:</span>
+                              <strong className="text-slate-900 dark:text-white font-extrabold">{alert.odometroAtual.toLocaleString()} km</strong>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Última Revisão:</span>
+                              <span className="font-semibold">{alert.odometroRevisao.toLocaleString()} km</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Próxima Revisão:</span>
+                              <span className="font-semibold">{alert.odometroProximaRevisao.toLocaleString()} km</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 pt-2.5 border-t border-dashed border-slate-200/80 dark:border-slate-800 flex items-center justify-between text-[10px]">
+                          <span className={`font-black uppercase tracking-tight ${
+                            alert.status === "excedido" ? "text-red-600 dark:text-red-450" : "text-amber-600 dark:text-amber-400"
+                          }`}>
+                            {alert.status === "excedido"
+                              ? `Excedido por ${Math.abs(alert.kmRestantes).toLocaleString()} km`
+                              : `Falta ${alert.kmRestantes.toLocaleString()} km`
+                            }
+                          </span>
+                          <span className="text-indigo-600 dark:text-indigo-400 font-extrabold flex items-center hover:underline whitespace-nowrap">
+                            Preencher na Tabela →
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* E-mail Notification Control - New Section requested by USER */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Left Side: Email Settings Card */}
+            <div className="lg:col-span-1">
+              <Card className="border-2 border-indigo-150 dark:border-indigo-950/40 rounded-3xl shadow-lg bg-white dark:bg-slate-900/60 overflow-hidden flex flex-col h-full">
+                <CardHeader className="bg-indigo-50/40 dark:bg-indigo-950/15 border-b border-indigo-100/60 dark:border-indigo-950/20 py-4 px-6 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                      <Settings size={14} className="text-indigo-600 dark:text-indigo-400" /> Configuração de Alertas
+                    </CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                      Agendar notificações automáticas para a gestão
+                    </CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  {isLoadingConfig ? (
+                    <div className="flex-1 flex items-center justify-center text-xs text-slate-400 font-bold uppercase tracking-wider py-8">
+                      <RefreshCw size={16} className="animate-spin mr-2" /> Carregando configurações...
+                    </div>
+                  ) : (
+                    <div className="space-y-4 flex-1">
+                      
+                      {/* Active Toggle */}
+                      <div className="flex items-center justify-between p-3 rounded-2xl bg-indigo-50/20 dark:bg-indigo-900/10 border border-indigo-100/40 dark:border-indigo-900/25">
+                        <div>
+                          <p className="text-xs font-black uppercase text-indigo-900 dark:text-indigo-300">Notificações Ativas</p>
+                          <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Disparar ao registrar status Pendente</p>
+                        </div>
+                        <input
+                          type="checkbox"
+                          className="toggle toggle-primary h-6 w-11 rounded-full bg-slate-200 checked:bg-indigo-600 cursor-pointer appearance-none relative before:content-[''] before:absolute before:top-0.5 before:left-0.5 before:w-5 before:h-5 before:bg-white before:rounded-full before:transition-all checked:before:translate-x-5 border border-slate-350 dark:border-slate-700"
+                          checked={emailConfig.active}
+                          onChange={(e) => setEmailConfig(prev => ({ ...prev, active: e.target.checked }))}
+                        />
+                      </div>
+
+                      {/* Emails list input */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Destinatários (Emails separados por vírgula)</label>
+                        <div className="relative">
+                          <Mail size={15} className="absolute left-3 top-3 text-slate-400" />
+                          <Input
+                            className="pl-9 h-10 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 focus:ring-2 focus:ring-indigo-500"
+                            placeholder="gestao@compesa.com.br, gerente@compesa.com.br"
+                            value={emailConfig.emails}
+                            onChange={(e) => setEmailConfig(prev => ({ ...prev, emails: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Frequency selection */}
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Frequência do Agendamento</label>
+                        <Select 
+                          value={emailConfig.frequencia} 
+                          onValueChange={(val: any) => setEmailConfig(prev => ({ ...prev, frequencia: val }))}
+                        >
+                          <SelectTrigger className="text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 h-10">
+                            <SelectValue placeholder="Selecione a frequência" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="imediato">Instantâneo (Enviar no ato do registro)</SelectItem>
+                            <SelectItem value="diario">Diário (Consolida e envia no dia seguinte)</SelectItem>
+                            <SelectItem value="semanal">Semanal (Consolida e envia na segunda-feira)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Schedule time input */}
+                      {emailConfig.frequencia !== 'imediato' && (
+                        <div className="space-y-1 animate-fadeIn">
+                          <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Horário de Envio Programado</label>
+                          <Input
+                            type="time"
+                            className="h-10 text-xs font-semibold rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                            value={emailConfig.horario}
+                            onChange={(e) => setEmailConfig(prev => ({ ...prev, horario: e.target.value }))}
+                          />
+                        </div>
+                      )}
+
+                    </div>
+                  )}
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-800 mt-3">
+                    <Button
+                      onClick={handleSaveEmailConfig}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black uppercase tracking-wider py-2.5 flex items-center justify-center gap-2 shadow"
+                      disabled={isSavingConfig || isLoadingConfig}
+                    >
+                      {isSavingConfig ? (
+                        <>
+                          <RefreshCw size={14} className="animate-spin" /> Salvando...
+                        </>
+                      ) : (
+                        <>
+                          <Save size={14} /> Salvar Configuração
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Right Side: Scheduled Logs List Card */}
+            <div className="lg:col-span-2">
+              <Card className="border-2 border-slate-100 dark:border-slate-800 rounded-3xl shadow-lg bg-white dark:bg-slate-900/60 overflow-hidden flex flex-col h-full">
+                <CardHeader className="bg-slate-50/40 dark:bg-slate-950/15 border-b border-indigo-100/60 dark:border-indigo-950/20 py-4 px-6 flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xs font-black uppercase tracking-widest text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                      <Mail size={14} className="text-indigo-600 dark:text-indigo-400" /> Fila e Histórico de Alertas Agendados
+                    </CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold text-slate-400 mt-0.5">
+                      Controle de e-mails em fila de processamento ou disparados
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={fetchEmailConfigAndLogs}
+                    disabled={isLoadingScheduledEmails}
+                    className="h-8 w-8 rounded-full hover:bg-slate-100 text-slate-400"
+                  >
+                    <RefreshCw size={14} className={isLoadingScheduledEmails ? "animate-spin" : ""} />
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-4 flex-1 flex flex-col min-h-[300px]">
+                  {isLoadingScheduledEmails ? (
+                    <div className="flex-1 flex items-center justify-center text-xs text-slate-400 font-bold uppercase tracking-wider">
+                      <RefreshCw size={16} className="animate-spin mr-2" /> Carregando registros de e-mail...
+                    </div>
+                  ) : scheduledEmails.length === 0 ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-8 text-slate-400">
+                      <Mail size={32} className="text-slate-250 mb-3" />
+                      <p className="text-[10px] uppercase font-black tracking-wider text-slate-600 dark:text-slate-400">Nenhum e-mail agendado na fila</p>
+                      <p className="text-[9px] mt-1.5 uppercase font-semibold text-slate-450 leading-normal max-w-[320px]">
+                        Os e-mails serão gerados e agendados automaticamente sempre que um novo odômetro for salvo com status "Pendente" com as notificações ativas.
+                      </p>
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[300px] pr-2">
+                      <div className="space-y-3">
+                        {scheduledEmails.map((email) => {
+                          const dateCreated = email.createdAt
+                            ? new Date(email.createdAt.seconds * 1000).toLocaleString("pt-BR")
+                            : new Date().toLocaleString("pt-BR");
+                          const dateScheduled = email.envioAgendadoPara 
+                            ? new Date(email.envioAgendadoPara).toLocaleString("pt-BR")
+                            : "-";
+                          
+                          return (
+                            <div 
+                              key={email.id} 
+                              className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100/80 dark:border-slate-800 text-xs transition-all hover:bg-slate-100/50"
+                            >
+                              <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-black text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded text-[10px] border border-indigo-100/55">
+                                    {email.placa}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-slate-500 whitespace-nowrap">
+                                    {email.modelo}
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <Badge className="font-bold text-[8px] tracking-wider uppercase px-2 py-0.2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-650 dark:text-slate-300">
+                                    {email.frequencia}
+                                  </Badge>
+                                  <Badge className={`font-mono font-black text-[9px] tracking-wider uppercase px-2 py-0.2 rounded-full ${
+                                    email.status === "Enviado" 
+                                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 border border-emerald-200/40" 
+                                      : "bg-blue-100 dark:bg-blue-950/40 text-blue-600 border border-blue-200/40 animate-pulse"
+                                  }`}>
+                                    {email.status}
+                                  </Badge>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1 text-[11px] border-b border-dashed border-slate-200/50 dark:border-slate-800 pb-2.5">
+                                <p className="text-slate-800 dark:text-slate-200 truncate">
+                                  <strong className="font-black text-slate-450 uppercase text-[9px] mr-1">Assunto:</strong>{email.subject}
+                                </p>
+                                <p className="text-slate-500 text-[10px] truncate">
+                                  <strong className="font-black text-slate-450 uppercase text-[9px] mr-1">Para:</strong>{email.destinatarios.join(", ")}
+                                </p>
+                              </div>
+
+                              <div className="mt-2.5 flex items-center justify-between text-[10px] text-slate-400">
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] uppercase font-bold text-slate-400">Gerado Em:</span>
+                                  <span className="font-semibold text-slate-650 dark:text-slate-350">{dateCreated}</span>
+                                </div>
+                                <div className="flex flex-col text-right">
+                                  <span className="text-[9px] uppercase font-bold text-slate-400">Programado Para:</span>
+                                  <span className="font-extrabold text-indigo-600 dark:text-indigo-405">{dateScheduled}</span>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </ScrollArea>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+          </div>
+        </div>
+      )}
+ 
       {/* Vehicles Table Card */}
       {selectedLocadora ? (
         <Card className="border-2 border-slate-100 dark:border-slate-800 rounded-3xl shadow-xl bg-white dark:bg-slate-900 overflow-hidden">
           <CardHeader className="bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-800 flex flex-col md:flex-row md:items-center md:justify-between py-6 gap-4">
             <div>
               <CardTitle className="text-lg font-black text-slate-800 dark:text-white uppercase tracking-tighter">
-                Fé de Veículos - {selectedLocadora}
+                Lista de Veículos - {selectedLocadora}
               </CardTitle>
               <CardDescription className="text-xs text-slate-400">
                 Lançamento das revisões da frota de titularidade <strong className="text-indigo-600">TITULAR</strong> ou <strong className="text-indigo-600">RESERVA</strong>.
@@ -385,6 +1433,16 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
                   className="pl-9 h-9 text-xs"
                 />
               </div>
+
+              {userProfile?.role === "LOCADORA" && (
+                <Button
+                  onClick={handleExportPDF}
+                  variant="outline"
+                  className="bg-white hover:bg-slate-50 border-rose-200 hover:border-rose-300 text-rose-600 dark:bg-slate-900 font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9"
+                >
+                  <FileText size={16} className="mr-1.5 text-rose-500" /> Exportar Relatório
+                </Button>
+              )}
 
               <Button
                 onClick={handleSaveAll}

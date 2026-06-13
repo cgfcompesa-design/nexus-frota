@@ -73,7 +73,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
   const MASTER_EMAIL = "cgf.compesa@gmail.com";
   const userRole = user?.email === MASTER_EMAIL ? 'Master' : (user?.role || 'Visualizador');
 
-  const menuItems: MenuItem[] = [
+  const rawMenuItems: MenuItem[] = [
     { id: 'resumo', label: 'Nexus Frota', icon: BarChart3 },
     { id: 'cco', label: 'Overview', icon: MapPin },
     { id: 'telemetria', label: 'Telemetria', icon: LayoutDashboard },
@@ -116,36 +116,77 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
     { id: 'drive', label: 'Drive de Informações', icon: Share2 },
   ];
 
-  const filteredMenuItems = menuItems.filter(item => {
+  const getFilteredItems = (): MenuItem[] => {
     if (userRole === 'LOCADORA') {
-      return item.id === 'cadastro-preventiva';
+      return [{ id: 'cadastro-preventiva', label: 'Preventiva Locadora', icon: ClipboardList }];
     }
-    if (userRole === 'Master') return true;
-    if (userRole === 'Gestão') {
-      // Gestão assumes same as master but excluding users management? 
-      // The user didn't specify restricted views for GESTAO, only for Visualizador (externo).
-      return item.id !== 'users';
-    }
-    // Visualizador (Externo)
-    const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'drive'];
-    if (!allowed.includes(item.id)) return false;
+
+    const items = JSON.parse(JSON.stringify(rawMenuItems)) as MenuItem[];
     
-    // Sub-item filtering for Visualizador
-    if (item.subItems) {
-      if (item.id === 'abastecimento') {
-        item.subItems = item.subItems.filter(si => si.id === 'abast-dash');
+    const iconMap: Record<string, any> = {
+      'resumo': BarChart3,
+      'cco': MapPin,
+      'telemetria': LayoutDashboard,
+      'abastecimento': Fuel,
+      'abast-dash': PieChart,
+      'abast-desvios': Activity,
+      'manutencao': Wrench,
+      'proprios': Car,
+      'mnt-ctrl-op': ClipboardList,
+      'mnt-desemp': History,
+      'locados': Truck,
+      'regularizacao': FileText,
+      'reg-infracoes': AlertTriangle,
+      'reg-taxas': Gavel,
+      'cadastro-preventiva': ClipboardList,
+      'drive': Share2
+    };
+
+    const rebindIcons = (menuList: MenuItem[]) => {
+      menuList.forEach(item => {
+        item.icon = iconMap[item.id];
+        if (item.subItems) {
+          rebindIcons(item.subItems);
+        }
+      });
+    };
+    rebindIcons(items);
+
+    if (userRole === 'Gestão') {
+      const withNoRootPreventiva = items.filter(item => item.id !== 'cadastro-preventiva' && item.id !== 'users');
+      const mnt = withNoRootPreventiva.find(item => item.id === 'manutencao');
+      if (mnt) {
+        mnt.subItems = [
+          { id: 'locados', label: 'Locados', icon: Truck },
+          { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList }
+        ];
       }
-      if (item.id === 'manutencao') {
-        // Próprios -> Controle Operacional only
-        const proprios = item.subItems.find(si => si.id === 'proprios');
+      return withNoRootPreventiva;
+    }
+
+    if (userRole === 'Visualizador') {
+      const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'drive'];
+      const filtered = items.filter(item => allowed.includes(item.id));
+      
+      const abast = filtered.find(item => item.id === 'abastecimento');
+      if (abast && abast.subItems) {
+        abast.subItems = abast.subItems.filter(si => si.id === 'abast-dash');
+      }
+      
+      const mnt = filtered.find(item => item.id === 'manutencao');
+      if (mnt && mnt.subItems) {
+        const proprios = mnt.subItems.find(si => si.id === 'proprios');
         if (proprios && proprios.subItems) {
           proprios.subItems = proprios.subItems.filter(ssi => ssi.id === 'mnt-ctrl-op');
         }
-        // Locados is allowed
       }
+      return filtered;
     }
-    return true;
-  });
+
+    return items;
+  };
+
+  const filteredMenuItems = getFilteredItems();
 
   const renderMenuItem = (item: MenuItem, depth = 0) => {
     const hasSubItems = item.subItems && item.subItems.length > 0;

@@ -115,6 +115,21 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // --- Preventiva Locadora Logs ---
+    match /preventiva_locadora_logs/{logId} {
+      allow read, write: if true;
+    }
+
+    // --- Preventiva Email Configs ---
+    match /preventiva_email_configs/{configId} {
+      allow read, write: if true;
+    }
+
+    // --- Preventiva Scheduled Emails ---
+    match /preventiva_scheduled_emails/{notificationId} {
+      allow read, write: if true;
+    }
+
     // Connection test
     match /test/connection {
       allow read: if true;
