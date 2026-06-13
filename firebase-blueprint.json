@@ -151,6 +151,20 @@
         "status": { "type": "string", "enum": ["completed"] }
       },
       "required": ["driverName", "currentUsage", "usagePhotoUrl", "plate", "assetType", "dateTime", "responses", "status"]
+    },
+    "PreventivaLocadora": {
+      "title": "Preventiva Locadora",
+      "description": "Dados de controle preventivo para frotas locadas",
+      "type": "object",
+      "properties": {
+        "placa": { "type": "string", "description": "Placa do veículo sanitizada (chave)" },
+        "odometroRevisao": { "type": "integer" },
+        "revisaoPrevista": { "type": "integer" },
+        "dataRevisao": { "type": "string", "description": "Data da última revisão (YYYY-MM-DD)" },
+        "locadora": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["placa", "odometroRevisao", "revisaoPrevista", "dataRevisao", "locadora"]
     }
   },
   "firestore": {
@@ -193,6 +207,10 @@
     "/checklist_submissions/{submissionId}": {
       "schema": "ChecklistSubmission",
       "description": "Checklists preenchidos pelos condutores"
+    },
+    "/preventiva_locadoras/{docId}": {
+      "schema": "PreventivaLocadora",
+      "description": "Controle preventivo por placa"
     }
   }
 }

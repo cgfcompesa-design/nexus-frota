@@ -30,6 +30,7 @@ import DrivePage from './components/drive/DrivePage';
 import ActivityManagement from './components/config/ActivityManagement';
 import ChecklistManutencaoPage from './components/maintenance/ChecklistManutencaoPage';
 import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
+import CadastroPreventivaPage from './components/maintenance/CadastroPreventivaPage';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
 import { LoadingState } from './components/dashboard/LoadingState';
 import AlertConfig from './components/config/AlertConfig';
@@ -49,6 +50,9 @@ function useAppLogic() {
     const path = window.location.pathname;
     if (path === '/responder-checklist' || path.startsWith('/responder-checklist')) {
       return 'responder-checklist';
+    }
+    if (path === '/cadastro-preventiva' || path.startsWith('/cadastro-preventiva')) {
+      return 'cadastro-preventiva';
     }
     if (path === '/checklist-manutencao') {
       return 'checklist-manutencao';
@@ -220,12 +224,16 @@ export default function App() {
       if (!path.startsWith('/responder-checklist')) {
         navigate('/responder-checklist');
       }
+    } else if (currentView === 'cadastro-preventiva') {
+      if (!path.startsWith('/cadastro-preventiva')) {
+        navigate('/cadastro-preventiva');
+      }
     } else if (currentView === 'checklist-manutencao') {
       if (path !== '/checklist-manutencao') {
         navigate('/checklist-manutencao');
       }
     } else {
-      if (path === '/checklist-manutencao' || path === '/responder-checklist') {
+      if (path === '/checklist-manutencao' || path === '/responder-checklist' || path === '/cadastro-preventiva') {
         navigate('/');
       }
     }
@@ -233,7 +241,7 @@ export default function App() {
 
   useEffect(() => {
     if (!loading && !user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
       if (!publicViews.includes(currentView)) {
         setCurrentView('home');
       }
@@ -246,7 +254,7 @@ export default function App() {
   const renderView = () => {
     // Visitor protection
     if (!user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
       if (!publicViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
@@ -254,7 +262,7 @@ export default function App() {
 
     // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
@@ -263,6 +271,7 @@ export default function App() {
     switch (currentView) {
       case 'home': return <Home setView={setCurrentView} userRole={effectiveRole} />;
       case 'drive': return <DrivePage />;
+      case 'cadastro-preventiva': return <CadastroPreventivaPage onBack={() => setCurrentView('locados')} />;
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
@@ -306,7 +315,7 @@ export default function App() {
   }
 
     // Handle Fullscreen views (No Auth Required for Drive, Auth depends on component for others)
-    if (currentView === 'drive' || currentView === 'abast-maquinas' || currentView === 'responder-checklist') {
+    if (currentView === 'drive' || currentView === 'abast-maquinas' || currentView === 'responder-checklist' || currentView === 'cadastro-preventiva') {
       return (
         <ErrorBoundary FallbackComponent={ErrorFallback}>
           <div className="min-h-screen">
@@ -314,6 +323,8 @@ export default function App() {
               <DrivePage onBack={() => setCurrentView('home')} />
             ) : currentView === 'abast-maquinas' ? (
               <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />
+            ) : currentView === 'cadastro-preventiva' ? (
+              <CadastroPreventivaPage onBack={() => setCurrentView('home')} hideBackButton={!user} />
             ) : (
               <ResponderChecklistPage onBack={user ? () => setCurrentView('gerenciamento-atividades') : undefined} />
             )}
@@ -326,7 +337,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist'];
+    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">

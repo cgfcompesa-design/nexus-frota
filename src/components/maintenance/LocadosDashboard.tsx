@@ -2,7 +2,8 @@ import { useState, useMemo } from "react";
 import { useLocadosData, LocadoData } from "@/hooks/useLocadosData";
 import { useVeiculosLocadosDisponiveis, useDisponibilidadeLocados } from "@/hooks/useDisponibilidadeLocados";
 import { usePreventiveLocadosData } from "@/hooks/usePreventiveLocadosData";
-import { useAssets } from "@/hooks/useFleetData";
+import { useAssets, useFuelData } from "@/hooks/useFleetData";
+import { useFirebasePreventivas } from "@/hooks/useFirebasePreventivas";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -49,8 +50,10 @@ export const LocadosDashboard = () => {
   }, [rawLocados, titularPlatesSet]);
 
   const { disponibilidade: globalDisp, totalDiasParados: globalDiasParados } = useDisponibilidadeLocados();
-  const { data: preventiveLocados = [], isLoading: isLoadingPreventive, isError: isErrorPreventive } = usePreventiveLocadosData();
+  const { data: sheetPreventiveLocados = [], isLoading: isLoadingPreventive, isError: isErrorPreventive } = usePreventiveLocadosData();
   const { data: assets = [], isLoading: isLoadingAssets, isError: isErrorAssets } = useAssets();
+  const { data: firebasePreventivas = {} } = useFirebasePreventivas();
+  const { data: fuel = [] } = useFuelData();
 
   // Active tab state
   const [activeTab, setActiveTab] = useState("disponibilidade");
@@ -491,6 +494,103 @@ export const LocadosDashboard = () => {
     return { data, years: uniqueYears };
   }, [locados, veiculosDisponiveisCount, searchPlaca, selectedDiretoria, selectedGerencia, selectedModelo, selectedPropriedade]);
 
+  // Get active vehicle odometers
+  const latestOdometersMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const platesInFuelWithoutDate = new Map<string, any[]>();
+    
+    fuel.forEach(f => {
+      const placa = String(f.PLACA || f.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      if (placa) {
+        if (!platesInFuelWithoutDate.has(placa)) {
+          platesInFuelWithoutDate.set(placa, []);
+        }
+        platesInFuelWithoutDate.get(placa)!.push(f);
+      }
+    });
+
+    platesInFuelWithoutDate.forEach((transactions, placa) => {
+      let lastOdo = 0;
+      let lastDateForOdo: Date | null = null;
+      transactions.forEach(f => {
+        let d: Date | null = null;
+        if (f._date) {
+          if (f._date instanceof Date) {
+            d = f._date;
+          } else {
+            const parsed = new Date(f._date);
+            if (!isNaN(parsed.getTime())) d = parsed;
+          }
+        }
+        const odo = Number(f._odometer || 0);
+        if (odo > 0) {
+          if (!lastDateForOdo || (d && d > lastDateForOdo)) {
+            if (d) lastDateForOdo = d;
+            lastOdo = odo;
+          }
+        }
+      });
+
+      if (lastOdo === 0 && transactions.length > 0) {
+        lastOdo = Math.max(...transactions.map(f => Number(f._odometer || 0)));
+      }
+
+      map.set(placa, lastOdo);
+    });
+
+    return map;
+  }, [fuel]);
+
+  const preventiveLocados = useMemo(() => {
+    const targetLocadoras = ["CS BRASIL", "LOCSERV", "LOCADORA CAXANGA", "LOCAVEL", "PBF GRAFICA"];
+    
+    const targetAssets = assets.filter(asset => {
+      const prop = String(asset.PROPRIEDADE || asset.propriedade || "").toUpperCase().trim();
+      const isPropMatch = targetLocadoras.some(t => prop === t || prop.includes(t) || t.includes(prop));
+      if (!isPropMatch) return false;
+
+      const tit = String(asset.TITULARIDADE || asset.titularidade || "").toUpperCase().trim();
+      return tit === "TITULAR" || tit === "RESERVA";
+    });
+
+    return targetAssets.map(asset => {
+      const placa = String(asset.PLACA || asset.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      
+      const firebaseRecord = firebasePreventivas[placa];
+      const sheetRecord = sheetPreventiveLocados.find(p => p.placa.toUpperCase().replace(/[^A-Z0-9]/gi, "").trim() === placa);
+
+      const odometroRevisao = firebaseRecord ? firebaseRecord.odometroRevisao : (sheetRecord ? sheetRecord.odometroRevisao : undefined);
+      const revisaoPrevista = firebaseRecord ? firebaseRecord.revisaoPrevista : (sheetRecord ? sheetRecord.revisaoPrevista : undefined);
+      const dataRevisao = firebaseRecord ? firebaseRecord.dataRevisao : (sheetRecord ? sheetRecord.dataRevisao : undefined);
+
+      const odometroAtual = latestOdometersMap.get(placa) || 0;
+      
+      const odometroProximaRevisao = odometroRevisao && revisaoPrevista ? (odometroRevisao + revisaoPrevista) : undefined;
+      const odometroRestante = odometroProximaRevisao ? (odometroProximaRevisao - odometroAtual) : undefined;
+      
+      let statusRevisao = "Não Iniciada";
+      if (odometroRestante !== undefined) {
+        statusRevisao = odometroRestante < 0 ? "Pendente" : "Em Dia";
+      }
+
+      return {
+        placa,
+        odometroRevisao,
+        revisaoPrevista,
+        dataRevisao,
+        odometroProximaRevisao,
+        odometroAtual,
+        odometroRestante,
+        statusRevisao,
+        diretoria: asset.DIRETORIA || asset.diretoria || "N/A",
+        gerencia: asset.GERENCIA || asset["GERÊNCIA"] || asset.gerencia || "N/A",
+        marca: asset.MARCA || asset.marca || "N/A",
+        modelo: asset.MODELO || asset.modelo || "N/A",
+        propriedade: asset.PROPRIEDADE || asset.propriedade || "N/A",
+      };
+    });
+  }, [assets, firebasePreventivas, sheetPreventiveLocados, latestOdometersMap]);
+
   // Preventiva data processing
   const statusPreventiva = useMemo(() => {
     const statuses = preventiveLocados
@@ -618,11 +718,17 @@ export const LocadosDashboard = () => {
   const handleExportPreventivaExcel = () => {
     const dataToExport = filteredPreventiva.map(item => ({
       "Placa": item.placa,
-      "Odômetro Revisão": item.odometroRevisao,
-      "Revisão Prevista": item.revisaoPrevista,
-      "Data Revisão": item.dataRevisao,
-      "Odômetro Atual": item.odometroAtual,
-      "Status Revisão": item.statusRevisao,
+      "Odômetro Revisão": item.odometroRevisao ?? "",
+      "Revisão Prevista": item.revisaoPrevista ?? "",
+      "Data Revisão": item.dataRevisao ?? "",
+      "Odômetro Próxima Revisão": item.odometroProximaRevisao ?? "",
+      "Diretoria": item.diretoria ?? "",
+      "Gerência": item.gerencia ?? "",
+      "Marca": item.marca ?? "",
+      "Modelo": item.modelo ?? "",
+      "Odômetro Atual": item.odometroAtual ?? 0,
+      "Odômetro Restante": item.odometroRestante ?? "",
+      "Status Revisão": item.statusRevisao ?? "",
     }));
 
     exportToExcel(dataToExport, `Preventiva_Locados_${new Date().toISOString().split('T')[0]}`, "Preventiva");
@@ -1248,39 +1354,79 @@ export const LocadosDashboard = () => {
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[600px]">
-              <Table>
+              <Table className="min-w-[1200px]">
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="text-center">Placa</TableHead>
-                    <TableHead className="text-center">Odômetro Revisão</TableHead>
-                    <TableHead className="text-center">Revisão Prevista</TableHead>
-                    <TableHead className="text-center">Data Revisão</TableHead>
-                    <TableHead className="text-center">Odômetro Atual</TableHead>
-                    <TableHead className="text-center">Status Revisão</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Placa</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Odômetro Revisão</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Revisão Prevista</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Data Revisão</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Odômetro Próxima Revisão</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Status Revisão</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Odômetro Atual</TableHead>
+                    <TableHead className="text-center font-bold uppercase text-xs">Odômetro Restante</TableHead>
+                    <TableHead className="font-bold uppercase text-xs">Diretoria</TableHead>
+                    <TableHead className="font-bold uppercase text-xs">Gerência</TableHead>
+                    <TableHead className="font-bold uppercase text-xs">Marca / Modelo</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredPreventiva.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={11} className="text-center text-muted-foreground py-8">
                         Nenhum registro encontrado
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPreventiva.map((item, index) => (
-                      <TableRow key={`${item.placa}-${index}`}>
-                        <TableCell className="text-center font-medium">{item.placa}</TableCell>
-                        <TableCell className="text-center">{item.odometroRevisao || "-"}</TableCell>
-                        <TableCell className="text-center">{item.revisaoPrevista || "-"}</TableCell>
-                        <TableCell className="text-center">{item.dataRevisao || "-"}</TableCell>
-                        <TableCell className="text-center">{item.odometroAtual || "-"}</TableCell>
-                        <TableCell className="text-center">
-                          <Badge variant={getStatusBadgeVariant(item.statusRevisao)}>
-                            {item.statusRevisao || "Sem Status"}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                    filteredPreventiva.map((item, index) => {
+                      const isOverdue = (item.odometroRestante ?? 0) < 0;
+
+                      return (
+                        <TableRow key={`${item.placa}-${index}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
+                          <TableCell className="text-center font-black">
+                            <span className="bg-indigo-50 dark:bg-indigo-900/20 px-2.5 py-1 rounded text-indigo-600 border border-indigo-100 dark:border-indigo-900/30 font-mono text-xs">
+                              {item.placa}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center font-bold text-slate-800 dark:text-slate-200">
+                            {item.odometroRevisao !== undefined ? item.odometroRevisao.toLocaleString() : "-"}
+                          </TableCell>
+                          <TableCell className="text-center font-semibold text-slate-600 dark:text-slate-400">
+                            {item.revisaoPrevista !== undefined ? `${item.revisaoPrevista.toLocaleString()} km` : "-"}
+                          </TableCell>
+                          <TableCell className="text-center font-medium">{item.dataRevisao || "-"}</TableCell>
+                          <TableCell className="text-center font-extrabold text-indigo-600">
+                            {item.odometroProximaRevisao !== undefined ? item.odometroProximaRevisao.toLocaleString() : "-"}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {item.odometroRevisao !== undefined ? (
+                              <Badge variant={isOverdue ? "destructive" : "success"}>
+                                {item.statusRevisao || "Sem Status"}
+                              </Badge>
+                            ) : (
+                              <Badge className="bg-slate-400 text-white hover:bg-slate-400 text-[10px] font-black uppercase">
+                                Pendente Dados
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center font-semibold text-slate-600 dark:text-slate-400">
+                            {item.odometroAtual !== undefined ? item.odometroAtual.toLocaleString() : "0"}
+                          </TableCell>
+                          <TableCell className={`text-center font-black ${isOverdue ? "text-rose-500" : "text-emerald-500"}`}>
+                            {item.odometroRevisao !== undefined && item.odometroRestante !== undefined
+                              ? `${item.odometroRestante > 0 ? "+" : ""}${item.odometroRestante.toLocaleString()}`
+                              : "-"
+                            }
+                          </TableCell>
+                          <TableCell className="text-xs uppercase font-semibold text-slate-700 dark:text-slate-300">{item.diretoria || "N/A"}</TableCell>
+                          <TableCell className="text-xs uppercase font-medium text-slate-500">{item.gerencia || "N/A"}</TableCell>
+                          <TableCell className="text-xs truncate max-w-[180px]">
+                            <p className="font-bold text-slate-700 dark:text-slate-300 truncate uppercase leading-tight">{item.modelo || "N/A"}</p>
+                            <p className="text-[10px] text-slate-400 truncate uppercase mt-0.5">{item.marca || "N/A"}</p>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>

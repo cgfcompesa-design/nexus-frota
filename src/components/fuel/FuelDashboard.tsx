@@ -433,26 +433,26 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
     const abastData = relevantTxs.map(f => {
       const raw = (f as any).__raw || [];
       return {
-        "CODIGO TRANSACAO": raw[0] || f["N\u00BA TRANSACAO"] || f._txId || "N/A",
-        "DATA TRANSACAO": f["DATA TRANSACAO"] || raw[4] || "N/A",
-        "PLACA": f._placa || f.PLACA || f.Placa || raw[5] || "N/A",
-        "TIPO FROTA": raw[6] || f["TIPO FROTA"] || "N/A",
-        "MODELO VEICULO": f["MODELO VEICULO"] || raw[10] || "N/A",
-        "NOME MOTORISTA": f["NOME MOTORISTA"] || raw[11] || "N/A",
-        "SERVICO": f["SERVICO"] || f["SERVI\u00C7O"] || raw[12] || "N/A",
-        "TIPO COMBUSTIVEL": f["TIPO COMBUSTIVEL"] || raw[13] || "N/A",
-        "LITROS": parseBrazilianNumber(f.LITROS || raw[14]),
-        "VL/LITRO": parseBrazilianNumber(f["VALOR UNITARIO"] || f["VL/UNITARIO"] || raw[15]),
-        "HODOMETRO OU HORIMETRO": f["ODOMETRO/HORIMETRO"] || raw[20] || "N/A",
-        "KM RODADOS OU HORAS TRABALHADAS": parseBrazilianNumber(f["KM RODADOS OU HORAS TRABALHADAS"] || raw[39]),
-        "VALOR EMISSAO": parseBrazilianNumber(f["VALOR EMISSAO"] || raw[17]),
-        "NOME ESTABELECIMENTO": f._establishment || f._posto || f["NOME ESTABELECIMENTO"] || f["NOME POSTO"] || raw[21] || "N/A",
-        "ENDERECO": f._endereco || f["ENDERECO"] || f["ENDERE\u00C7O"] || raw[23] || "N/A",
-        "BAIRRO": f._bairro || f["BAIRRO"] || raw[24] || "N/A",
-        "CIDADE": f._cidade || f["CIDADE"] || raw[25] || "N/A",
-        "INFORMACAO ADICIONAL 1": raw[27] || f["INFORMA\u00C7\u00C3O ADICIONAL 1"] || "N/A",
-        "INFORMACAO ADICIONAL 2": raw[28] || f["INFORMA\u00C7\u00C3O ADICIONAL 2"] || "N/A",
-        "INFORMACAO ADICIONAL 3": raw[29] || f["INFORMA\u00C7\u00C3O ADICIONAL 3"] || "N/A"
+        "Cód. Transação": raw[0] || f._txId || f["CODIGO TRANSACAO"] || f["Nº TRANSACAO"] || f.COL_0 || "N/A",
+        "Data Transação": f["DATA TRANSACAO"] || f._date || raw[4] || f.COL_4 || "N/A",
+        "Placa": f._placa || f.PLACA || f.Placa || raw[5] || f.COL_5 || "N/A",
+        "Modelo Veículo": f["MODELO VEICULO"] || raw[10] || f.COL_10 || f._vehicleModel || "N/A",
+        "Nome Motorista": f["NOME MOTORISTA"] || raw[11] || f.COL_11 || f._driver || "N/A",
+        "Serviço": f["SERVICO"] || f["SERVIÇO"] || raw[12] || f.COL_12 || "N/A",
+        "Tipo Combustível": f._fuelType || f["TIPO COMBUSTIVEL"] || raw[13] || f.COL_13 || "N/A",
+        "Litros": parseBrazilianNumber(f.LITROS || raw[14] || f.COL_14 || 0),
+        "VL/Litro": parseBrazilianNumber(f["VALOR UNITARIO"] || f["VL/UNITARIO"] || raw[15] || f.COL_15 || f._vlLitro || 0),
+        "Hodometro ou Horimetro": f["ODOMETRO/HORIMETRO"] || raw[20] || f.COL_20 || f._odometer || "N/A",
+        "Km Rodados ou Horas Trabalhadas": parseBrazilianNumber(f["KM RODADOS OU HORAS TRABALHADAS"] || raw[39] || f.COL_39 || f._kmRodados || 0),
+        "Valor Emissão": parseBrazilianNumber(f["VALOR EMISSAO"] || raw[17] || f.COL_17 || f._total || 0),
+        "Nome Estabelecimento": f._establishment || f._posto || f["NOME ESTABELECIMENTO"] || f["NOME POSTO"] || raw[21] || f.COL_21 || "N/A",
+        "Endereço": f._endereco || f["ENDERECO"] || f["ENDEREÇO"] || raw[23] || f.COL_23 || "N/A",
+        "Bairro": f._bairro || f["BAIRRO"] || raw[24] || f.COL_24 || "N/A",
+        "Cidade": f._cidade || f["CIDADE"] || raw[25] || f.COL_25 || "N/A",
+        "Informação Adicional 1": raw[27] || f["INFORMACAO ADICIONAL 1"] || f["INFORMAÇÃO ADICIONAL 1"] || f.COL_27 || "N/A",
+        "Informação Adicional 2": raw[28] || f["INFORMACAO ADICIONAL 2"] || f["INFORMAÇÃO ADICIONAL 2"] || f.COL_28 || "N/A",
+        "Informação Adicional 3": raw[29] || f["INFORMACAO ADICIONAL 3"] || f["INFORMAÇÃO ADICIONAL 3"] || f.COL_29 || "N/A",
+        "Número Cartão": raw[35] || f["NUMERO CARTAO"] || f["N CARTAO"] || f["CARTAO"] || f.COL_35 || "N/A"
       };
     });
 
@@ -1402,17 +1402,31 @@ Coordenação de Gestão de Frotas - CGF`;
 
   const handleExportAll = () => {
     toast.info("Exportando dados consolidados...");
-    const data = enrichedVehicleFuelData.map(v => ({
-      Placa: v.placa,
-      Modelo: v.modelo,
-      Unidade: v.unidade,
-      "Abastecimentos": v.count,
-      "Dias s/ Abast.": v.dias,
-      "Aut. Padrão": (v.autPadrao || 0).toFixed(2),
-      "Aut. Real": (v.autReal || 0).toFixed(2),
-      "Desvio %": (v.desvAut || 0).toFixed(1) + "%",
-      "Alertas": Array.from(v.alerts).join(", ")
-    }));
+    const data = filteredFuel.map((f: any) => {
+      const raw = f.__raw || [];
+      return {
+        "Cód. Transação": raw[0] || f._txId || f["CODIGO TRANSACAO"] || f["Nº TRANSACAO"] || f.COL_0 || "N/A",
+        "Data Transação": f["DATA TRANSACAO"] || f._date || raw[4] || f.COL_4 || "N/A",
+        "Placa": f._placa || f.PLACA || f.Placa || raw[5] || f.COL_5 || "N/A",
+        "Modelo Veículo": f["MODELO VEICULO"] || raw[10] || f.COL_10 || f._vehicleModel || "N/A",
+        "Nome Motorista": f["NOME MOTORISTA"] || raw[11] || f.COL_11 || f._driver || "N/A",
+        "Serviço": f["SERVICO"] || f["SERVIÇO"] || raw[12] || f.COL_12 || "N/A",
+        "Tipo Combustível": f._fuelType || f["TIPO COMBUSTIVEL"] || raw[13] || f.COL_13 || "N/A",
+        "Litros": parseBrazilianNumber(f.LITROS || raw[14] || f.COL_14 || 0),
+        "VL/Litro": parseBrazilianNumber(f["VALOR UNITARIO"] || f["VL/UNITARIO"] || raw[15] || f.COL_15 || f._vlLitro || 0),
+        "Hodometro ou Horimetro": f["ODOMETRO/HORIMETRO"] || raw[20] || f.COL_20 || f._odometer || "N/A",
+        "Km Rodados ou Horas Trabalhadas": parseBrazilianNumber(f["KM RODADOS OU HORAS TRABALHADAS"] || raw[39] || f.COL_39 || f._kmRodados || 0),
+        "Valor Emissão": parseBrazilianNumber(f["VALOR EMISSAO"] || raw[17] || f.COL_17 || f._total || 0),
+        "Nome Estabelecimento": f._establishment || f._posto || f["NOME ESTABELECIMENTO"] || f["NOME POSTO"] || raw[21] || f.COL_21 || "N/A",
+        "Endereço": f._endereco || f["ENDERECO"] || f["ENDEREÇO"] || raw[23] || f.COL_23 || "N/A",
+        "Bairro": f._bairro || f["BAIRRO"] || raw[24] || f.COL_24 || "N/A",
+        "Cidade": f._cidade || f["CIDADE"] || raw[25] || f.COL_25 || "N/A",
+        "Informação Adicional 1": raw[27] || f["INFORMACAO ADICIONAL 1"] || f["INFORMAÇÃO ADICIONAL 1"] || f.COL_27 || "N/A",
+        "Informação Adicional 2": raw[28] || f["INFORMACAO ADICIONAL 2"] || f["INFORMAÇÃO ADICIONAL 2"] || f.COL_28 || "N/A",
+        "Informação Adicional 3": raw[29] || f["INFORMACAO ADICIONAL 3"] || f["INFORMAÇÃO ADICIONAL 3"] || f.COL_29 || "N/A",
+        "Número Cartão": raw[35] || f["NUMERO CARTAO"] || f["N CARTAO"] || f["CARTAO"] || f.COL_35 || "N/A"
+      };
+    });
     exportToExcelMultiSheet([{ data, sheetName: "Analise" }], "Consolidado_Abastecimento");
   };
 

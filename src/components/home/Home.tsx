@@ -22,7 +22,7 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       icon: BarChart3,
       onClick: () => setView('resumo'),
       external: false,
-      restricted: true,
+      restricted: false,
     },
     {
       title: "Kanban de Atividades",

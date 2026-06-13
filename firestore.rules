@@ -110,6 +110,11 @@ service cloud.firestore {
       allow update: if false; // Immutability for audit security
     }
 
+    // --- Preventiva Locadoras ---
+    match /preventiva_locadoras/{docId} {
+      allow read, write: if true;
+    }
+
     // Connection test
     match /test/connection {
       allow read: if true;
