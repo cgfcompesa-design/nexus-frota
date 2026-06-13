@@ -28,8 +28,10 @@ import {
   Bell,
   Mail,
   Settings,
-  AlertTriangle
+  AlertTriangle,
+  X
 } from "lucide-react";
+import { useContactsData } from "@/hooks/useContactsData";
 import { auth, db } from "../../lib/firebase";
 import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, doc, getDoc, setDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
@@ -137,6 +139,134 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
   }
   const [scheduledEmails, setScheduledEmails] = useState<ScheduledEmailLog[]>([]);
   const [isLoadingScheduledEmails, setIsLoadingScheduledEmails] = useState(false);
+
+  // States and functions for manual notification email generator modal for overdue (vencida) preventivas
+  const { getEmailsByGerencia, contactsData = [], isLoading: isContactsLoading } = useContactsData();
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [selectedVehicleForEmail, setSelectedVehicleForEmail] = useState<any>(null);
+  const [emailSelectedUnidade, setEmailSelectedUnidade] = useState<string>("");
+  const [emailSubject, setEmailSubject] = useState<string>("");
+  const [emailBody, setEmailBody] = useState<string>("");
+  const [emailTo, setEmailTo] = useState<string>("");
+  const [emailCc, setEmailCc] = useState<string>("gadlocados@compesa.com.br");
+
+  const handleOpenEmailModal = (vehicle: any, state: any, odometroAtual: number, odometroProximaRevisao: number, odometroRestante: number) => {
+    setSelectedVehicleForEmail(vehicle);
+    
+    // Find initial matching unit if possible by matching vehicle.GERENCIA
+    const vGer = String(vehicle.GERENCIA || vehicle["GERÊNCIA"] || vehicle.gerencia || "").toUpperCase().trim();
+    
+    // Attempt to map to contactsData unit names
+    const matchingUnit = (contactsData as any[]).find(c => {
+      const normalize = (s: string) => String(s || "").toUpperCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Z0-9]/g, "");
+      return normalize(c.gerencia) === normalize(vGer);
+    });
+
+    const initUnidade = matchingUnit ? matchingUnit.gerencia : "";
+    setEmailSelectedUnidade(initUnidade);
+
+    const destEmails = matchingUnit ? getEmailsByGerencia(initUnidade).join(", ") : "";
+    setEmailTo(destEmails);
+
+    const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+    const modelo = String(vehicle.MODELO || vehicle.modelo || "N/A").trim();
+    const marca = String(vehicle.MARCA || vehicle.marca || "N/A").trim();
+    const propriedade = String(vehicle.PROPRIEDADE || vehicle.propriedade || vehicle.PROPRIEDADE_TIPO || "Locado").trim();
+    const ano = String(vehicle.ANO || vehicle.ano || vehicle.MODELO_ANO || vehicle.modelo_ano || "N/A").trim();
+
+    // Preventiva anterior details
+    const odoRev = Number(state.odometroRevisao || 0);
+    const dataRev = state.dataRevisao ? new Date(state.dataRevisao).toLocaleDateString("pt-BR") : "Não registrada";
+    const revPrev = Number(state.revisaoPrevista || 10000);
+
+    const subjectText = `[Nexus Frota - Alerta Preventiva] Veículo Placa ${placa} com Preventiva Vencida`;
+    
+    const bodyText = `Prezado(a) Gestor(a),
+
+Identificamos que o veículo abaixo está com a preventiva vencida:
+
+• Veículo Placa: ${placa}
+• Modelo: ${modelo} (${marca})
+• Propriedade: ${propriedade}
+• Ano: ${ano}
+• Unidade: ${initUnidade || vGer || "N/A"}
+
+Histórico / Detalhes da Preventiva:
+- KM Anterior de Revisão: ${odoRev.toLocaleString('pt-BR')} KM
+- Data da Revisão Anterior: ${dataRev}
+- Intervalo de Revisão Configurado: ${revPrev.toLocaleString('pt-BR')} KM
+- KM Limite para Próxima Revisão: ${odometroProximaRevisao.toLocaleString('pt-BR')} KM
+- KM de Leitura Atual: ${odometroAtual.toLocaleString('pt-BR')} KM
+- KM Excedente: ${Math.abs(odometroRestante).toLocaleString('pt-BR')} KM
+
+Solicitamos o agendamento urgente da manutenção do veículo junto à locadora competente de modo a mitigar o risco de quebras mecânicas e desvio contratual.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas (CGF) - COMPESA`;
+
+    setEmailSubject(subjectText);
+    setEmailBody(bodyText);
+    setIsEmailModalOpen(true);
+  };
+
+  const handleEmailUnidadeChange = (unidade: string) => {
+    setEmailSelectedUnidade(unidade);
+    const dests = getEmailsByGerencia(unidade);
+    setEmailTo(dests.join(", "));
+
+    if (selectedVehicleForEmail) {
+      const v = selectedVehicleForEmail;
+      const vGer = String(v.GERENCIA || v["GERÊNCIA"] || v.gerencia || "").toUpperCase().trim();
+      const placa = String(v.PLACA || v.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      const modelo = String(v.MODELO || v.modelo || "N/A").trim();
+      const marca = String(v.MARCA || v.marca || "N/A").trim();
+      const propriedade = String(v.PROPRIEDADE || v.propriedade || v.PROPRIEDADE_TIPO || "Locado").trim();
+      const ano = String(v.ANO || v.ano || v.MODELO_ANO || v.modelo_ano || "N/A").trim();
+
+      const state = editedRows[placa] || { odometroRevisao: "", revisaoPrevista: "10000", dataRevisao: "" };
+      const odoRev = Number(state.odometroRevisao || 0);
+      const dataRev = state.dataRevisao ? new Date(state.dataRevisao).toLocaleDateString("pt-BR") : "Não registrada";
+      const revPrev = Number(state.revisaoPrevista || 10000);
+      const odometroProximaRevisao = odoRev + revPrev;
+      const odometroAtual = latestOdometersMap.get(placa) || 0;
+      const odometroRestante = odometroProximaRevisao - odometroAtual;
+
+      const bodyText = `Prezado(a) Gestor(a),
+
+Identificamos que o veículo abaixo está com a preventiva vencida:
+
+• Veículo Placa: ${placa}
+• Modelo: ${modelo} (${marca})
+• Propriedade: ${propriedade}
+• Ano: ${ano}
+• Unidade: ${unidade}
+
+Histórico / Detalhes da Preventiva:
+- KM Anterior de Revisão: ${odoRev.toLocaleString('pt-BR')} KM
+- Data da Revisão Anterior: ${dataRev}
+- Intervalo de Revisão Configurado: ${revPrev.toLocaleString('pt-BR')} KM
+- KM Limite para Próxima Revisão: ${odometroProximaRevisao.toLocaleString('pt-BR')} KM
+- KM de Leitura Atual: ${odometroAtual.toLocaleString('pt-BR')} KM
+- KM Excedente: ${Math.abs(odometroRestante).toLocaleString('pt-BR')} KM
+
+Solicitamos o agendamento urgente da manutenção do veículo junto à locadora competente de modo a mitigar o risco de quebras mecânicas e desvio contratual.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas (CGF) - COMPESA`;
+
+      setEmailBody(bodyText);
+    }
+  };
+
+  const handleSendManualEmail = () => {
+    if (!emailTo) {
+      toast.warning("Não há destinatários mapeados para esta Unidade. Você pode digitar um destinatário manualmente.");
+    }
+    const mailtoUrl = `mailto:${encodeURIComponent(emailTo)}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}&cc=${encodeURIComponent(emailCc)}`;
+    window.location.href = mailtoUrl;
+    setIsEmailModalOpen(false);
+    toast.success("E-mail disparado para o gerenciador!");
+  };
 
   const fetchEmailConfigAndLogs = async () => {
     if (!selectedLocadora) return;
@@ -1195,8 +1325,12 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
               )}
             </CardContent>
           </Card>
+        </div>
+      )}
 
-          {/* E-mail Notification Control - New Section requested by USER */}
+      {/* E-mail Notification Control - New Section requested by USER */}
+      {userProfile?.role !== 'LOCADORA' && selectedLocadora && (
+        <div className="space-y-6 mb-6">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Left Side: Email Settings Card */}
@@ -1480,6 +1614,7 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
                       <TableHead className="text-center font-black uppercase text-[10px] w-[100px]">Status</TableHead>
                       <TableHead className="font-black uppercase text-[10px]">Diretoria / Gerência</TableHead>
                       <TableHead className="font-black uppercase text-[10px]">Modelo / Marca</TableHead>
+                      <TableHead className="text-center font-black uppercase text-[10px] w-[90px]">Notificar</TableHead>
                       <TableHead className="text-center font-black uppercase text-[10px] w-[80px]">Salvar</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1599,6 +1734,21 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
                             <p className="text-[10px] text-slate-400 truncate uppercase mt-0.5">{brand}</p>
                           </TableCell>
 
+                          {/* Notificar manual action */}
+                          <TableCell className="text-center">
+                            {isOverdue ? (
+                              <Button
+                                onClick={() => handleOpenEmailModal(vehicle, state, odometroAtual, odometroProximaRevisao, odometroRestante)}
+                                className="bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white p-1.5 h-7 w-7 rounded-lg transition-all flex items-center justify-center mx-auto"
+                                title="Notificar gestor por e-mail"
+                              >
+                                <Mail size={13} />
+                              </Button>
+                            ) : (
+                              <span className="text-slate-300 dark:text-slate-700 font-bold text-xs">-</span>
+                            )}
+                          </TableCell>
+
                           {/* Acciones */}
                           <TableCell className="text-center">
                             <Button
@@ -1631,6 +1781,117 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
           <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
             Selecione uma locadora no menu acima para gerenciar, editar, agendar e atualizar as revisões preventiva da frota correspondente.
           </p>
+        </div>
+      )}
+
+      {/* Manual Notification Email Dialog */}
+      {isEmailModalOpen && selectedVehicleForEmail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-xl text-amber-500">
+                  <Mail size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Notificar Preventiva Vencida</h3>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Veículo Placa: {String(selectedVehicleForEmail.PLACA || selectedVehicleForEmail.placa || "").toUpperCase()}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsEmailModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all font-bold"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content section */}
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              {/* Select Unidade */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Selecione a Unidade do Veículo</label>
+                <Select
+                  value={emailSelectedUnidade}
+                  onValueChange={handleEmailUnidadeChange}
+                >
+                  <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
+                    <SelectValue placeholder={isContactsLoading ? "Carregando Contatos..." : "Selecione a Unidade/Gerência..."} />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[250px] overflow-y-auto">
+                    {(contactsData as any[]).map((contact, idx) => (
+                      <SelectItem key={idx} value={contact.gerencia} className="text-xs font-bold uppercase">
+                        {contact.gerencia}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* To (Para) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Para (E-mails da Unidade)</label>
+                <Input
+                  type="text"
+                  placeholder="Selecione uma unidade ou digite os e-mails separados por vírgula"
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  className="font-medium text-xs h-10"
+                />
+              </div>
+
+              {/* CC (Cópia) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Cópia (CC)</label>
+                <Input
+                  type="text"
+                  disabled
+                  value={emailCc}
+                  className="font-medium text-xs bg-slate-50 dark:bg-slate-900 h-10 text-slate-500"
+                />
+              </div>
+
+              {/* Subject (Assunto) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Assunto do E-mail</label>
+                <Input
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="font-extrabold text-xs h-10"
+                />
+              </div>
+
+              {/* Body (Corpo) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Corpo do E-mail</label>
+                <textarea
+                  value={emailBody}
+                  onChange={(e) => setEmailBody(e.target.value)}
+                  rows={8}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-xs font-mono bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-0 leading-relaxed resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsEmailModalOpen(false)}
+                className="text-xs font-bold uppercase h-10 px-4"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSendManualEmail}
+                className="bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-black uppercase tracking-tight h-10 px-5 flex items-center gap-2 rounded-xl"
+              >
+                <Mail size={14} /> Gerar e Enviar E-mail
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </div>
