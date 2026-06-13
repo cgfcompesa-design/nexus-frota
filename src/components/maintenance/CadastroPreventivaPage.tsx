@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Wrench, Search, Save, Check, Fuel, ArrowLeft, RefreshCw, AlertCircle, Sparkles } from "lucide-react";
+import { Wrench, Search, Save, Check, Fuel, ArrowLeft, RefreshCw, AlertCircle, Sparkles, LogOut } from "lucide-react";
+import { auth } from "../../lib/firebase";
 import { toast } from "sonner";
 
 interface CadastroPreventivaPageProps {
@@ -284,6 +285,17 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false 
               className="text-[10px] uppercase font-black tracking-widest text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100"
             >
               <ArrowLeft size={14} className="mr-1.5" /> Voltar
+            </Button>
+          )}
+
+          {auth.currentUser && (
+            <Button
+              onClick={() => auth.signOut()}
+              variant="outline"
+              size="sm"
+              className="text-[10px] uppercase font-black tracking-widest text-rose-500 bg-rose-50 border-rose-200 hover:bg-rose-100 dark:hover:bg-rose-950/20"
+            >
+              <LogOut size={14} className="mr-1.5" /> Sair
             </Button>
           )}
         </div>

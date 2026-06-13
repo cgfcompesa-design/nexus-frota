@@ -161,6 +161,7 @@ export default function UserManagement() {
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
                           user.role === 'Master' ? 'bg-indigo-600 text-white shadow-sm' :
                           user.role === 'Gestão' ? 'bg-emerald-100 text-emerald-600' :
+                          user.role === 'LOCADORA' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
                           'bg-slate-100 text-slate-500'
                         }`}>
                           {user.role}
@@ -176,6 +177,14 @@ export default function UserManagement() {
                           onClick={() => handleUpdateRole(user.uid, 'Gestão')}
                         >
                           <Shield size={12} className="mr-1" /> Gestor
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          variant={user.role === 'LOCADORA' ? 'secondary' : 'outline'}
+                          className={`h-8 text-[9px] font-black uppercase px-3 ${user.role === 'LOCADORA' ? 'bg-amber-500 text-white hover:bg-amber-600 border-amber-300' : ''}`}
+                          onClick={() => handleUpdateRole(user.uid, 'LOCADORA')}
+                        >
+                          <Shield size={12} className="mr-1" /> Locadora
                         </Button>
                         <Button 
                           size="sm" 

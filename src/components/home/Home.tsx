@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel, Trophy, UserCheck } from "lucide-react";
+import { BarChart3, KanbanSquare, Eye, ExternalLink, Settings, Share2, Home as HomeIcon, Fuel, Trophy, UserCheck, ClipboardList } from "lucide-react";
 
 import logoCgf from "../../assets/images/regenerated_image_1778593500523.png";
 
@@ -81,6 +81,14 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       onClick: () => setView('users'),
       external: false,
       restricted: true,
+    },
+    {
+      title: "Controle Preventiva Locadora",
+      id: 'cadastro-preventiva',
+      icon: ClipboardList,
+      onClick: () => setView('cadastro-preventiva'),
+      external: false,
+      restricted: false,
     },
   ];
 

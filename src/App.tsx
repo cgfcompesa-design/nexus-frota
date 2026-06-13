@@ -36,7 +36,7 @@ import { LoadingState } from './components/dashboard/LoadingState';
 import AlertConfig from './components/config/AlertConfig';
 import UserManagement from './components/config/UserManagement';
 import ManagementAlertsPopup from './components/dashboard/ManagementAlertsPopup';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import { ErrorBoundary } from 'react-error-boundary';
 
 import logoCgf from './assets/images/regenerated_image_1778593500523.png';
@@ -66,12 +66,14 @@ function useAppLogic() {
       setLoading(true);
       if (authUser) {
         setUser(authUser);
+        let userRole: string | null = null;
         try {
           const docRef = doc(db, 'users', authUser.uid);
           const userDoc = await getDoc(docRef);
           if (userDoc.exists()) {
             const profile = userDoc.data();
             setUserProfile(profile);
+            userRole = profile.role || 'Visualizador';
             
             // Check for Master or Gestão role to show alerts
             if (profile.role === 'Master' || profile.role === 'Gestão' || authUser.email === 'cgf.compesa@gmail.com') {
@@ -88,6 +90,7 @@ function useAppLogic() {
             };
             await setDoc(docRef, newProfile);
             setUserProfile(newProfile);
+            userRole = role;
             
             if (role === 'Master') setShowAlerts(true);
           }
@@ -96,14 +99,16 @@ function useAppLogic() {
         }
         
         const path = window.location.pathname;
-        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/checklist-manutencao') {
+        if (userRole === 'LOCADORA') {
+          setCurrentView('cadastro-preventiva');
+        } else if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/checklist-manutencao' && path !== '/cadastro-preventiva' && !path.startsWith('/cadastro-preventiva')) {
           setCurrentView('home');
         }
       } else {
         setUser(null);
         setUserProfile(null);
         const path = window.location.pathname;
-        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist')) {
+        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/cadastro-preventiva' && !path.startsWith('/cadastro-preventiva')) {
           setCurrentView('home');
         }
         setShowAlerts(false);
@@ -199,6 +204,9 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const MASTER_EMAIL = "cgf.compesa@gmail.com";
+  const effectiveRole = user?.email === MASTER_EMAIL ? 'Master' : (userProfile?.role || 'Visualizador');
+
   // 1. Sync React Router location changes with our state-driven views (backward/forward buttons)
   useEffect(() => {
     const path = location.pathname;
@@ -241,15 +249,23 @@ export default function App() {
 
   useEffect(() => {
     if (!loading && !user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
+      if (currentView === 'cadastro-preventiva') {
+        toast.info("Acesso restrito. Por favor, faça login para preencher as preventivas.");
+        setCurrentView('login');
+        return;
+      }
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist', 'resumo'];
       if (!publicViews.includes(currentView)) {
         setCurrentView('home');
       }
     }
   }, [user, currentView, loading]);
 
-  const MASTER_EMAIL = "cgf.compesa@gmail.com";
-  const effectiveRole = user?.email === MASTER_EMAIL ? 'Master' : (userProfile?.role || 'Visualizador');
+  useEffect(() => {
+    if (user && effectiveRole === 'LOCADORA' && currentView !== 'cadastro-preventiva') {
+      setCurrentView('cadastro-preventiva');
+    }
+  }, [user, effectiveRole, currentView]);
 
   const renderView = () => {
     // Visitor protection
@@ -266,6 +282,11 @@ export default function App() {
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
+    }
+
+    // Role based protection for LOCADORA
+    if (user && effectiveRole === 'LOCADORA') {
+      return <CadastroPreventivaPage hideBackButton={true} />;
     }
 
     switch (currentView) {

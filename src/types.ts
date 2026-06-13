@@ -2,7 +2,7 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  role: 'Master' | 'Gestão' | 'Visualizador';
+  role: 'Master' | 'Gestão' | 'Visualizador' | 'LOCADORA';
   createdAt: string;
 }
 

@@ -112,10 +112,14 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         { id: 'reg-taxas', label: 'Controle de Taxas\ne Inspeções', icon: Gavel },
       ]
     },
+    { id: 'cadastro-preventiva', label: 'Preventiva Locadora', icon: ClipboardList },
     { id: 'drive', label: 'Drive de Informações', icon: Share2 },
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
+    if (userRole === 'LOCADORA') {
+      return item.id === 'cadastro-preventiva';
+    }
     if (userRole === 'Master') return true;
     if (userRole === 'Gestão') {
       // Gestão assumes same as master but excluding users management? 
@@ -123,7 +127,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       return item.id !== 'users';
     }
     // Visualizador (Externo)
-    const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'drive'];
+    const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'cadastro-preventiva', 'drive'];
     if (!allowed.includes(item.id)) return false;
     
     // Sub-item filtering for Visualizador
