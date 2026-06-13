@@ -1541,6 +1541,7 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
                             <Select
                               value={state.revisaoPrevista}
                               onValueChange={(val) => handleCellChange(placa, "revisaoPrevista", val)}
+                              disabled={userProfile?.role === "LOCADORA"}
                             >
                               <SelectTrigger className="h-8 text-xs font-bold">
                                 <SelectValue />
