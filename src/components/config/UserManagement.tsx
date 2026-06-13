@@ -45,6 +45,22 @@ export default function UserManagement() {
     }
   };
 
+  const handleToggleLocadora = async (uid: string, currentLocadoras: string[] | undefined, locadoraName: string) => {
+    try {
+      const locList = currentLocadoras || [];
+      const updatedList = locList.includes(locadoraName)
+        ? locList.filter(l => l !== locadoraName)
+        : [...locList, locadoraName];
+      
+      const userRef = doc(db, "users", uid);
+      await updateDoc(userRef, { locadoras: updatedList });
+      toast.success(`Locadora ${locadoraName} atualizada para o usuário.`);
+    } catch (error) {
+      console.error("Erro ao atualizar locadoras do usuário:", error);
+      toast.error("Erro ao atualizar locadoras.");
+    }
+  };
+
   const handleCreateMaster = async () => {
     try {
       const authUser = auth.currentUser;
@@ -147,6 +163,29 @@ export default function UserManagement() {
                             {user.displayName || 'Usuário'}
                           </span>
                           <span className="text-[9px] text-slate-400 font-medium">Cadastrado em {new Date(user.createdAt).toLocaleDateString()}</span>
+                          {user.role === 'LOCADORA' && (
+                            <div className="mt-2 p-2 bg-slate-100/60 dark:bg-slate-800/40 rounded border border-slate-200 dark:border-slate-700/60 max-w-sm">
+                              <span className="text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider block mb-1">Locadoras Vinculadas:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {["CS BRASIL", "LOCSERV", "LOCADORA CAXANGA", "LOCAVEL", "PBF GRAFICA"].map(loc => {
+                                  const isAssigned = user.locadoras?.includes(loc);
+                                  return (
+                                    <button
+                                      key={loc}
+                                      onClick={() => handleToggleLocadora(user.uid, user.locadoras, loc)}
+                                      className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded transition-all ${
+                                        isAssigned 
+                                          ? 'bg-amber-500 text-white shadow-sm font-extrabold hover:bg-amber-600' 
+                                          : 'bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-600'
+                                      }`}
+                                    >
+                                      {loc}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </td>

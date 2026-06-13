@@ -127,7 +127,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       return item.id !== 'users';
     }
     // Visualizador (Externo)
-    const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'cadastro-preventiva', 'drive'];
+    const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'drive'];
     if (!allowed.includes(item.id)) return false;
     
     // Sub-item filtering for Visualizador

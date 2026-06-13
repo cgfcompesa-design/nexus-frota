@@ -262,6 +262,13 @@ export default function App() {
   }, [user, currentView, loading]);
 
   useEffect(() => {
+    if (!loading && user && effectiveRole === 'Visualizador' && currentView === 'cadastro-preventiva') {
+      toast.error("Acesso restrito. Esta página é de acesso exclusivo para as Locadoras credenciadas.");
+      setCurrentView('home');
+    }
+  }, [loading, user, effectiveRole, currentView]);
+
+  useEffect(() => {
     if (user && effectiveRole === 'LOCADORA' && currentView !== 'cadastro-preventiva') {
       setCurrentView('cadastro-preventiva');
     }
@@ -270,7 +277,7 @@ export default function App() {
   const renderView = () => {
     // Visitor protection
     if (!user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo'];
       if (!publicViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
@@ -278,7 +285,7 @@ export default function App() {
 
     // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
@@ -286,13 +293,13 @@ export default function App() {
 
     // Role based protection for LOCADORA
     if (user && effectiveRole === 'LOCADORA') {
-      return <CadastroPreventivaPage hideBackButton={true} />;
+      return <CadastroPreventivaPage hideBackButton={true} userProfile={userProfile} />;
     }
 
     switch (currentView) {
       case 'home': return <Home setView={setCurrentView} userRole={effectiveRole} />;
       case 'drive': return <DrivePage />;
-      case 'cadastro-preventiva': return <CadastroPreventivaPage onBack={() => setCurrentView('locados')} />;
+      case 'cadastro-preventiva': return <CadastroPreventivaPage onBack={() => setCurrentView('locados')} userProfile={userProfile} />;
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
@@ -335,30 +342,30 @@ export default function App() {
     );
   }
 
-    // Handle Fullscreen views (No Auth Required for Drive, Auth depends on component for others)
-    if (currentView === 'drive' || currentView === 'abast-maquinas' || currentView === 'responder-checklist' || currentView === 'cadastro-preventiva') {
-      return (
-        <ErrorBoundary FallbackComponent={ErrorFallback}>
-          <div className="min-h-screen">
-            {currentView === 'drive' ? (
-              <DrivePage onBack={() => setCurrentView('home')} />
-            ) : currentView === 'abast-maquinas' ? (
-              <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />
-            ) : currentView === 'cadastro-preventiva' ? (
-              <CadastroPreventivaPage onBack={() => setCurrentView('home')} hideBackButton={!user} />
-            ) : (
-              <ResponderChecklistPage onBack={user ? () => setCurrentView('gerenciamento-atividades') : undefined} />
-            )}
-            {managementAlerts}
-            <Toaster position="top-right" />
-          </div>
-        </ErrorBoundary>
-      );
-    }
+  // Handle Fullscreen views (No Auth Required for Drive, Auth depends on component for others)
+  if (currentView === 'drive' || currentView === 'abast-maquinas' || currentView === 'responder-checklist' || currentView === 'cadastro-preventiva') {
+    return (
+      <ErrorBoundary FallbackComponent={ErrorFallback}>
+        <div className="min-h-screen">
+          {currentView === 'drive' ? (
+            <DrivePage onBack={() => setCurrentView('home')} />
+          ) : currentView === 'abast-maquinas' ? (
+            <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />
+          ) : currentView === 'cadastro-preventiva' ? (
+            <CadastroPreventivaPage onBack={() => setCurrentView('home')} hideBackButton={!user} userProfile={userProfile} />
+          ) : (
+            <ResponderChecklistPage onBack={user ? () => setCurrentView('gerenciamento-atividades') : undefined} />
+          )}
+          {managementAlerts}
+          <Toaster position="top-right" />
+        </div>
+      </ErrorBoundary>
+    );
+  }
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'cadastro-preventiva', 'resumo'];
+    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">

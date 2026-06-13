@@ -4,6 +4,7 @@ export interface UserProfile {
   displayName: string;
   role: 'Master' | 'Gestão' | 'Visualizador' | 'LOCADORA';
   createdAt: string;
+  locadoras?: string[];
 }
 
 export type MaintenanceStatus = 'Triagem' | 'Em Manutenção' | 'Aguardando Peças' | 'Finalizado';

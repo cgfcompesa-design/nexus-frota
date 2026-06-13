@@ -89,12 +89,14 @@ const Home = ({ setView, userRole = 'Visualizador' }: HomeProps) => {
       onClick: () => setView('cadastro-preventiva'),
       external: false,
       restricted: false,
+      onlyForRoles: ['Master', 'Gestão', 'LOCADORA'],
     },
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
     if (item.restricted && !isPrivileged) return false;
     if (item.hideForGestao && isPrivileged) return false;
+    if (item.onlyForRoles && !item.onlyForRoles.includes(userRole)) return false;
     return true;
   });
 

@@ -11,11 +11,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Wrench, Search, Save, Check, Fuel, ArrowLeft, RefreshCw, AlertCircle, Sparkles, LogOut } from "lucide-react";
 import { auth } from "../../lib/firebase";
+import { UserProfile } from "../../types";
 import { toast } from "sonner";
 
 interface CadastroPreventivaPageProps {
   onBack?: () => void;
   hideBackButton?: boolean;
+  userProfile?: UserProfile | null;
 }
 
 const LOCADORAS = [
@@ -26,9 +28,9 @@ const LOCADORAS = [
   "PBF GRAFICA"
 ];
 
-const REVISAO_OPCOES = [1000, 5000, 10000];
+const REVISAO_OPCOES = [1000, 5000, 10000, 20000];
 
-export default function CadastroPreventivaPage({ onBack, hideBackButton = false }: CadastroPreventivaPageProps) {
+export default function CadastroPreventivaPage({ onBack, hideBackButton = false, userProfile }: CadastroPreventivaPageProps) {
   const [selectedLocadora, setSelectedLocadora] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
@@ -37,6 +39,22 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false 
   const { data: sheetPreventivas = [] } = usePreventiveLocadosData();
   const { data: rawFirebasePreventivas = {}, save, refetch: refetchFirebase } = useFirebasePreventivas();
   const firebasePreventivas = useMemo(() => rawFirebasePreventivas as Record<string, FirebasePreventiveData>, [rawFirebasePreventivas]);
+
+  const allowedLocadoras = useMemo(() => {
+    if (userProfile?.role === 'LOCADORA') {
+      return userProfile.locadoras || [];
+    }
+    return LOCADORAS;
+  }, [userProfile]);
+
+  useEffect(() => {
+    if (userProfile?.role === 'LOCADORA') {
+      const allowed = userProfile.locadoras || [];
+      if (allowed.length > 0 && !allowed.includes(selectedLocadora)) {
+        setSelectedLocadora(allowed[0]);
+      }
+    }
+  }, [userProfile, selectedLocadora]);
 
   // Local editing states to avoid updating Firestore on every key stroke
   const [editedRows, setEditedRows] = useState<Record<string, {
@@ -97,6 +115,14 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false 
   // Combine locados list matching locadora and titularity (TITULAR/RESERVA)
   const locadoraVehicles = useMemo(() => {
     if (!selectedLocadora) return [];
+
+    // Security check: LOCADORA users can only load datasets of locadoras they own
+    if (userProfile?.role === 'LOCADORA') {
+      const allowed = userProfile.locadoras || [];
+      if (!allowed.includes(selectedLocadora)) {
+        return [];
+      }
+    }
 
     return assets.filter(asset => {
       const prop = String(asset.PROPRIEDADE || asset.propriedade || "").toUpperCase().trim();
@@ -313,18 +339,25 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false 
         </CardHeader>
         <CardContent className="p-6">
           <div className="max-w-md">
-            <Select value={selectedLocadora} onValueChange={setSelectedLocadora}>
-              <SelectTrigger className="w-full text-sm font-medium">
-                <SelectValue placeholder="Selecione sua Locadora..." />
-              </SelectTrigger>
-              <SelectContent>
-                {LOCADORAS.map((locadora) => (
-                  <SelectItem key={locadora} value={locadora}>
-                    {locadora}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {allowedLocadoras.length === 0 ? (
+              <div className="p-4 bg-amber-50 dark:bg-amber-100/10 border-2 border-amber-200/50 dark:border-amber-900/30 rounded-2xl flex items-center gap-3 text-amber-800 dark:text-amber-300">
+                <AlertCircle className="shrink-0 h-5 w-5 text-amber-600 dark:text-amber-400" />
+                <p className="text-xs font-bold uppercase tracking-tight">Nenhuma locadora vinculada ao seu usuário. Por favor, solicite a vinculação ao administrador.</p>
+              </div>
+            ) : (
+              <Select value={selectedLocadora} onValueChange={setSelectedLocadora}>
+                <SelectTrigger className="w-full text-sm font-medium">
+                  <SelectValue placeholder="Selecione sua Locadora..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {allowedLocadoras.map((locadora) => (
+                    <SelectItem key={locadora} value={locadora}>
+                      {locadora}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
         </CardContent>
       </Card>
