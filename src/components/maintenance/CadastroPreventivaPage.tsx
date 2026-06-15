@@ -66,7 +66,7 @@ const getLocadoraEmails = (locadoraName: string): string => {
   return emails ? `gadlocados@compesa.com.br; ${emails}` : "gadlocados@compesa.com.br";
 };
 
-const REVISAO_OPCOES = [1000, 5000, 10000, 20000];
+const REVISAO_OPCOES = [1000, 5000, 10000, 15000, 20000, 40000];
 
 export default function CadastroPreventivaPage({ onBack, hideBackButton = false, userProfile }: CadastroPreventivaPageProps) {
   const [selectedLocadora, setSelectedLocadora] = useState<string>("");
