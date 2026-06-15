@@ -47,6 +47,11 @@ function useAppLogic() {
   const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [currentView, setCurrentView] = useState(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const viewQuery = searchParams.get('view');
+    if (viewQuery) {
+      return viewQuery;
+    }
     const path = window.location.pathname;
     if (path === '/responder-checklist' || path.startsWith('/responder-checklist')) {
       return 'responder-checklist';
@@ -98,17 +103,25 @@ function useAppLogic() {
           console.error("Erro ao buscar perfil:", error);
         }
         
+        const searchParams = new URLSearchParams(window.location.search);
+        const viewQuery = searchParams.get('view');
         const path = window.location.pathname;
         if (userRole === 'LOCADORA') {
           setCurrentView('cadastro-preventiva');
+        } else if (viewQuery) {
+          setCurrentView(viewQuery);
         } else if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/checklist-manutencao' && path !== '/cadastro-preventiva' && !path.startsWith('/cadastro-preventiva')) {
           setCurrentView('home');
         }
       } else {
         setUser(null);
         setUserProfile(null);
+        const searchParams = new URLSearchParams(window.location.search);
+        const viewQuery = searchParams.get('view');
         const path = window.location.pathname;
-        if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/cadastro-preventiva' && !path.startsWith('/cadastro-preventiva')) {
+        if (viewQuery) {
+          setCurrentView(viewQuery);
+        } else if (path !== '/responder-checklist' && !path.startsWith('/responder-checklist') && path !== '/cadastro-preventiva' && !path.startsWith('/cadastro-preventiva')) {
           setCurrentView('home');
         }
         setShowAlerts(false);

@@ -83,6 +83,21 @@
         "createdAt": { "type": "string", "format": "date-time" }
       }
     },
+    "KanbanQuickTask": {
+      "title": "Kanban Quick Task",
+      "description": "Pendência diária urgente e prioritária para compartilhamento rápido",
+      "type": "object",
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "Data de inserção" },
+        "description": { "type": "string", "description": "Descrição da urgência" },
+        "responsible": { "type": "string", "description": "Nome do responsável" },
+        "status": { "type": "string", "enum": ["A Fazer", "Em Andamento", "Em Revisão", "Concluído"] },
+        "deadline": { "type": "string", "format": "date", "description": "Prazo acordado" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["date", "description", "responsible", "status", "deadline"]
+    },
     "Indicator": {
       "title": "Indicator",
       "description": "Indicador de gestão à vista",
@@ -242,6 +257,10 @@
     "/kanban_responsibles/{responsibleId}": {
       "schema": "KanbanResponsible",
       "description": "Equipe CGF"
+    },
+    "/kanban_quick_tasks/{taskId}": {
+      "schema": "KanbanQuickTask",
+      "description": "Lista rápida de pendências diárias urgentes"
     },
     "/indicators/{indicatorId}": {
       "schema": "Indicator",

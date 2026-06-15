@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, List, Pencil, Trash2, UserPlus, Kanban } from "lucide-react";
+import { QuickTasksTab } from "./QuickTasksTab";
 
 interface KanbanBoardProps {
   onBack: () => void;
@@ -33,6 +34,11 @@ interface KanbanBoardProps {
 const KanbanBoard = ({ onBack }: KanbanBoardProps) => {
   const { tasks, isLoading, createTask, updateTask, deleteTask } = useKanbanData();
   const { responsibles, isLoading: loadingResponsibles, createResponsible, updateResponsible, deleteResponsible } = useResponsibles();
+  
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("tab") || "kanban";
+  });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [responsibleDialogOpen, setResponsibleDialogOpen] = useState(false);
   const [defaultStatus, setDefaultStatus] = useState<TaskStatus>("todo");
@@ -209,14 +215,20 @@ const KanbanBoard = ({ onBack }: KanbanBoardProps) => {
           </div>
         </header>
 
-        <Tabs defaultValue="kanban" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={(val) => {
+          setActiveTab(val);
+          const url = new URL(window.location.href);
+          url.searchParams.set("tab", val);
+          window.history.pushState({}, "", url);
+        }} className="space-y-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-             <TabsList className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 h-11 rounded-2xl shadow-sm">
-               <TabsTrigger value="kanban" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-xl px-6 font-black uppercase text-[10px] tracking-widest transition-all">Kanban</TabsTrigger>
-               <TabsTrigger value="responsibles" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-xl px-6 font-black uppercase text-[10px] tracking-widest transition-all">Responsáveis</TabsTrigger>
+             <TabsList className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-1 h-auto rounded-2xl shadow-sm flex-wrap gap-1">
+               <TabsTrigger value="kanban" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-xl px-5 font-black uppercase text-[10px] tracking-widest transition-all py-2">Kanban</TabsTrigger>
+               <TabsTrigger value="quick_tasks" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-xl px-5 font-black uppercase text-[10px] tracking-widest transition-all py-2">Pendências Rápidas</TabsTrigger>
+               <TabsTrigger value="responsibles" className="data-[state=active]:bg-indigo-600 data-[state=active]:text-white rounded-xl px-5 font-black uppercase text-[10px] tracking-widest transition-all py-2">Responsáveis</TabsTrigger>
              </TabsList>
              
-             {tasks.length > 0 && <ExportButtons tasks={tasks} />}
+             {activeTab === "kanban" && tasks.length > 0 && <ExportButtons tasks={tasks} />}
           </div>
 
           <TabsContent value="kanban" className="space-y-6 outline-none">
@@ -276,6 +288,10 @@ const KanbanBoard = ({ onBack }: KanbanBoardProps) => {
                 ) : null}
               </DragOverlay>
             </DndContext>
+          </TabsContent>
+
+          <TabsContent value="quick_tasks" className="outline-none">
+            <QuickTasksTab />
           </TabsContent>
 
           <TabsContent value="responsibles" className="outline-none">
