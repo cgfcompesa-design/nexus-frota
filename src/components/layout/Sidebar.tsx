@@ -100,7 +100,15 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
             { id: 'mnt-desemp', label: 'Desempenho &\nHistórico', icon: History },
           ]
         },
-        { id: 'locados', label: 'Locados', icon: Truck },
+        { 
+          id: 'locados-parent', 
+          label: 'Locados', 
+          icon: Truck,
+          subItems: [
+            { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
+            { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList },
+          ]
+        },
       ]
     },
     { 
@@ -112,7 +120,6 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         { id: 'reg-taxas', label: 'Controle de Taxas\ne Inspeções', icon: Gavel },
       ]
     },
-    { id: 'cadastro-preventiva', label: 'Preventiva Locadora', icon: ClipboardList },
     { id: 'drive', label: 'Drive de Informações', icon: Share2 },
   ];
 
@@ -134,7 +141,8 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       'proprios': Car,
       'mnt-ctrl-op': ClipboardList,
       'mnt-desemp': History,
-      'locados': Truck,
+      'locados': BarChart3,
+      'locados-parent': Truck,
       'regularizacao': FileText,
       'reg-infracoes': AlertTriangle,
       'reg-taxas': Gavel,
@@ -157,8 +165,15 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       const mnt = withNoRootPreventiva.find(item => item.id === 'manutencao');
       if (mnt) {
         mnt.subItems = [
-          { id: 'locados', label: 'Locados', icon: Truck },
-          { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList }
+          { 
+            id: 'locados-parent', 
+            label: 'Locados', 
+            icon: Truck,
+            subItems: [
+              { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
+              { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList }
+            ]
+          }
         ];
       }
       return withNoRootPreventiva;

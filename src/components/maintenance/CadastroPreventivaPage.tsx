@@ -150,6 +150,14 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
   const [emailTo, setEmailTo] = useState<string>("");
   const [emailCc, setEmailCc] = useState<string>("gadlocados@compesa.com.br");
 
+  // Group by Unit states for consolidated notifications
+  const [isGroupEmailModalOpen, setIsGroupEmailModalOpen] = useState(false);
+  const [selectedGroupUnit, setSelectedGroupUnit] = useState<string>("");
+  const [groupEmailSubject, setGroupEmailSubject] = useState<string>("");
+  const [groupEmailBody, setGroupEmailBody] = useState<string>("");
+  const [groupEmailTo, setGroupEmailTo] = useState<string>("");
+  const [groupEmailCc, setGroupEmailCc] = useState<string>("gadlocados@compesa.com.br");
+
   const handleOpenEmailModal = (vehicle: any, state: any, odometroAtual: number, odometroProximaRevisao: number, odometroRestante: number) => {
     setSelectedVehicleForEmail(vehicle);
     
@@ -796,6 +804,121 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
       status: "excedido" | "alerta";
     }[];
   }, [locadoraVehicles, editedRows, latestOdometersMap, selectedLocadora]);
+
+  // Compute group pendings by unit
+  const groupedPendingsByUnit = useMemo(() => {
+    const groups: Record<string, any[]> = {};
+    if (!locadoraVehicles) return groups;
+    
+    locadoraVehicles.forEach(vehicle => {
+      const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      const state = editedRows[placa];
+      if (state && state.odometroRevisao) {
+        const odometroRevisaoNum = Number(state.odometroRevisao || 0);
+        const revisaoPrevistaNum = Number(state.revisaoPrevista || 10000);
+        const odometroProximaRevisao = odometroRevisaoNum + revisaoPrevistaNum;
+        const odometroAtual = latestOdometersMap.get(placa) || 0;
+        const odometroRestante = odometroProximaRevisao - odometroAtual;
+        
+        if (odometroRestante < 0) {
+          // This vehicle has pending/overdue revision
+          const ger = String(vehicle.GERENCIA || vehicle["GERÊNCIA"] || vehicle.gerencia || "N/A").trim().toUpperCase();
+          if (!groups[ger]) {
+            groups[ger] = [];
+          }
+          groups[ger].push({
+            vehicle,
+            state,
+            odometroAtual,
+            odometroProximaRevisao,
+            odometroRestante
+          });
+        }
+      }
+    });
+    
+    return groups;
+  }, [locadoraVehicles, editedRows, latestOdometersMap]);
+
+  const generateGroupBodyText = (unitName: string, items: any[]) => {
+    const platesListStr = items.map((item, idx) => {
+      const v = item.vehicle;
+      const placa = String(v.PLACA || v.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      const model = String(v.MODELO || v.modelo || "N/A").trim();
+      const brand = String(v.MARCA || v.marca || "N/A").trim();
+      const st = item.state;
+      const odoRev = Number(st.odometroRevisao || 0);
+      const odometroProximaRevisao = item.odometroProximaRevisao;
+      const odometroAtual = item.odometroAtual;
+      const odometroRestante = item.odometroRestante;
+      
+      return `${idx + 1}. Placa: ${placa} | Modelo: ${model} (${brand})
+   - KM Última Revisão: ${odoRev.toLocaleString('pt-BR')} KM
+   - Limite Próxima Revisão: ${odometroProximaRevisao.toLocaleString('pt-BR')} KM
+   - Leitura Atual (KM): ${odometroAtual.toLocaleString('pt-BR')} KM
+   - KM Excedido: ${Math.abs(odometroRestante).toLocaleString('pt-BR')} KM`;
+    }).join("\n\n");
+
+    return `Prezado(a) Gestor(a),
+
+Identificamos que a sua unidade possui veículos com a manutenção preventiva (revisão) vencida. Solicitamos o agendamento urgente das revisões junto à locadora competente de modo a mitigar o risco de quebras mecânicas e desvio contratual.
+
+Abaixo segue a lista dos veículos pendentes para agendamento:
+
+${platesListStr}
+
+Por gentileza, após realizar os agendamentos, responda a este e-mail informando as datas preventivas programadas.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas (CGF) - COMPESA`;
+  };
+
+  // Handler to open and initialize the Group Email modal
+  const handleOpenGroupEmailModal = () => {
+    const availableUnits = Object.keys(groupedPendingsByUnit);
+    if (availableUnits.length === 0) {
+      toast.info("Não há nenhum veículo com manutenção preventiva vencida (Pendente) para esta locadora no momento!");
+      return;
+    }
+
+    const initialUnit = availableUnits[0];
+    setSelectedGroupUnit(initialUnit);
+
+    const dests = getEmailsByGerencia(initialUnit);
+    setGroupEmailTo(dests.join(", "));
+
+    const items = groupedPendingsByUnit[initialUnit] || [];
+    const subjectText = `[Nexus Frota - Alerta Preventiva] Revisões Preventivas Vencidas - Unidade ${initialUnit}`;
+    const bodyText = generateGroupBodyText(initialUnit, items);
+
+    setGroupEmailSubject(subjectText);
+    setGroupEmailBody(bodyText);
+    setIsGroupEmailModalOpen(true);
+  };
+
+  // When selected unit changes in the group modal
+  const handleGroupUnitChange = (unidade: string) => {
+    setSelectedGroupUnit(unidade);
+    const dests = getEmailsByGerencia(unidade);
+    setGroupEmailTo(dests.join(", "));
+
+    const items = groupedPendingsByUnit[unidade] || [];
+    const subjectText = `[Nexus Frota - Alerta Preventiva] Revisões Preventivas Vencidas - Unidade ${unidade}`;
+    const bodyText = generateGroupBodyText(unidade, items);
+
+    setGroupEmailSubject(subjectText);
+    setGroupEmailBody(bodyText);
+  };
+
+  const handleSendGroupEmail = () => {
+    if (!groupEmailTo) {
+      toast.warning("Não há destinatários mapeados para esta Unidade. Você pode digitar um destinatário manualmente.");
+    }
+    const mailtoUrl = `mailto:${encodeURIComponent(groupEmailTo)}?subject=${encodeURIComponent(groupEmailSubject)}&body=${encodeURIComponent(groupEmailBody)}&cc=${encodeURIComponent(groupEmailCc)}`;
+    window.location.href = mailtoUrl;
+    setIsGroupEmailModalOpen(false);
+    toast.success("E-mail conjunto gerado para envio!");
+  };
 
   // PDF report exporter
   const handleExportPDF = () => {
@@ -1578,6 +1701,17 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                 </Button>
               )}
 
+              {userProfile?.role !== "LOCADORA" && (
+                <Button
+                  onClick={handleOpenGroupEmailModal}
+                  variant="outline"
+                  className="bg-amber-50 hover:bg-amber-100 border-amber-200 hover:border-amber-300 text-amber-700 font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9"
+                  title="Agrupar veículos pendentes por unidade e preparar e-mail de agendamento"
+                >
+                  <Mail size={16} className="mr-1.5 text-amber-600" /> Agrupar por Unidade
+                </Button>
+              )}
+
               <Button
                 onClick={handleSaveAll}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9"
@@ -1600,8 +1734,9 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                 <p className="text-xs text-slate-400">Revise o termo de busca ou verifique se há veículos cadastrados para esta locadora.</p>
               </div>
             ) : (
-              <ScrollArea className="h-[600px] w-full">
-                <Table className="min-w-[1200px]">
+              <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                <ScrollArea className="h-[600px] w-full min-w-[1400px]">
+                  <Table className="w-full">
                   <TableHeader className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10">
                     <TableRow>
                       <TableHead className="text-center font-black uppercase text-[10px] w-[140px]">Placa</TableHead>
@@ -1769,6 +1904,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                   </TableBody>
                 </Table>
               </ScrollArea>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -1889,6 +2025,122 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                 className="bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-black uppercase tracking-tight h-10 px-5 flex items-center gap-2 rounded-xl"
               >
                 <Mail size={14} /> Gerar e Enviar E-mail
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual GROUP Notification Email Dialog */}
+      {isGroupEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-xl text-amber-500">
+                  <Mail size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-tight">Notificar Pendentes por Unidade</h3>
+                  <p className="text-[10px] uppercase font-bold text-slate-400">Notificação Consolidada de Agendamento</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsGroupEmailModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg p-1 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all font-bold"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Content section */}
+            <div className="p-6 flex-1 overflow-y-auto space-y-4">
+              {/* Select Unidade */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Selecione a Unidade (Apenas com Pendências)</label>
+                <Select
+                  value={selectedGroupUnit}
+                  onValueChange={handleGroupUnitChange}
+                >
+                  <SelectTrigger className="w-full border-slate-200 dark:border-slate-800 h-10 text-xs font-bold uppercase">
+                    <SelectValue placeholder="Selecione a Unidade..." />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[250px] overflow-y-auto">
+                    {Object.keys(groupedPendingsByUnit).map((unitName) => (
+                      <SelectItem key={unitName} value={unitName} className="text-xs font-bold uppercase">
+                        {unitName} ({groupedPendingsByUnit[unitName]?.length || 0} frotas)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* To (Para) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Para (E-mails dos Gestores da Unidade)</label>
+                <Input
+                  type="text"
+                  placeholder="E-mails dos gestores separados por vírgula"
+                  value={groupEmailTo}
+                  onChange={(e) => setGroupEmailTo(e.target.value)}
+                  className="font-medium text-xs h-10"
+                />
+              </div>
+
+              {/* CC (Cópia) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Cópia (CC)</label>
+                <Input
+                  type="text"
+                  disabled
+                  value={groupEmailCc}
+                  className="font-medium text-xs bg-slate-50 dark:bg-slate-900 h-10 text-slate-500"
+                />
+              </div>
+
+              {/* Subject (Assunto) */}
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Assunto do E-mail</label>
+                <Input
+                  type="text"
+                  value={groupEmailSubject}
+                  onChange={(e) => setGroupEmailSubject(e.target.value)}
+                  className="font-extrabold text-xs h-10"
+                />
+              </div>
+
+              {/* Body (Corpo) */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Corpo do E-mail</label>
+                  <span className="text-[10px] font-black uppercase text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-0.5 rounded-md">
+                    {groupedPendingsByUnit[selectedGroupUnit]?.length || 0} frotas listadas
+                  </span>
+                </div>
+                <textarea
+                  value={groupEmailBody}
+                  onChange={(e) => setGroupEmailBody(e.target.value)}
+                  rows={10}
+                  className="w-full rounded-xl border border-slate-200 dark:border-slate-800 p-3 text-xs font-mono bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-0 leading-relaxed resize-none"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsGroupEmailModalOpen(false)}
+                className="text-xs font-bold uppercase h-10 px-4"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSendGroupEmail}
+                className="bg-amber-500 hover:bg-amber-600 text-white text-xs font-black uppercase tracking-tight h-10 px-5 flex items-center gap-2 rounded-xl"
+              >
+                <Mail size={14} /> Gerar e Enviar E-mail Agrupado
               </Button>
             </div>
           </div>
