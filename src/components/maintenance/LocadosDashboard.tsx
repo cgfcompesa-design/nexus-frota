@@ -1353,8 +1353,9 @@ export const LocadosDashboard = () => {
             </Button>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="h-[600px]">
-              <Table className="min-w-[1200px]">
+            <div className="w-full overflow-x-auto pb-2 scrollbar-thin">
+              <ScrollArea className="h-[600px] w-full min-w-[1300px]">
+                <Table className="w-full">
                 <TableHeader>
                   <TableRow>
                     <TableHead className="text-center font-bold uppercase text-xs">Placa</TableHead>
@@ -1431,6 +1432,7 @@ export const LocadosDashboard = () => {
                 </TableBody>
               </Table>
             </ScrollArea>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>

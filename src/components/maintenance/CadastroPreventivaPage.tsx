@@ -51,6 +51,21 @@ const LOCADORAS = [
   "PBF GRAFICA"
 ];
 
+const LOCADORA_EMAILS_MAP: Record<string, string> = {
+  "LOCAVEL": "patricio@grupolocavel.com.br; carloseduardo@locavel.com.br",
+  "LOCADORA CAXANGA": "operacionalpe@locadora.net.br; agendamento@locadora.net.br; manutencaope@locadora.net.br",
+  "LOCSERV": "operacionalpe@locadora.net.br; agendamento@locadora.net.br; manutencaope@locadora.net.br",
+  "CS BRASIL": "atendimento.pernambuco@csbrasilservicos.com.br",
+  "PBF GRAFICA": "frota@pbfgraficatextil.com.br",
+};
+
+const getLocadoraEmails = (locadoraName: string): string => {
+  if (!locadoraName) return "gadlocados@compesa.com.br";
+  const normalizedKey = locadoraName.toUpperCase().trim();
+  const emails = LOCADORA_EMAILS_MAP[normalizedKey] || "";
+  return emails ? `gadlocados@compesa.com.br; ${emails}` : "gadlocados@compesa.com.br";
+};
+
 const REVISAO_OPCOES = [1000, 5000, 10000, 20000];
 
 export default function CadastroPreventivaPage({ onBack, hideBackButton = false, userProfile }: CadastroPreventivaPageProps) {
@@ -214,6 +229,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
     setEmailSubject(subjectText);
     setEmailBody(bodyText);
+    setEmailCc(getLocadoraEmails(selectedLocadora));
     setIsEmailModalOpen(true);
   };
 
@@ -867,7 +883,7 @@ Abaixo segue a lista dos veículos pendentes para agendamento:
 
 ${platesListStr}
 
-Por gentileza, após realizar os agendamentos, responda a este e-mail informando as datas preventivas programadas.
+Prezada Locadora, por gentileza, realizar os agendamentos, respondendo a este e-mail informando as datas dos agendamentos.
 
 Atenciosamente,
 Coordenação de Gestão de Frotas (CGF) - COMPESA`;
@@ -886,6 +902,10 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
     const dests = getEmailsByGerencia(initialUnit);
     setGroupEmailTo(dests.join(", "));
+
+    // Dynamic CC with locadora emails
+    const locadoraCC = getLocadoraEmails(selectedLocadora);
+    setGroupEmailCc(locadoraCC);
 
     const items = groupedPendingsByUnit[initialUnit] || [];
     const subjectText = `[Nexus Frota - Alerta Preventiva] Revisões Preventivas Vencidas - Unidade ${initialUnit}`;
