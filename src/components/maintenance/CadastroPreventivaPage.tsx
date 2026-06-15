@@ -127,7 +127,7 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
     horario: string;
   }>({
     active: false,
-    emails: "gestao.compesa@gmail.com, cgf.compesa@gmail.com",
+    emails: "gestaofrota@compesa.com.br, gadlocados@compesa.com.br",
     frequencia: "imediato",
     horario: "08:00"
   });
@@ -303,14 +303,14 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
         const d = docSnap.data();
         setEmailConfig({
           active: d.active ?? false,
-          emails: d.emails || "gestao.compesa@gmail.com, cgf.compesa@gmail.com",
+          emails: d.emails || "gestaofrota@compesa.com.br, gadlocados@compesa.com.br",
           frequencia: d.frequencia || "imediato",
           horario: d.horario || "08:00",
         });
       } else {
         setEmailConfig({
           active: false,
-          emails: "gestao.compesa@gmail.com, cgf.compesa@gmail.com",
+          emails: "gestaofrota@compesa.com.br, gadlocados@compesa.com.br",
           frequencia: "imediato",
           horario: "08:00"
         });
