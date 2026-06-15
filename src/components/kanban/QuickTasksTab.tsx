@@ -54,7 +54,7 @@ export const QuickTasksTab = () => {
 
   // Form states
   const [description, setDescription] = useState("");
-  const [responsible, setResponsible] = useState("");
+  const [selectedResponsibles, setSelectedResponsibles] = useState<string[]>([]);
   const [sector, setSector] = useState("Manutenção Próprios");
   const [status, setStatus] = useState<QuickTaskStatus>("A Fazer");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
@@ -105,8 +105,8 @@ export const QuickTasksTab = () => {
       toast.error("Por favor, selecione um setor!");
       return;
     }
-    if (!responsible) {
-      toast.error("Por favor, selecione um responsável!");
+    if (selectedResponsibles.length === 0) {
+      toast.error("Por favor, selecione pelo menos um responsável!");
       return;
     }
     if (!deadline) {
@@ -115,22 +115,23 @@ export const QuickTasksTab = () => {
     }
 
     try {
+      const responsibleString = selectedResponsibles.join(", ");
       if (editingId) {
         await updateQuickTask({
           id: editingId,
           description,
-          responsible,
+          responsible: responsibleString,
           sector,
           status,
           date,
           deadline,
         });
-        toast.success("Pendência atualizada com sucesso!");
+        toast.success("Pendência updated com sucesso!");
         setEditingId(null);
       } else {
         await createQuickTask({
           description,
-          responsible,
+          responsible: responsibleString,
           sector,
           status,
           date,
@@ -140,7 +141,7 @@ export const QuickTasksTab = () => {
 
       // Reset
       setDescription("");
-      setResponsible("");
+      setSelectedResponsibles([]);
       setSector("Manutenção Próprios");
       setStatus("A Fazer");
       setDeadline("");
@@ -153,7 +154,8 @@ export const QuickTasksTab = () => {
   const startEdit = (task: QuickTask) => {
     setEditingId(task.id);
     setDescription(task.description);
-    setResponsible(task.responsible);
+    const names = task.responsible ? task.responsible.split(", ").map(n => n.trim()).filter(Boolean) : [];
+    setSelectedResponsibles(names);
     setSector(task.sector || "Manutenção Próprios");
     setStatus(task.status);
     setDate(task.date);
@@ -166,7 +168,7 @@ export const QuickTasksTab = () => {
   const cancelEdit = () => {
     setEditingId(null);
     setDescription("");
-    setResponsible("");
+    setSelectedResponsibles([]);
     setSector("Manutenção Próprios");
     setStatus("A Fazer");
     setDate(new Date().toISOString().split("T")[0]);
@@ -189,7 +191,7 @@ export const QuickTasksTab = () => {
                           task.responsible.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           (task.sector || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = statusFilter === "all" || task.status === statusFilter;
-      const matchResp = respFilter === "all" || task.responsible === respFilter;
+      const matchResp = respFilter === "all" || (task.responsible || "").split(", ").map(r => r.trim()).includes(respFilter);
       const matchSector = sectorFilter === "all" || task.sector === sectorFilter;
       return matchSearch && matchStatus && matchResp && matchSector;
     });
@@ -197,7 +199,18 @@ export const QuickTasksTab = () => {
 
   // Unique responsibles from tasks to populate filters if needed
   const taskResponsibles = useMemo(() => {
-    return Array.from(new Set(quickTasks.map(t => t.responsible))).sort();
+    const list: string[] = [];
+    quickTasks.forEach(t => {
+      if (t.responsible) {
+        t.responsible.split(", ").forEach(name => {
+          const trimmed = name.trim();
+          if (trimmed && !list.includes(trimmed)) {
+            list.push(trimmed);
+          }
+        });
+      }
+    });
+    return list.sort();
   }, [quickTasks]);
 
   // WhatsApp formatted string generator
@@ -475,23 +488,37 @@ export const QuickTasksTab = () => {
 
                 {/* Responsible selection */}
                 <div className="md:col-span-3 space-y-1.5">
-                  <Label htmlFor="responsible" className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Responsável</Label>
+                  <Label className="text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                    Responsáveis ({selectedResponsibles.length})
+                  </Label>
                   {loadingResp ? (
-                    <Input disabled value="Buscando responsáveis..." className="rounded-xl h-10 bg-slate-100" />
+                    <div className="rounded-xl h-24 bg-slate-100 animate-pulse" />
                   ) : (
-                    <select 
-                      id="responsible"
-                      className="w-full rounded-xl h-10 border border-slate-200 bg-white px-3 text-xs leading-tight text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      value={responsible}
-                      onChange={(e) => setResponsible(e.target.value)}
-                    >
-                      <option value="">Selecione...</option>
-                      {responsibles.map((resp) => (
-                        <option key={resp.id} value={resp.name}>
-                          {resp.name}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="w-full rounded-xl h-24 border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-850 overflow-y-auto p-2.5 space-y-1">
+                      {responsibles.map((resp) => {
+                        const isChecked = selectedResponsibles.includes(resp.name);
+                        return (
+                          <label 
+                            key={resp.id} 
+                            className="flex items-center gap-2 px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300 transition-colors"
+                          >
+                            <input 
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                if (isChecked) {
+                                  setSelectedResponsibles(selectedResponsibles.filter(name => name !== resp.name));
+                                } else {
+                                  setSelectedResponsibles([...selectedResponsibles, resp.name]);
+                                }
+                              }}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
+                            />
+                            <span>{resp.name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
@@ -679,10 +706,21 @@ export const QuickTasksTab = () => {
                     <TableCell className="text-xs font-bold text-slate-700 dark:text-slate-100 py-4 max-w-sm font-sans tracking-tight">
                       {task.description}
                     </TableCell>
-                    <TableCell className="text-xs font-black text-indigo-600 dark:text-indigo-400 py-4 uppercase tracking-tighter">
-                      <div className="flex items-center gap-1.5">
-                        <User className="h-3.5 w-3.5 text-slate-400" />
-                        {task.responsible}
+                    <TableCell className="py-4">
+                      <div className="flex flex-wrap gap-1 max-w-[220px]">
+                        {task.responsible ? (
+                          task.responsible.split(", ").map((name, idx) => (
+                            <span 
+                              key={idx} 
+                              className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 text-[10px] font-black uppercase px-2 py-0.5 rounded-md"
+                            >
+                              <User className="h-2.5 w-2.5 text-slate-400 shrink-0" />
+                              {name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-400 italic font-medium">-</span>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell className="py-4 text-center">
@@ -763,10 +801,21 @@ export const QuickTasksTab = () => {
 
                   <div className="flex items-center gap-2 border-t border-b border-slate-100 dark:border-slate-800 py-2.5 text-xs">
                     <div className="flex-1 min-w-0">
-                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Responsável</div>
-                      <div className="font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-tighter truncate flex items-center gap-1">
-                        <User className="h-3 w-3 text-slate-400 shrink-0" />
-                        {task.responsible}
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Responsáveis</div>
+                      <div className="flex flex-wrap gap-1">
+                        {task.responsible ? (
+                          task.responsible.split(", ").map((name, idx) => (
+                            <span 
+                              key={idx} 
+                              className="inline-flex items-center gap-1 bg-indigo-50/60 dark:bg-indigo-950/20 text-indigo-700 dark:text-indigo-300 text-[9px] font-black uppercase px-2 py-0.5 rounded-md"
+                            >
+                              <User className="h-2.5 w-2.5 shrink-0" />
+                              {name}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-400 italic">-</span>
+                        )}
                       </div>
                     </div>
                     <div className="text-right">
