@@ -20,6 +20,7 @@ export interface QuickTask {
   date: string;
   description: string;
   responsible: string;
+  sector: string;
   status: QuickTaskStatus;
   deadline: string;
   createdAt: any;

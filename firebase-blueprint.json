@@ -91,12 +91,13 @@
         "date": { "type": "string", "format": "date", "description": "Data de inserção" },
         "description": { "type": "string", "description": "Descrição da urgência" },
         "responsible": { "type": "string", "description": "Nome do responsável" },
+        "sector": { "type": "string", "description": "Setor responsável pela demanda" },
         "status": { "type": "string", "enum": ["A Fazer", "Em Andamento", "Em Revisão", "Concluído"] },
         "deadline": { "type": "string", "format": "date", "description": "Prazo acordado" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["date", "description", "responsible", "status", "deadline"]
+      "required": ["date", "description", "responsible", "sector", "status", "deadline"]
     },
     "Indicator": {
       "title": "Indicator",

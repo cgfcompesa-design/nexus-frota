@@ -22,9 +22,31 @@ import {
   Filter, 
   Search,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  TrendingUp,
+  BarChart2
 } from "lucide-react";
 import { toast } from "sonner";
+import { 
+  ResponsiveContainer, 
+  BarChart, 
+  Bar, 
+  XAxis, 
+  YAxis, 
+  Tooltip as RechartsTooltip, 
+  Cell,
+  CartesianGrid
+} from "recharts";
+
+export const SECTORS = [
+  "Manutenção Próprios",
+  "Manutenção Locados",
+  "Regularização",
+  "Abastecimento",
+  "Telemetria",
+  "Pool",
+  "Sistemas"
+];
 
 export const QuickTasksTab = () => {
   const { quickTasks, isLoading, createQuickTask, updateQuickTask, deleteQuickTask } = useQuickTasks();
@@ -33,6 +55,7 @@ export const QuickTasksTab = () => {
   // Form states
   const [description, setDescription] = useState("");
   const [responsible, setResponsible] = useState("");
+  const [sector, setSector] = useState("Manutenção Próprios");
   const [status, setStatus] = useState<QuickTaskStatus>("A Fazer");
   const [date, setDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [deadline, setDeadline] = useState("");
@@ -43,11 +66,43 @@ export const QuickTasksTab = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [respFilter, setRespFilter] = useState<string>("all");
+  const [sectorFilter, setSectorFilter] = useState<string>("all");
+
+  const stats = useMemo(() => {
+    const counts = {
+      "A Fazer": 0,
+      "Em Andamento": 0,
+      "Em Revisão": 0,
+      "Concluído": 0,
+    };
+    quickTasks.forEach((task) => {
+      if (counts[task.status] !== undefined) {
+        counts[task.status]++;
+      }
+    });
+
+    const chartData = [
+      { name: "A Fazer", quantidade: counts["A Fazer"], color: "#ef4444" }, // Red
+      { name: "Em Andamento", quantidade: counts["Em Andamento"], color: "#f59e0b" }, // Amber
+      { name: "Em Revisão", quantidade: counts["Em Revisão"], color: "#8b5cf6" }, // Purple
+      { name: "Concluído", quantidade: counts["Concluído"], color: "#10b981" }, // Emerald
+    ];
+
+    const total = quickTasks.length;
+    const completed = counts["Concluído"];
+    const completionPercentage = total > 0 ? Math.round((completed / total) * 100) : 0;
+
+    return { counts, chartData, total, completed, completionPercentage };
+  }, [quickTasks]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim()) {
       toast.error("Por favor, preencha a descrição da pendência!");
+      return;
+    }
+    if (!sector) {
+      toast.error("Por favor, selecione um setor!");
       return;
     }
     if (!responsible) {
@@ -65,6 +120,7 @@ export const QuickTasksTab = () => {
           id: editingId,
           description,
           responsible,
+          sector,
           status,
           date,
           deadline,
@@ -75,6 +131,7 @@ export const QuickTasksTab = () => {
         await createQuickTask({
           description,
           responsible,
+          sector,
           status,
           date,
           deadline,
@@ -84,6 +141,7 @@ export const QuickTasksTab = () => {
       // Reset
       setDescription("");
       setResponsible("");
+      setSector("Manutenção Próprios");
       setStatus("A Fazer");
       setDeadline("");
       setIsFormOpen(false);
@@ -96,6 +154,7 @@ export const QuickTasksTab = () => {
     setEditingId(task.id);
     setDescription(task.description);
     setResponsible(task.responsible);
+    setSector(task.sector || "Manutenção Próprios");
     setStatus(task.status);
     setDate(task.date);
     setDeadline(task.deadline);
@@ -108,6 +167,7 @@ export const QuickTasksTab = () => {
     setEditingId(null);
     setDescription("");
     setResponsible("");
+    setSector("Manutenção Próprios");
     setStatus("A Fazer");
     setDate(new Date().toISOString().split("T")[0]);
     setDeadline("");
@@ -126,12 +186,14 @@ export const QuickTasksTab = () => {
   const filteredTasks = useMemo(() => {
     return quickTasks.filter((task) => {
       const matchSearch = task.description.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          task.responsible.toLowerCase().includes(searchTerm.toLowerCase());
+                          task.responsible.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          (task.sector || "").toLowerCase().includes(searchTerm.toLowerCase());
       const matchStatus = statusFilter === "all" || task.status === statusFilter;
       const matchResp = respFilter === "all" || task.responsible === respFilter;
-      return matchSearch && matchStatus && matchResp;
+      const matchSector = sectorFilter === "all" || task.sector === sectorFilter;
+      return matchSearch && matchStatus && matchResp && matchSector;
     });
-  }, [quickTasks, searchTerm, statusFilter, respFilter]);
+  }, [quickTasks, searchTerm, statusFilter, respFilter, sectorFilter]);
 
   // Unique responsibles from tasks to populate filters if needed
   const taskResponsibles = useMemo(() => {
@@ -158,7 +220,7 @@ export const QuickTasksTab = () => {
         hasItems = true;
         msg += `${statusGroups[st].emoji} *${statusGroups[st].label}*\n`;
         groupTasks.forEach(t => {
-          msg += `• *Prazo: ${formatDateBr(t.deadline)}* - ${t.description} _(Resp: ${t.responsible})_\n`;
+          msg += `• [*${t.sector || "Geral"}*] *Prazo: ${formatDateBr(t.deadline)}* - ${t.description} _(Resp: ${t.responsible})_\n`;
         });
         msg += `\n`;
       }
@@ -208,6 +270,103 @@ export const QuickTasksTab = () => {
 
   return (
     <div className="space-y-6">
+      {/* Dashboard de Status - Recharts Widget & Informações */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* KPI Summary Panel */}
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-100 dark:bg-indigo-950/55 rounded-2xl text-indigo-600 dark:text-indigo-400">
+                <BarChart2 className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white">Indicadores de Status</CardTitle>
+                <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Resumo real-time das pendências</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-xs">
+                <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Total Ativos</p>
+                <p className="text-2xl font-black text-slate-800 dark:text-white italic mt-1">{stats.total}</p>
+              </div>
+              <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-xs">
+                <p className="text-[9px] font-black uppercase tracking-wider text-emerald-500">Concluídos</p>
+                <p className="text-2xl font-black text-emerald-500 italic mt-1">{stats.completed}</p>
+              </div>
+            </div>
+
+            <div className="space-y-2 bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-150 dark:border-slate-805 shadow-xs">
+              <div className="flex justify-between items-center text-xs">
+                <span className="font-bold text-slate-500 dark:text-slate-400">Taxa de Conclusão</span>
+                <span className="font-black text-indigo-600 dark:text-indigo-400 italic">{stats.completionPercentage}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 dark:bg-slate-850 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-indigo-600 dark:bg-indigo-500 rounded-full transition-all duration-500"
+                  style={{ width: `${stats.completionPercentage}%` }}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Recharts BarChart Status */}
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm lg:col-span-2 overflow-hidden">
+          <CardHeader className="pb-3 flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white">Distribuição por Status</CardTitle>
+              <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Contagem quantitativa de pendências</CardDescription>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-800 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wide text-slate-400">
+              <TrendingUp className="h-3 w-3 text-indigo-500" />
+              Atualizado
+            </div>
+          </CardHeader>
+          <CardContent className="h-44 pb-3">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={stats.chartData}
+                margin={{ top: 10, right: 10, left: -25, bottom: 5 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" className="dark:stroke-slate-850" />
+                <XAxis 
+                  dataKey="name" 
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: "bold" }}
+                />
+                <YAxis 
+                  allowDecimals={false}
+                  tickLine={false}
+                  axisLine={false}
+                  tick={{ fill: "#94a3b8", fontSize: 10, fontWeight: "bold" }}
+                />
+                <RechartsTooltip 
+                  cursor={{ fill: "rgba(99, 102, 241, 0.05)" }}
+                  contentStyle={{
+                    backgroundColor: "rgba(30, 41, 59, 0.95)",
+                    border: "none",
+                    borderRadius: "12px",
+                    color: "#fff",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                  itemStyle={{ color: "#fff" }}
+                  labelStyle={{ color: "#94a3b8", fontSize: "10px", textTransform: 'uppercase', fontWeight: "bold" }}
+                />
+                <Bar dataKey="quantidade" radius={[6, 6, 0, 0]} maxBarSize={45}>
+                  {stats.chartData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Overview & WhatsApp sharing panel */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="bg-gradient-to-br from-indigo-50/55 to-slate-50 dark:from-indigo-950/15 dark:to-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
@@ -353,7 +512,22 @@ export const QuickTasksTab = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Sector Selection */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="sector" className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Setor</Label>
+                  <select 
+                    id="sector"
+                    className="w-full rounded-xl h-10 border border-slate-200 bg-white px-3 text-xs leading-tight text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    value={sector}
+                    onChange={(e) => setSector(e.target.value)}
+                  >
+                    {SECTORS.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Inclusion Date */}
                 <div className="space-y-1.5">
                   <Label htmlFor="date" className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Data de Entrada</Label>
@@ -409,6 +583,18 @@ export const QuickTasksTab = () => {
             </div>
             
             <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+              {/* Sector Filter */}
+              <select
+                className="rounded-xl h-10 border border-slate-200 bg-slate-50/50 px-3 text-xs leading-tight text-slate-700 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                value={sectorFilter}
+                onChange={(e) => setSectorFilter(e.target.value)}
+              >
+                <option value="all">Filtrar por Setor</option>
+                {SECTORS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+
               {/* Status filter selection */}
               <select
                 className="rounded-xl h-10 border border-slate-200 bg-slate-50/50 px-3 text-xs leading-tight text-slate-700 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
@@ -434,13 +620,14 @@ export const QuickTasksTab = () => {
                 ))}
               </select>
 
-              {(searchTerm || statusFilter !== "all" || respFilter !== "all") && (
+              {(searchTerm || statusFilter !== "all" || respFilter !== "all" || sectorFilter !== "all") && (
                 <Button 
                   variant="ghost" 
                   onClick={() => {
                     setSearchTerm("");
                     setStatusFilter("all");
                     setRespFilter("all");
+                    setSectorFilter("all");
                   }} 
                   className="text-[9px] uppercase font-black text-slate-400 hover:text-indigo-500 h-10 rounded-xl"
                 >
@@ -472,6 +659,7 @@ export const QuickTasksTab = () => {
               <TableHeader className="bg-slate-50 dark:bg-slate-800/50">
                 <TableRow className="border-b border-slate-100 dark:border-slate-800">
                   <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider py-4">Data Registro</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider py-4">Setor</TableHead>
                   <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider py-4">Descrição da Demanda</TableHead>
                   <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider py-4">Responsável</TableHead>
                   <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider py-4 text-center">Status</TableHead>
@@ -483,6 +671,11 @@ export const QuickTasksTab = () => {
                 {filteredTasks.map((task) => (
                   <TableRow key={task.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-55/20 transition-colors">
                     <TableCell className="text-xs font-semibold text-slate-500 dark:text-slate-400 py-4">{formatDateBr(task.date)}</TableCell>
+                    <TableCell className="text-xs font-black text-indigo-900 dark:text-indigo-200 py-4 uppercase tracking-tighter">
+                      <span className="bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded text-[10px]">
+                        {task.sector || "Geral"}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-xs font-bold text-slate-700 dark:text-slate-100 py-4 max-w-sm font-sans tracking-tight">
                       {task.description}
                     </TableCell>
@@ -562,6 +755,9 @@ export const QuickTasksTab = () => {
                   </div>
 
                   <p className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-snug">
+                    <span className="text-[9px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 font-extrabold px-1.5 py-0.5 rounded mr-1.5 uppercase">
+                      {task.sector || "Geral"}
+                    </span>
                     {task.description}
                   </p>
 
