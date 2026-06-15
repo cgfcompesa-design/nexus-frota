@@ -18,7 +18,7 @@ const CUSTOS_DETALHADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1v
 const LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQduOE9Q5_47tOwu2DCV0T7eLcp0Wt2d1fy9HOCUbHIDY6g-cEA1fa6-eVjKNVTJJxw4iBwAtECemjE/pub?gid=528358532&single=true&output=csv';
 const CONTACTS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS-IX8SNiQVbdaxqRZVaseGcFzoj8-Y4x-i39e8-Q46PHU1tGq0oPMCXGpdzcTT98uNheWTmPp7SjR0/pub?gid=503746336&single=true&output=csv';
 const CONTROLE_OPERACIONAL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1763804481&single=true&output=csv';
-const DRIVERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRFDYDH_uSxf8ubJLThZOZGtBXd7akRvzv87oH46L9GmntevniA_rtu9qPhSX5gaA/pub?gid=281389062&single=true&output=csv';
+const DRIVERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTQHiiKlagFGBNTKlQ8Id_sjZEmTVS3YmfVmzqvtRm03S4tLYiT4xdLRc0r3sNeM1HIRCJNv9scnV2E/pub?output=csv';
 const SPECIAL_HOURS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSswA5LQw7xGA4imB90xBobAFn2k6T4DoXjuPhrbhLSCSnaWvSXijtR2-oANe6B7LUwf9yhM9Ib7L0d/pub?gid=0&single=true&output=csv';
 
 async function fetchCsv(url: string, retries = 3): Promise<string[][]> {
