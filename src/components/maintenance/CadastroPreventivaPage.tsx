@@ -71,6 +71,22 @@ const REVISAO_OPCOES = [1000, 5000, 10000, 20000];
 export default function CadastroPreventivaPage({ onBack, hideBackButton = false, userProfile }: CadastroPreventivaPageProps) {
   const [selectedLocadora, setSelectedLocadora] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [selectedModelo, setSelectedModelo] = useState<string>("TODOS");
+  const [selectedMarca, setSelectedMarca] = useState<string>("TODOS");
+  const [selectedDiretoria, setSelectedDiretoria] = useState<string>("TODOS");
+  const [selectedGerencia, setSelectedGerencia] = useState<string>("TODOS");
+  const [selectedStatus, setSelectedStatus] = useState<string>("TODOS");
+  const [selectedTipo, setSelectedTipo] = useState<string>("TODOS");
+
+  useEffect(() => {
+    setSelectedModelo("TODOS");
+    setSelectedMarca("TODOS");
+    setSelectedDiretoria("TODOS");
+    setSelectedGerencia("TODOS");
+    setSelectedStatus("TODOS");
+    setSelectedTipo("TODOS");
+    setSearchTerm("");
+  }, [selectedLocadora]);
 
   const { data: assets = [], isLoading: isLoadingAssets } = useAssets();
   const { data: fuel = [], isLoading: isLoadingFuel } = useFuelData();
@@ -728,14 +744,125 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
     });
   };
 
-  // Filter vehicles by search term
+  // Filter vehicle option lists based on locadoraVehicles
+  const modeloOptions = useMemo(() => {
+    const set = new Set<string>();
+    locadoraVehicles.forEach(v => {
+      const model = String(v.MODELO || v.modelo || "").trim();
+      if (model) set.add(model);
+    });
+    return ["TODOS", ...Array.from(set).sort()];
+  }, [locadoraVehicles]);
+
+  const marcaOptions = useMemo(() => {
+    const set = new Set<string>();
+    locadoraVehicles.forEach(v => {
+      const brand = String(v.MARCA || v.marca || "").trim();
+      if (brand) set.add(brand);
+    });
+    return ["TODOS", ...Array.from(set).sort()];
+  }, [locadoraVehicles]);
+
+  const diretoriaOptions = useMemo(() => {
+    const set = new Set<string>();
+    locadoraVehicles.forEach(v => {
+      const dir = String(v.DIRETORIA || v.diretoria || "").trim();
+      if (dir) set.add(dir);
+    });
+    return ["TODOS", ...Array.from(set).sort()];
+  }, [locadoraVehicles]);
+
+  const gerenciaOptions = useMemo(() => {
+    const set = new Set<string>();
+    locadoraVehicles.forEach(v => {
+      const ger = String(v.GERENCIA || v["GERÊNCIA"] || v.gerencia || "").trim();
+      if (ger) set.add(ger);
+    });
+    return ["TODOS", ...Array.from(set).sort()];
+  }, [locadoraVehicles]);
+
+  const tipoOptions = useMemo(() => {
+    const set = new Set<string>();
+    locadoraVehicles.forEach(v => {
+      const tipo = String(v.TIPO || v.Tipo || v["TIPO VEICULO"] || "").trim();
+      if (tipo) set.add(tipo);
+    });
+    return ["TODOS", ...Array.from(set).sort()];
+  }, [locadoraVehicles]);
+
+  const statusOptions = ["TODOS", "EM DIA", "PENDENTE", "NÃO INICIADA"];
+
+  // Filter vehicles by search term and dropdown selections
   const filteredVehicles = useMemo(() => {
     return locadoraVehicles.filter(v => {
-      const placa = String(v.PLACA || v.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
-      const cleanSearch = searchTerm.toUpperCase().replace(/[^A-Z0-9]/gi, "");
-      return placa.includes(cleanSearch);
+      // 1. Placa / SearchTerm
+      const placa = String(v.PLACA || v.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+      if (searchTerm) {
+        const cleanSearch = searchTerm.toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+        if (!placa.includes(cleanSearch)) return false;
+      }
+
+      // 2. Modelo
+      if (selectedModelo !== "TODOS") {
+        const model = String(v.MODELO || v.modelo || "").trim();
+        if (model !== selectedModelo) return false;
+      }
+
+      // 3. Marca
+      if (selectedMarca !== "TODOS") {
+        const brand = String(v.MARCA || v.marca || "").trim();
+        if (brand !== selectedMarca) return false;
+      }
+
+      // 4. Diretoria
+      if (selectedDiretoria !== "TODOS") {
+        const dir = String(v.DIRETORIA || v.diretoria || "").trim();
+        if (dir !== selectedDiretoria) return false;
+      }
+
+      // 5. Gerência
+      if (selectedGerencia !== "TODOS") {
+        const ger = String(v.GERENCIA || v["GERÊNCIA"] || v.gerencia || "").trim();
+        if (ger !== selectedGerencia) return false;
+      }
+
+      // 6. Tipo
+      if (selectedTipo !== "TODOS") {
+        const tipo = String(v.TIPO || v.Tipo || v["TIPO VEICULO"] || "").trim();
+        if (tipo !== selectedTipo) return false;
+      }
+
+      // 7. Status
+      if (selectedStatus !== "TODOS") {
+        const state = editedRows[placa];
+        const odometroRevisaoNum = state ? Number(state.odometroRevisao || 0) : 0;
+        const revisaoPrevistaNum = state ? Number(state.revisaoPrevista || 10000) : 10000;
+        const odometroProximaRevisao = odometroRevisaoNum + revisaoPrevistaNum;
+        const odometroAtual = latestOdometersMap.get(placa) || 0;
+        const odometroRestante = (state && state.odometroRevisao) ? (odometroProximaRevisao - odometroAtual) : 0;
+        
+        const isOverdue = odometroRestante < 0;
+        const status = (state && state.odometroRevisao) ? (isOverdue ? "Pendente" : "Em Dia") : "Não Iniciada";
+        
+        if (selectedStatus === "PENDENTE" && status !== "Pendente") return false;
+        if (selectedStatus === "EM DIA" && status !== "Em Dia") return false;
+        if (selectedStatus === "NÃO INICIADA" && status !== "Não Iniciada") return false;
+      }
+
+      return true;
     });
-  }, [locadoraVehicles, searchTerm]);
+  }, [
+    locadoraVehicles,
+    searchTerm,
+    selectedModelo,
+    selectedMarca,
+    selectedDiretoria,
+    selectedGerencia,
+    selectedTipo,
+    selectedStatus,
+    editedRows,
+    latestOdometersMap
+  ]);
 
   // Calculate stats for Meu Desempenho
   const stats = useMemo(() => {
@@ -1742,6 +1869,113 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
           </CardHeader>
 
           <CardContent className="p-0">
+            {/* Interactive Search & Multi-Criteria Filters Bar */}
+            {selectedLocadora && !isLoadingAssets && !isLoadingFuel && (
+              <div className="bg-slate-50/50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 p-4 gap-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 items-end">
+                {/* Filter Modelo */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Modelo</label>
+                  <Select value={selectedModelo} onValueChange={setSelectedModelo}>
+                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-950 uppercase border-slate-200 dark:border-slate-800 rounded-xl">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {modeloOptions.map(m => (
+                        <SelectItem key={m} value={m} className="text-xs uppercase font-bold">
+                          {m}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Marca */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Marca</label>
+                  <Select value={selectedMarca} onValueChange={setSelectedMarca}>
+                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-950 uppercase border-slate-200 dark:border-slate-800 rounded-xl">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {marcaOptions.map(brand => (
+                        <SelectItem key={brand} value={brand} className="text-xs uppercase font-bold">
+                          {brand}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Diretoria */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Diretoria</label>
+                  <Select value={selectedDiretoria} onValueChange={setSelectedDiretoria}>
+                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-950 uppercase border-slate-200 dark:border-slate-800 rounded-xl">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {diretoriaOptions.map(dir => (
+                        <SelectItem key={dir} value={dir} className="text-xs uppercase font-bold">
+                          {dir}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Gerência */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Gerência</label>
+                  <Select value={selectedGerencia} onValueChange={setSelectedGerencia}>
+                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-950 uppercase border-slate-200 dark:border-slate-800 rounded-xl">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {gerenciaOptions.map(ger => (
+                        <SelectItem key={ger} value={ger} className="text-xs uppercase font-bold">
+                          {ger}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Tipo */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Tipo (Ativo)</label>
+                  <Select value={selectedTipo} onValueChange={setSelectedTipo}>
+                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-950 uppercase border-slate-200 dark:border-slate-800 rounded-xl">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-[200px] overflow-y-auto">
+                      {tipoOptions.map(tipo => (
+                        <SelectItem key={tipo} value={tipo} className="text-xs uppercase font-bold">
+                          {tipo}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Status */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-extrabold uppercase text-slate-400 dark:text-slate-500 tracking-wider">Status</label>
+                  <Select value={selectedStatus} onValueChange={setSelectedStatus}>
+                    <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-950 uppercase border-slate-200 dark:border-slate-800 rounded-xl">
+                      <SelectValue placeholder="Selecione..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {statusOptions.map(status => (
+                        <SelectItem key={status} value={status} className="text-xs uppercase font-bold">
+                          {status}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {isLoadingAssets || isLoadingFuel ? (
               <div className="p-12 flex flex-col items-center justify-center space-y-4">
                 <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
