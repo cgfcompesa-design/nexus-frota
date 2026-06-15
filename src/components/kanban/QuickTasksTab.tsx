@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { useQuickTasks, QuickTask, QuickTaskStatus } from "@/hooks/useQuickTasks";
+import { useQuickTasks, useQuickTaskLogs, QuickTask, QuickTaskStatus } from "@/hooks/useQuickTasks";
 import { useResponsibles } from "@/hooks/useResponsibles";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,7 +24,8 @@ import {
   CheckCircle2,
   AlertTriangle,
   TrendingUp,
-  BarChart2
+  BarChart2,
+  History
 } from "lucide-react";
 import { toast } from "sonner";
 import { 
@@ -50,6 +51,7 @@ export const SECTORS = [
 
 export const QuickTasksTab = () => {
   const { quickTasks, isLoading, createQuickTask, updateQuickTask, deleteQuickTask } = useQuickTasks();
+  const { logs, isLoadingLogs } = useQuickTaskLogs();
   const { responsibles, isLoading: loadingResp } = useResponsibles();
 
   // Form states
@@ -281,6 +283,17 @@ export const QuickTasksTab = () => {
     }
   };
 
+  const formatTimestamp = (ts: any) => {
+    if (!ts) return "Agora mesmo";
+    const date = ts.toDate ? ts.toDate() : new Date(ts);
+    return date.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  };
+
   return (
     <div className="space-y-6">
       {/* Dashboard de Status - Recharts Widget & Informações */}
@@ -380,23 +393,23 @@ export const QuickTasksTab = () => {
         </Card>
       </div>
 
-      {/* Overview & WhatsApp sharing panel */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="bg-gradient-to-br from-indigo-50/55 to-slate-50 dark:from-indigo-950/15 dark:to-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
+      {/* Overview, WhatsApp sharing & History Log panel */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="bg-gradient-to-br from-indigo-50/55 to-slate-50 dark:from-indigo-950/15 dark:to-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-indigo-600 rounded-2xl text-white">
                 <ClipboardCheck className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Lista de Pendências Rápidas</CardTitle>
-                <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Controle de urgências e demandas do dia a dia</CardDescription>
+                <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Lista de Pendências</CardTitle>
+                <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Urgências e demandas do dia a dia</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 flex-1 flex flex-col justify-between">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Crie rapidamente pendências e compartilhe resumos estruturados no WhatsApp. O link externo abre diretamente esta aba para fácil atualização em campo ou no celular.
+              Crie rapidamente pendências e compartilhe resumos estruturados no WhatsApp. O link externo abre diretamente esta aba para fácil atualização.
             </p>
             <div className="flex flex-wrap gap-2 pt-2">
               <Button 
@@ -412,28 +425,28 @@ export const QuickTasksTab = () => {
                 className="rounded-xl border-slate-200 text-slate-700 hover:bg-slate-100 dark:border-slate-800 dark:text-slate-300 text-[10px] uppercase font-black tracking-wider px-4 py-2 flex items-center gap-1 leading-none"
               >
                 <ExternalLink className="h-3.5 w-3.5 text-indigo-500" />
-                Copiar Link Externo
+                Copiar Link
               </Button>
             </div>
           </CardContent>
         </Card>
 
         {/* Sharing in WhatsApp groups */}
-        <Card className="bg-gradient-to-br from-emerald-50/50 to-slate-50 dark:from-emerald-950/10 dark:to-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm">
+        <Card className="bg-gradient-to-br from-emerald-50/50 to-slate-50 dark:from-emerald-950/10 dark:to-slate-900 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-emerald-500 rounded-2xl text-white">
                 <MessageCircle className="h-5 w-5" />
               </div>
               <div>
-                <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Compartilhar no WhatsApp</CardTitle>
+                <CardTitle className="text-lg font-black uppercase tracking-tight text-slate-800 dark:text-white">Enviar p/ WhatsApp</CardTitle>
                 <CardDescription className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Integração e informes com um clique</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3">
+          <CardContent className="space-y-3 flex-1 flex flex-col justify-between">
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Otimize a comunicação gerando e copiando relatórios diários de status perfeitos com formatação para grupos do WhatsApp.
+              Otimize a comunicação gerando relatórios diários de status perfeitos formatados para grupos do WhatsApp.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
               <Button 
@@ -441,16 +454,75 @@ export const QuickTasksTab = () => {
                 className="bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-[10px] uppercase font-black tracking-wider px-4 py-2 flex items-center justify-center gap-1 leading-none transition-transform active:scale-95"
               >
                 <Copy className="h-3.5 w-3.5" />
-                Copiar Texto WhatsApp
+                Copiar Texto
               </Button>
               <Button 
                 onClick={shareToWhatsAppDirectly} 
                 className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] uppercase font-black tracking-wider px-4 py-2 flex items-center justify-center gap-1 leading-none transition-transform active:scale-95 shadow-md shadow-emerald-100 dark:shadow-none"
               >
                 <Share2 className="h-3.5 w-3.5" />
-                Enviar Direto p/ WhatsApp
+                Enviar Direto
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Audit Log / Change History Card */}
+        <Card className="bg-gradient-to-br from-slate-50 to-slate-100/50 dark:from-slate-900 dark:to-slate-950 border-slate-200 dark:border-slate-800 rounded-3xl shadow-sm flex flex-col justify-between h-auto lg:h-full">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-indigo-500 rounded-2xl text-white">
+                <History className="h-5 w-5" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <CardTitle className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white truncate">Histórico de Logs</CardTitle>
+                <CardDescription className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate">Ações por usuário em tempo real</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="flex-1 overflow-y-auto pr-1 space-y-2 max-h-[170px] scrollbar-thin">
+            {isLoadingLogs ? (
+              <div className="flex items-center justify-center h-full text-slate-400 text-xs font-semibold py-4">
+                Carregando registros...
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="text-center py-4 text-slate-400 text-xs font-medium">
+                Nenhum log registrado ainda.
+              </div>
+            ) : (
+              logs.map((log) => {
+                let borderCol = "border-l-indigo-500";
+                if (log.actionType === "create") {
+                  borderCol = "border-l-emerald-500";
+                } else if (log.actionType === "delete") {
+                  borderCol = "border-l-rose-500";
+                }
+
+                return (
+                  <div 
+                    key={log.id} 
+                    className={`p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-white/70 dark:bg-slate-900/50 border-l-4 ${borderCol} text-[11px] leading-relaxed transition-all hover:bg-white dark:hover:bg-slate-900`}
+                  >
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <span className="font-extrabold text-slate-700 dark:text-slate-300 truncate max-w-[120px]">
+                        {log.userName}
+                      </span>
+                      <span className="text-[9px] font-semibold text-slate-400 shrink-0 select-none">
+                        {formatTimestamp(log.timestamp)}
+                      </span>
+                    </div>
+                    <p className="text-slate-600 dark:text-slate-400 font-medium font-sans antialiased text-[11px] break-words">
+                      {log.details}
+                    </p>
+                    {log.taskDescription && (
+                      <div className="mt-1 text-[9px] font-black uppercase text-indigo-500 dark:text-indigo-400/90 truncate bg-indigo-50/40 dark:bg-indigo-950/10 px-1.5 py-0.5 rounded-md inline-block max-w-full">
+                        {log.taskDescription}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
           </CardContent>
         </Card>
       </div>

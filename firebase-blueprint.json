@@ -99,6 +99,21 @@
       },
       "required": ["date", "description", "responsible", "sector", "status", "deadline"]
     },
+    "KanbanQuickTaskLog": {
+      "title": "Kanban Quick Task Log",
+      "description": "Histórico de logs de alterações das Pendências Rápidas",
+      "type": "object",
+      "properties": {
+        "taskId": { "type": "string" },
+        "taskDescription": { "type": "string" },
+        "actionType": { "type": "string", "enum": ["create", "update", "delete"] },
+        "details": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "userName": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actionType", "details", "userEmail", "timestamp"]
+    },
     "Indicator": {
       "title": "Indicator",
       "description": "Indicador de gestão à vista",
@@ -262,6 +277,10 @@
     "/kanban_quick_tasks/{taskId}": {
       "schema": "KanbanQuickTask",
       "description": "Lista rápida de pendências diárias urgentes"
+    },
+    "/kanban_quick_tasks_logs/{logId}": {
+      "schema": "KanbanQuickTaskLog",
+      "description": "Histórico de logs de alterações das Pendências Rápidas"
     },
     "/indicators/{indicatorId}": {
       "schema": "Indicator",

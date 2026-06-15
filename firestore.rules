@@ -90,6 +90,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /kanban_quick_tasks_logs/{logId} {
+      allow read, write: if true;
+    }
+
     // --- Indicators ---
     match /indicators/{indicatorId} {
       allow read, write: if true;
