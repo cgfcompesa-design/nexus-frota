@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db, handleFirestoreError, auth } from "../../lib/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, setDoc } from "firebase/firestore";
+import { collection, query, onSnapshot, doc, updateDoc, setDoc, deleteDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
 import { Users, Shield, User as UserIcon, Eye, Trash2, Mail, Save, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -58,6 +58,24 @@ export default function UserManagement() {
     } catch (error) {
       console.error("Erro ao atualizar locadoras do usuário:", error);
       toast.error("Erro ao atualizar locadoras.");
+    }
+  };
+
+  const handleDeleteUser = async (uid: string, email: string) => {
+    if (auth.currentUser?.uid === uid) {
+      toast.error("Você não pode excluir o seu próprio usuário logado!");
+      return;
+    }
+    if (!window.confirm(`Tem certeza que deseja excluir permanentemente o usuário com e-mail "${email}"? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+    try {
+      const userRef = doc(db, "users", uid);
+      await deleteDoc(userRef);
+      toast.success(`Usuário ${email} excluído com sucesso!`);
+    } catch (err) {
+      console.error("Erro ao excluir usuário:", err);
+      toast.error("Erro ao excluir usuário no banco de dados.");
     }
   };
 
@@ -241,6 +259,15 @@ export default function UserManagement() {
                           onClick={() => handleUpdateRole(user.uid, 'Master')}
                         >
                           <Lock size={12} className="mr-1" /> Master
+                        </Button>
+                        
+                        <Button 
+                          size="sm" 
+                          variant="destructive"
+                          className="h-8 text-[9px] font-black uppercase px-3 bg-rose-600 hover:bg-rose-700 text-white border-none shadow-sm"
+                          onClick={() => handleDeleteUser(user.uid, user.email)}
+                        >
+                          <Trash2 size={12} className="mr-1" /> Excluir
                         </Button>
                       </div>
                     </td>
