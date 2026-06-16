@@ -1039,12 +1039,19 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
             }
           }
         }
-        const finalLabel = displayLabel.length > 42 ? displayLabel.substring(0, 39) + "..." : displayLabel;
-        doc.text(`${finalLabel}:`, 14, currentDrawY + 3);
+
+        const lines: string[] = doc.splitTextToSize(displayLabel + ":", 48);
+        const linesCount = lines.length;
+        const rowHeight = linesCount * 3.8 + 2;
+        const barY = currentDrawY + (rowHeight - 4) / 2;
+
+        lines.forEach((lineText, lineIdx) => {
+          doc.text(lineText, 14, currentDrawY + 3.2 + (lineIdx * 3.8));
+        });
         
         // Background grey bar
         doc.setFillColor(243, 244, 246);
-        doc.rect(65, currentDrawY, 100, 4, "F");
+        doc.rect(65, barY, 100, 4, "F");
         
         // Colored bar - alternating color
         const colors = [
@@ -1056,14 +1063,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
         ];
         const col = colors[index % colors.length];
         doc.setFillColor(col[0], col[1], col[2]);
-        doc.rect(65, currentDrawY, Math.max(barWidth, 1), 4, "F");
+        doc.rect(65, barY, Math.max(barWidth, 1), 4, "F");
         
         // Value
         doc.setFontSize(7.5);
         doc.setTextColor(80);
-        doc.text(formatCurrency(val), 170, currentDrawY + 3);
+        doc.text(formatCurrency(val), 170, barY + 3);
         
-        currentDrawY += 8;
+        currentDrawY += rowHeight + 1.5;
       });
       
       return currentDrawY + 4;
