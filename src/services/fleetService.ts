@@ -18,7 +18,7 @@ const CUSTOS_DETALHADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1v
 const LOCADOS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQduOE9Q5_47tOwu2DCV0T7eLcp0Wt2d1fy9HOCUbHIDY6g-cEA1fa6-eVjKNVTJJxw4iBwAtECemjE/pub?gid=528358532&single=true&output=csv';
 const CONTACTS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS-IX8SNiQVbdaxqRZVaseGcFzoj8-Y4x-i39e8-Q46PHU1tGq0oPMCXGpdzcTT98uNheWTmPp7SjR0/pub?gid=503746336&single=true&output=csv';
 const CONTROLE_OPERACIONAL_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQZaLkEIx7-y4VvB5xyzeoD_mLQNgJ1RpRkvYrHn-5yLKe2PDk1irfqRQdupokc1e98V74N6P5j2sPM/pub?gid=1763804481&single=true&output=csv';
-const DRIVERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTQHiiKlagFGBNTKlQ8Id_sjZEmTVS3YmfVmzqvtRm03S4tLYiT4xdLRc0r3sNeM1HIRCJNv9scnV2E/pub?output=csv';
+const DRIVERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRFDYDH_uSxf8ubJLThZOZGtBXd7akRvzv87oH46L9GmntevniA_rtu9qPhSX5gaA/pub?gid=281389062&single=true&output=csv';
 const SPECIAL_HOURS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSswA5LQw7xGA4imB90xBobAFn2k6T4DoXjuPhrbhLSCSnaWvSXijtR2-oANe6B7LUwf9yhM9Ib7L0d/pub?gid=0&single=true&output=csv';
 
 async function fetchCsv(url: string, retries = 3): Promise<string[][]> {
@@ -663,38 +663,20 @@ export async function fetchFleetData(): Promise<Asset[]> {
 
 export async function fetchNotificacoes(): Promise<any[]> {
   const rawRows = await fetchCsv(NOTIFICACOES_URL);
-  if (rawRows.length <= 1) return [];
+  if (rawRows.length <= 2) return [];
   
-  // Encontrar a linha de cabeçalho dinamicamente
-  let headerIndex = -1;
-  for (let i = 0; i < Math.min(10, rawRows.length); i++) {
-    const row = rawRows[i].map(c => String(c).toUpperCase());
-    if (row.includes("DIRETORIA") || row.includes("GRAVIDADE") || row.includes("TIPO NOTIFICAÇÃO") || row.includes("PLACA")) {
-      headerIndex = i;
-      break;
-    }
-  }
-
-  if (headerIndex === -1) headerIndex = 2; // Fallback para o anterior
-  
+  // O cabeçalho é a linha 03 (index 2), os dados começam na linha 04 (index 3)
+  const headerIndex = 2;
   const headers = rawRows[headerIndex];
   
-  // Make data rows robust to sorting (can be before or after header row)
   const dataRows = rawRows.filter((row, idx) => {
-    if (idx === headerIndex) return false;
+    if (idx <= headerIndex) return false;
     if (!row || !Array.isArray(row)) return false;
     
     const isEmpty = row.every(cell => cell === null || cell === undefined || String(cell).trim() === "");
     if (isEmpty) return false;
 
-    // Check if it's a clone of the header row itself sorted
-    const isHeaderClone = row.some(cell => {
-      const c = String(cell || "").toUpperCase().trim();
-      return c === "DIRETORIA" || c === "GRAVIDADE" || c === "TIPO NOTIFICAÇÃO" || c === "TIPO NOTIFICACAO" || c === "PLACA";
-    });
-    if (isHeaderClone) return false;
-
-    // Skip HTML/error tags
+    // Ignorar duplicatas ou tags HTML de erros
     if (String(row[0] || "").startsWith("<HTML") || String(row[0] || "").startsWith("<!DOCTYPE")) {
       return false;
     }

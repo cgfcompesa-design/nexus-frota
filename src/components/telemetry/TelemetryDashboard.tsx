@@ -25,6 +25,7 @@ import { format } from "date-fns";
 import { TelemetryFilterBar } from "./TelemetryFilterBar";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { auth } from "@/lib/firebase";
 import { TelemetryWorkshopMap } from "./TelemetryWorkshopMap";
 import { fetchTelemetryRealtime, fetchNotificacoes, fetchTelemetryHistory, fetchFleetData } from "../../services/fleetService";
 import { useTelemetryRealtime, useNotificacoes, useTelemetryHistory } from "../../hooks/useTelemetryData";
@@ -387,6 +388,296 @@ export default function TelemetryDashboard() {
       </div>
     );
   }
+
+  const exportToPDF = () => {
+    if (filteredNotificacoes.length === 0) {
+      toast.error("Nenhuma notificação filtrada para exportar!");
+      return;
+    }
+
+    const doc = new jsPDF("p", "mm", "a4");
+    const now = new Date();
+    const formattedDate = now.toLocaleString("pt-BR");
+
+    // Header principal
+    doc.setFillColor(30, 64, 175); // Azul Royal / Compesa
+    doc.rect(0, 0, 210, 15, "F");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(255, 255, 255);
+    doc.text("COMPESA - GESTÃO DE FROTA E TELEMETRIA", 14, 10);
+
+    // Título do Relatório
+    doc.setFontSize(14);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Relatório Circunstanciado de Notificações - Resumo Executivo", 14, 25);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${formattedDate} por ${auth?.currentUser?.email || "Usuário"}`, 14, 31);
+
+    // Filtros Aplicados
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(51, 65, 85);
+    doc.text("Filtros Ativos", 14, 40);
+
+    // Linha divisória
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.5);
+    doc.line(14, 42, 196, 42);
+
+    // Detalhamento dos filtros
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(71, 85, 105);
+
+    const fPlaca = debouncedSearchPlaca ? debouncedSearchPlaca.toUpperCase() : "TODAS";
+    const fCondutor = driverSearch ? driverSearch.toUpperCase() : "TODOS";
+    const fDiretoria = selectedDiretorias.length ? selectedDiretorias.join(", ") : "TODAS";
+    const fGerencia = selectedGerencias.length ? selectedGerencias.join(", ") : "TODAS";
+    const fGravidade = selectedGravidades.length ? selectedGravidades.join(", ") : "TODAS";
+    const fSituacao = selectedSituacoes.length ? selectedSituacoes.join(", ") : "TODAS";
+    const fTipo = selectedTiposNotificacao.length ? selectedTiposNotificacao.join(", ") : "TODOS";
+    const fMeses = selectedMeses.length ? selectedMeses.join(", ") : "TODOS";
+
+    // Layout de 2 colunas para os filtros
+    doc.setFont("helvetica", "bold");
+    doc.text("Placa Pesquisada:", 14, 47);
+    doc.setFont("helvetica", "normal");
+    doc.text(fPlaca, 45, 47);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Condutor Pesquisado:", 14, 52);
+    doc.setFont("helvetica", "normal");
+    doc.text(fCondutor, 45, 52);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Diretorias:", 14, 57);
+    doc.setFont("helvetica", "normal");
+    doc.text(fDiretoria.length > 70 ? fDiretoria.substring(0, 67) + "..." : fDiretoria, 45, 57);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Gerências:", 14, 62);
+    doc.setFont("helvetica", "normal");
+    doc.text(fGerencia.length > 70 ? fGerencia.substring(0, 67) + "..." : fGerencia, 45, 62);
+
+    // Coluna 2 dos filtros (x = 110)
+    doc.setFont("helvetica", "bold");
+    doc.text("Série Temporal / Meses:", 110, 47);
+    doc.setFont("helvetica", "normal");
+    doc.text(fMeses.length > 40 ? fMeses.substring(0, 37) + "..." : fMeses, 148, 47);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Tipos Notificação:", 110, 52);
+    doc.setFont("helvetica", "normal");
+    doc.text(fTipo.length > 40 ? fTipo.substring(0, 37) + "..." : fTipo, 148, 52);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Situações:", 110, 57);
+    doc.setFont("helvetica", "normal");
+    doc.text(fSituacao, 148, 57);
+
+    doc.setFont("helvetica", "bold");
+    doc.text("Gravidades:", 110, 62);
+    doc.setFont("helvetica", "normal");
+    doc.text(fGravidade, 148, 62);
+
+    // Caixa de Indicadores Gerais
+    doc.setFillColor(248, 250, 252);
+    doc.rect(14, 68, 182, 18, "F");
+    doc.setDrawColor(203, 213, 225);
+    doc.rect(14, 68, 182, 18, "S");
+
+    const totalCount = filteredNotificacoes.length;
+    const altaCount = filteredNotificacoes.filter(n => {
+      const g = String(n._gravidade || n.GRAVIDADE || "").toUpperCase();
+      return g.includes("ALTA");
+    }).length;
+    const mediaCount = filteredNotificacoes.filter(n => {
+      const g = String(n._gravidade || n.GRAVIDADE || "").toUpperCase();
+      return g.includes("MED") || g.includes("MÉD");
+    }).length;
+    const baixaCount = totalCount - altaCount - mediaCount;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text("TOTAL DE OCORRÊNCIAS", 18, 74);
+    doc.text("GRAVIDADE ALTA (CRÍTICA)", 65, 74);
+    doc.text("GRAVIDADE MÉDIA", 112, 74);
+    doc.text("GRAVIDADE BAIXA", 158, 74);
+
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text(String(totalCount), 18, 81);
+    doc.setTextColor(220, 38, 38);
+    doc.text(String(altaCount), 65, 81);
+    doc.setTextColor(217, 119, 6);
+    doc.text(String(mediaCount), 112, 81);
+    doc.setTextColor(75, 85, 99);
+    doc.text(String(baixaCount), 158, 81);
+
+    // Notificações por Tipo
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Distribuição por Tipo de Notificação", 14, 94);
+
+    const tipoTableRows = tiposNotificacaoChart.slice(0, 10).map(item => {
+      const val = item.value as number;
+      const pct = totalCount > 0 ? ((val / totalCount) * 100).toFixed(1) : "0.0";
+      const barLength = Math.max(1, Math.round((val / totalCount) * 15));
+      const barText = "■".repeat(barLength) + "□".repeat(15 - barLength);
+      return [item.name || "N/A", String(val), `${pct}%`, barText];
+    });
+
+    autoTable(doc, {
+      startY: 97,
+      head: [["Tipo de Notificação", "Ocorrências", "Percentual", "Gráfico de Proporção"]],
+      body: tipoTableRows,
+      theme: "striped",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 25, halign: "center" },
+        2: { cellWidth: 25, halign: "center" },
+        3: { cellWidth: 62, textColor: [30, 64, 175], fontStyle: "bold" }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    // Top 10 Condutores Críticos
+    let lastY = (doc as any).lastAutoTable.finalY || 135;
+    
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Top 10 - Condutores Críticos", 14, lastY + 10);
+
+    const condutorTableRows = topCondutores.slice(0, 10).map(item => {
+      const val = item.quantidade as number;
+      const pct = totalCount > 0 ? ((val / totalCount) * 100).toFixed(1) : "0.0";
+      const barLength = Math.max(1, Math.round((val / totalCount) * 15));
+      const barText = "■".repeat(barLength) + "□".repeat(15 - barLength);
+      return [item.nome || "Não Identificado", String(val), `${pct}%`, barText];
+    });
+
+    autoTable(doc, {
+      startY: lastY + 13,
+      head: [["Nome do Condutor", "Eventos Gerados", "Representatividade", "Gráfico de Proporção"]],
+      body: condutorTableRows,
+      theme: "striped",
+      headStyles: { fillColor: [220, 38, 38], textColor: 255, fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 25, halign: "center" },
+        2: { cellWidth: 25, halign: "center" },
+        3: { cellWidth: 62, textColor: [220, 38, 38], fontStyle: "bold" }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    // Adiciona página 2 do Relatório (Distribuição por Gerência & Ocorrências Detalhadas)
+    doc.addPage();
+    
+    // Header secundário da página 2
+    doc.setFillColor(30, 64, 175);
+    doc.rect(0, 0, 210, 12, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(255, 255, 255);
+    doc.text("COMPESA - RELATÓRIO DE TELEMETRIA (NOTIFICAÇÕES DE RISCO) - PÁGINA 2", 14, 8);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text("Top 10 - Gerências com Maior Incidência", 14, 22);
+
+    const gerenciaTableRows = topGerencias.slice(0, 10).map(item => {
+      const val = item.value as number;
+      const pct = totalCount > 0 ? ((val / totalCount) * 100).toFixed(1) : "0.0";
+      const barLength = Math.max(1, Math.round((val / totalCount) * 15));
+      const barText = "■".repeat(barLength) + "□".repeat(15 - barLength);
+      return [item.name || "N/A", String(val), `${pct}%`, barText];
+    });
+
+    autoTable(doc, {
+      startY: 25,
+      head: [["Gerência Responsável", "Ocorrências", "Proporção", "Gráfico de Proporção"]],
+      body: gerenciaTableRows,
+      theme: "striped",
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 70 },
+        1: { cellWidth: 25, halign: "center" },
+        2: { cellWidth: 25, halign: "center" },
+        3: { cellWidth: 62, textColor: [30, 64, 175], fontStyle: "bold" }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    let currentY2 = (doc as any).lastAutoTable.finalY || 70;
+
+    // Amostra de Ocorrências Filtradas (Até as primeiras 30 ocorrências)
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10.5);
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Lista Amostral das Ocorrências Filtradas (Até 30 itens)`, 14, currentY2 + 10);
+
+    const detailRows = filteredNotificacoes.slice(0, 30).map((n) => {
+      const keys = Object.keys(n);
+      const dataLabel = n.COL_3 || n[keys[3]] || "-";
+      return [
+        String(dataLabel),
+        String(n.PLACA || "N/A"),
+        String(n["TIPO NOTIFICAÇÃO"] || n["TIPO NOTIFICACAO"] || n._tipo || "N/A"),
+        String(n.CONDUTOR || "N/A"),
+        String(n["GERÊNCIA"] || n.GERENCIA || n._gerencia || "N/A"),
+        String(n.GRAVIDADE || "MÉDIA")
+      ];
+    });
+
+    autoTable(doc, {
+      startY: currentY2 + 13,
+      head: [["Data/Hora", "Placa", "Evento", "Condutor", "Gerência", "Gravidade"]],
+      body: detailRows,
+      theme: "grid",
+      headStyles: { fillColor: [100, 116, 139], textColor: 255, fontSize: 7.5, fontStyle: "bold" },
+      bodyStyles: { fontSize: 7 },
+      columnStyles: {
+        0: { cellWidth: 25 },
+        1: { cellWidth: 15 },
+        2: { cellWidth: 50 },
+        3: { cellWidth: 38 },
+        4: { cellWidth: 38 },
+        5: { cellWidth: 16 }
+      },
+      margin: { left: 14, right: 14 }
+    });
+
+    // Rodapé de formalização / rodapé das páginas
+    const totalPages = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7.5);
+      doc.setTextColor(115);
+      doc.text(
+        `COMPESA - Telemetria Veicular | Relatório Circunstanciado de Alertas | Página ${i} de ${totalPages}`,
+        14,
+        287
+      );
+    }
+
+    doc.save(`COMPESA_Relatorio_Telemetria_${format(new Date(), "dd-MM-yyyy")}.pdf`);
+    toast.success("PDF gerado com sucesso!");
+  };
 
   return (
     <div className="space-y-8 pb-12">
@@ -777,27 +1068,37 @@ export default function TelemetryDashboard() {
                   </button>
                 </div>
 
-                <button 
-                  onClick={() => {
-                    const data = filteredNotificacoes.map(n => {
-                      const keys = Object.keys(n);
-                      return {
-                        "Data": n[keys[3]],
-                        "Placa": n.PLACA,
-                        "Tipo": n["TIPO NOTIFICAÇÃO"] || n["TIPO NOTIFICACAO"],
-                        "Condutor": n.CONDUTOR,
-                        "Gerência": n["GERÊNCIA"] || n.GERENCIA,
-                        "Gravidade": n.GRAVIDADE,
-                        "Situação": n["SITUAÇÃO"] || n.SITUACAO
-                      };
-                    });
-                    exportToExcel(data, "Notificacoes_Telemetria", "Alertas");
-                  }}
-                  className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl border border-indigo-200 font-black text-[10px] uppercase tracking-widest transition-all md:ml-auto"
-                >
-                  <Download className="inline-block mr-2 h-3 w-3" />
-                  Excel Detalhado
-                </button>
+                <div className="flex flex-wrap items-center gap-2 md:ml-auto">
+                  <button 
+                    onClick={() => {
+                      const data = filteredNotificacoes.map(n => {
+                        const keys = Object.keys(n);
+                        return {
+                          "Data": n[keys[3]],
+                          "Placa": n.PLACA,
+                          "Tipo": n["TIPO NOTIFICAÇÃO"] || n["TIPO NOTIFICACAO"],
+                          "Condutor": n.CONDUTOR,
+                          "Gerência": n["GERÊNCIA"] || n.GERENCIA,
+                          "Gravidade": n.GRAVIDADE,
+                          "Situação": n["SITUAÇÃO"] || n.SITUACAO
+                        };
+                      });
+                      exportToExcel(data, "Notificacoes_Telemetria", "Alertas");
+                    }}
+                    className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl border border-indigo-200 font-black text-[10px] uppercase tracking-widest transition-all h-9 flex items-center justify-center leading-none"
+                  >
+                    <Download className="inline-block mr-2 h-3.5 w-3.5" />
+                    Excel Detalhado
+                  </button>
+
+                  <button 
+                    onClick={exportToPDF}
+                    className="bg-rose-50 hover:bg-rose-100 text-rose-600 px-4 py-2 rounded-xl border border-rose-200 font-black text-[10px] uppercase tracking-widest transition-all h-9 flex items-center justify-center leading-none"
+                  >
+                    <FileText className="inline-block mr-2 h-3.5 w-3.5" />
+                    PDF Resumido
+                  </button>
+                </div>
               </div>
 
               {groupingMode === "flat" ? (
