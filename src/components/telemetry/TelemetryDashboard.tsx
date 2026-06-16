@@ -529,23 +529,20 @@ export default function TelemetryDashboard() {
     const tipoTableRows = tiposNotificacaoChart.slice(0, 10).map(item => {
       const val = item.value as number;
       const pct = totalCount > 0 ? ((val / totalCount) * 100).toFixed(1) : "0.0";
-      const barLength = Math.max(1, Math.round((val / totalCount) * 15));
-      const barText = "■".repeat(barLength) + "□".repeat(15 - barLength);
-      return [item.name || "N/A", String(val), `${pct}%`, barText];
+      return [item.name || "N/A", String(val), `${pct}%`];
     });
 
     autoTable(doc, {
       startY: 97,
-      head: [["Tipo de Notificação", "Ocorrências", "Percentual", "Gráfico de Proporção"]],
+      head: [["Tipo de Notificação", "Ocorrências (Qtd)", "Percentual (%)"]],
       body: tipoTableRows,
       theme: "striped",
-      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8, fontStyle: "bold" },
-      bodyStyles: { fontSize: 7.5 },
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8 },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 25, halign: "center" },
-        2: { cellWidth: 25, halign: "center" },
-        3: { cellWidth: 62, textColor: [30, 64, 175], fontStyle: "bold" }
+        0: { cellWidth: 102 },
+        1: { cellWidth: 40, halign: "center" },
+        2: { cellWidth: 40, halign: "center" }
       },
       margin: { left: 14, right: 14 }
     });
@@ -561,23 +558,20 @@ export default function TelemetryDashboard() {
     const condutorTableRows = topCondutores.slice(0, 10).map(item => {
       const val = item.quantidade as number;
       const pct = totalCount > 0 ? ((val / totalCount) * 100).toFixed(1) : "0.0";
-      const barLength = Math.max(1, Math.round((val / totalCount) * 15));
-      const barText = "■".repeat(barLength) + "□".repeat(15 - barLength);
-      return [item.nome || "Não Identificado", String(val), `${pct}%`, barText];
+      return [item.nome || "Não Identificado", String(val), `${pct}%`];
     });
 
     autoTable(doc, {
       startY: lastY + 13,
-      head: [["Nome do Condutor", "Eventos Gerados", "Representatividade", "Gráfico de Proporção"]],
+      head: [["Nome do Condutor", "Eventos Gerados (Qtd)", "Representatividade (%)"]],
       body: condutorTableRows,
       theme: "striped",
-      headStyles: { fillColor: [220, 38, 38], textColor: 255, fontSize: 8, fontStyle: "bold" },
-      bodyStyles: { fontSize: 7.5 },
+      headStyles: { fillColor: [220, 38, 38], textColor: 255, fontSize: 8.5, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8 },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 25, halign: "center" },
-        2: { cellWidth: 25, halign: "center" },
-        3: { cellWidth: 62, textColor: [220, 38, 38], fontStyle: "bold" }
+        0: { cellWidth: 102 },
+        1: { cellWidth: 40, halign: "center" },
+        2: { cellWidth: 40, halign: "center" }
       },
       margin: { left: 14, right: 14 }
     });
@@ -601,23 +595,20 @@ export default function TelemetryDashboard() {
     const gerenciaTableRows = topGerencias.slice(0, 10).map(item => {
       const val = item.value as number;
       const pct = totalCount > 0 ? ((val / totalCount) * 100).toFixed(1) : "0.0";
-      const barLength = Math.max(1, Math.round((val / totalCount) * 15));
-      const barText = "■".repeat(barLength) + "□".repeat(15 - barLength);
-      return [item.name || "N/A", String(val), `${pct}%`, barText];
+      return [item.name || "N/A", String(val), `${pct}%`];
     });
 
     autoTable(doc, {
       startY: 25,
-      head: [["Gerência Responsável", "Ocorrências", "Proporção", "Gráfico de Proporção"]],
+      head: [["Gerência Responsável", "Ocorrências (Qtd)", "Proporção (%)"]],
       body: gerenciaTableRows,
       theme: "striped",
-      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8, fontStyle: "bold" },
-      bodyStyles: { fontSize: 7.5 },
+      headStyles: { fillColor: [30, 64, 175], textColor: 255, fontSize: 8.5, fontStyle: "bold" },
+      bodyStyles: { fontSize: 8 },
       columnStyles: {
-        0: { cellWidth: 70 },
-        1: { cellWidth: 25, halign: "center" },
-        2: { cellWidth: 25, halign: "center" },
-        3: { cellWidth: 62, textColor: [30, 64, 175], fontStyle: "bold" }
+        0: { cellWidth: 102 },
+        1: { cellWidth: 40, halign: "center" },
+        2: { cellWidth: 40, halign: "center" }
       },
       margin: { left: 14, right: 14 }
     });
