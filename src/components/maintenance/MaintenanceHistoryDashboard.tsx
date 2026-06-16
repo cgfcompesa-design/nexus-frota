@@ -315,14 +315,20 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
 
   const assetLookup = useMemo(() => {
     const map = new Map<string, { diretoria: string; gerencia: string; tipo: string }>();
+    const normalize = (p: string) => (p || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
     assets.forEach(asset => {
       const placa = (asset.PLACA || asset.placa || "").toUpperCase();
       if (placa) {
-        map.set(placa, {
+        const info = {
           diretoria: asset.DIRETORIA || asset["GERÊNCIA"] || "",
           gerencia: asset.GERENCIA || asset["GERÊNCIA"] || "",
-          tipo: asset.TIPO || ""
-        });
+          tipo: asset.TIPO || asset.TIPO_VEICULO || asset.TIPO_ATIVO || ""
+        };
+        map.set(placa, info);
+        const norm = normalize(placa);
+        if (norm) {
+          map.set(norm, info);
+        }
       }
     });
     return map;
@@ -498,16 +504,24 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     if (selectedDiretoria !== "all") res = res.filter(i => i.diretoria === selectedDiretoria);
     if (selectedGerencia !== "all") res = res.filter(i => i.gerencia === selectedGerencia);
     if (selectedTam && selectedTam !== "ALL") res = res.filter(i => i.tam === selectedTam);
+    if (searchPlaca) {
+      const sp = searchPlaca.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      res = res.filter(i => i.placa.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(sp));
+    }
     return res;
-  }, [indicatorSource, selectedTam, selectedMesAnoIndicadores, selectedDiretoria, selectedGerencia]);
+  }, [indicatorSource, selectedTam, selectedMesAnoIndicadores, selectedDiretoria, selectedGerencia, searchPlaca]);
 
   const mceFilteredData = useMemo(() => {
     let res = indicatorSource;
     if (selectedMesAnoIndicadores !== "all") res = res.filter(i => i.mesAno === selectedMesAnoIndicadores);
     if (selectedDiretoria !== "all") res = res.filter(i => i.diretoria === selectedDiretoria);
     if (selectedGerencia !== "all") res = res.filter(i => i.gerencia === selectedGerencia);
+    if (searchPlaca) {
+      const sp = searchPlaca.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      res = res.filter(i => i.placa.toUpperCase().replace(/[^A-Z0-9]/g, '').includes(sp));
+    }
     return res.filter(i => i.tam === "MCE");
-  }, [indicatorSource, selectedMesAnoIndicadores, selectedDiretoria, selectedGerencia]);
+  }, [indicatorSource, selectedMesAnoIndicadores, selectedDiretoria, selectedGerencia, searchPlaca]);
 
   const filteredCustosData = useMemo(() => {
     let res = custosData;
@@ -825,6 +839,106 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     return (mtbf / (mtbf + mttr)) * 100;
   }, [mttrData, mtbfData]);
 
+  const sortedFilteredMonths = useMemo(() => {
+    const monthsRef: Record<string, number> = {
+      jan: 1, fev: 2, mar: 3, abr: 4, mai: 5, jun: 6,
+      jul: 7, ago: 8, set: 9, out: 10, nov: 11, dez: 12
+    };
+    const set = new Set<string>();
+    indicatorData.forEach(i => {
+      if (i.mesAno) set.add(i.mesAno.toUpperCase());
+    });
+    mceFilteredData.forEach(i => {
+      if (i.mesAno) set.add(i.mesAno.toUpperCase());
+    });
+    return Array.from(set).sort((a, b) => {
+      const partsA = a.toLowerCase().split('/');
+      const partsB = b.toLowerCase().split('/');
+      if (partsA.length < 2 || partsB.length < 2) return 0;
+      const [mesA, anoA] = partsA;
+      const [mesB, anoB] = partsB;
+      const numAnoA = parseInt(anoA) || 0;
+      const numAnoB = parseInt(anoB) || 0;
+      if (numAnoA !== numAnoB) return numAnoA - numAnoB;
+      return (monthsRef[mesA] || 0) - (monthsRef[mesB] || 0);
+    });
+  }, [indicatorData, mceFilteredData]);
+
+  const monthlyComparativeMetrics = useMemo(() => {
+    return sortedFilteredMonths.map(mesAno => {
+      // MTTR: Média de dias para mceFilteredData daquele mês
+      const mceEvents = new Set<string>();
+      const mesMceItems = mceFilteredData.filter(i => {
+        if (i.mesAno.toUpperCase() !== mesAno) return false;
+        if (mceEvents.has(i.ordemServico)) return false;
+        mceEvents.add(i.ordemServico);
+        return operationalPlates.has(i.placa) && i.dataEntradaOficina && i.dataRetiradaOficina;
+      });
+      let totalDowntime = 0, countMce = 0;
+      mesMceItems.forEach(i => {
+        const e = parseDate(i.dataEntradaOficina), s = parseDate(i.dataRetiradaOficina);
+        if (e && s && differenceInDays(s, e) >= 0) {
+          totalDowntime += differenceInDays(s, e);
+          countMce++;
+        }
+      });
+      const mttr = countMce > 0 ? (totalDowntime / countMce) : 0;
+
+      // MTBF: Base 30 dias por mês
+      const mesMceFiltered = mceFilteredData.filter(i => i.mesAno.toUpperCase() === mesAno);
+      const plateStats = new Map<string, { downtime: number; count: number }>();
+      mesMceFiltered.forEach(i => {
+        const e = parseDate(i.dataEntradaOficina);
+        const r = parseDate(i.dataRetiradaOficina);
+        const days = (e && r) ? Math.max(0, differenceInDays(r, e)) : 0;
+        
+        const stats = plateStats.get(i.placa) || { downtime: 0, count: 0 };
+        stats.downtime += days;
+        stats.count += 1;
+        plateStats.set(i.placa, stats);
+      });
+
+      let mtbf = 0;
+      if (plateStats.size > 0) {
+        let totalMtbfVal = 0;
+        plateStats.forEach((stats) => {
+          const vMtbf = (30 - stats.downtime) / stats.count;
+          totalMtbfVal += Math.max(0, vMtbf);
+        });
+        mtbf = totalMtbfVal / plateStats.size;
+      }
+
+      // MTTA: Média de dias para indicatorData daquele mês
+      const ttaEvents = new Set<string>();
+      const mesIndicatorItems = indicatorData.filter(i => {
+        if (i.mesAno.toUpperCase() !== mesAno) return false;
+        if (ttaEvents.has(i.ordemServico)) return false;
+        ttaEvents.add(i.ordemServico);
+        return operationalPlates.has(i.placa) && i.dataEnvioOS && i.dataAprovacaoOS;
+      });
+      let totalTta = 0, countTta = 0;
+      mesIndicatorItems.forEach(i => {
+        const env = parseDate(i.dataEnvioOS), apr = parseDate(i.dataAprovacaoOS);
+        if (env && apr && differenceInDays(apr, env) >= 0) {
+          totalTta += differenceInDays(apr, env);
+          countTta++;
+        }
+      });
+      const mtta = countTta > 0 ? (totalTta / countTta) : 0;
+
+      // Disponibilidade Inerente
+      const disponibilidade = (mtbf <= 0 || (mtbf + mttr) <= 0) ? 0 : (mtbf / (mtbf + mttr)) * 100;
+
+      return {
+        mesAno,
+        mttr: parseFloat(mttr.toFixed(1)),
+        mtbf: parseFloat(mtbf.toFixed(1)),
+        mtta: parseFloat(mtta.toFixed(1)),
+        disponibilidade: parseFloat(disponibilidade.toFixed(1))
+      };
+    });
+  }, [sortedFilteredMonths, mceFilteredData, indicatorData, operationalPlates]);
+
   const formatCurrency = (val: string | number) => {
     const n = typeof val === 'number' ? val : parseFloat(val);
     return isNaN(n) ? "R$ 0,00" : n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -909,9 +1023,23 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
         
         doc.setFontSize(7.5);
         doc.setTextColor(60);
-        // Map label to long description if it's a TAM key
-        const displayLabel = labelKey === "tam" ? `${label} - ${TAM_DESCRIPTIONS[label] || 'Outros'}` : label;
-        const finalLabel = displayLabel.length > 38 ? displayLabel.substring(0, 35) + "..." : displayLabel;
+        // Map label to long description if it's a TAM key or look up vehicle details for plates
+        let displayLabel = label;
+        if (labelKey === "tam") {
+          displayLabel = `${label} - ${TAM_DESCRIPTIONS[label] || 'Outros'}`;
+        } else if (labelKey === "placa") {
+          const normPlaca = label.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const info = assetLookup.get(normPlaca);
+          if (info) {
+            const ger = info.gerencia || info.diretoria || "";
+            const t = info.tipo || "";
+            const parts = [ger, t].filter(Boolean);
+            if (parts.length > 0) {
+              displayLabel = `${label} (${parts.join(", ")})`;
+            }
+          }
+        }
+        const finalLabel = displayLabel.length > 42 ? displayLabel.substring(0, 39) + "..." : displayLabel;
         doc.text(`${finalLabel}:`, 14, currentDrawY + 3);
         
         // Background grey bar
@@ -1966,6 +2094,66 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                     connectNulls
                   />
                 ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </ChartCard>
+
+          <ChartCard 
+            title="Evolução Temporal Comparativa de Indicadores de Desempenho" 
+            description="Comparativo de indicadores de manutenção: MTBF (dias), MTTR (dias) e MTTA (dias) plotados na escala esquerda (Y-Esquerda); e a Disponibilidade Inerente (%) plotada na escala direita (Y-Direita)."
+          >
+            <ResponsiveContainer width="100%" height={400}>
+              <LineChart data={monthlyComparativeMetrics} margin={{ top: 15, right: 25, left: 10, bottom: 10 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} opacity={0.1} />
+                <XAxis dataKey="mesAno" tick={{fontSize: 10, fontWeight: 'bold'}} />
+                <YAxis yAxisId="left" label={{ value: 'Dias', angle: -90, position: 'insideLeft', offset: 0, style: { fontSize: 10, fill: '#64748b', fontWeight: 'bold' } }} tick={{fontSize: 9}} />
+                <YAxis yAxisId="right" orientation="right" domain={[0, 100]} label={{ value: 'Disponibilidade (%)', angle: 90, position: 'insideRight', offset: 0, style: { fontSize: 10, fill: '#10b981', fontWeight: 'bold' } }} tick={{fontSize: 9}} />
+                <RechartsTooltip 
+                  contentStyle={{borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)'}}
+                />
+                <Legend iconType="circle" wrapperStyle={{fontSize: '11px', paddingTop: '10px'}} />
+                
+                <Line 
+                  yAxisId="left"
+                  type="monotone" 
+                  dataKey="mtbf" 
+                  name="MTBF (Dias)" 
+                  stroke="#a855f7" 
+                  strokeWidth={2.5} 
+                  dot={{r: 4}} 
+                  activeDot={{r: 6}}
+                />
+                <Line 
+                  yAxisId="left"
+                  type="monotone" 
+                  dataKey="mttr" 
+                  name="MTTR (Dias)" 
+                  stroke="#3b82f6" 
+                  strokeWidth={2} 
+                  dot={{r: 3}} 
+                  activeDot={{r: 5}}
+                />
+                <Line 
+                  yAxisId="left"
+                  type="monotone" 
+                  dataKey="mtta" 
+                  name="MTTA (Dias)" 
+                  stroke="#f97316" 
+                  strokeWidth={2} 
+                  dot={{r: 3}} 
+                  activeDot={{r: 5}}
+                />
+                <Line 
+                  yAxisId="right"
+                  type="monotone" 
+                  dataKey="disponibilidade" 
+                  name="Disponibilidade Inerente (%)" 
+                  stroke="#10b981" 
+                  strokeWidth={3} 
+                  strokeDasharray="5 5"
+                  dot={{r: 4, stroke: '#10b981', strokeWidth: 2, fill: '#fff'}} 
+                  activeDot={{r: 7}}
+                />
               </LineChart>
             </ResponsiveContainer>
           </ChartCard>
