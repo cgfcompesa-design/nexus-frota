@@ -38,7 +38,8 @@ import {
   Calendar as CalendarIcon,
   BarChart2,
   PieChart as PieIcon,
-  CheckSquare
+  CheckSquare,
+  CreditCard
 } from "lucide-react";
 import { 
   BarChart, 
@@ -249,6 +250,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
     const propertyMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
     const modelMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
     const plateMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
+    const cardMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
 
     filteredFuel.forEach(f => {
       const txId = String(f.COL_0 || f._txId || "");
@@ -327,6 +329,15 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       plateMap[placa].litros += litres;
       plateMap[placa].custo += cost;
       plateMap[placa].value += 1;
+
+      // 5. Cartão MAQ
+      const card = String(f.COL_35 || "Não Informado").trim();
+      if (!cardMap[card]) {
+        cardMap[card] = { name: card, litros: 0, custo: 0, value: 0 };
+      }
+      cardMap[card].litros += litres;
+      cardMap[card].custo += cost;
+      cardMap[card].value += 1;
     });
 
     function optShortener(text: string) {
@@ -355,7 +366,8 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       destinationMap,
       propertyMap,
       modelMap,
-      plateMap
+      plateMap,
+      cardMap
     };
   }, [filteredFuel, assignments]);
 
@@ -366,6 +378,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
         value: Math.round((item[dbMetric] || 0) * 100) / 100
       }))
       .sort((a, b) => b.value - a.value);
+  }, [fillingStats, dbMetric]);
+
+  const activeCardChartData = useMemo(() => {
+    return (Object.values(fillingStats.cardMap || {}) as Array<{ name: string; litros: number; custo: number; value: number }>)
+      .map(item => ({
+        name: item.name,
+        value: Math.round((item[dbMetric] || 0) * 100) / 100
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
   }, [fillingStats, dbMetric]);
 
   const activePropertyChartData = useMemo(() => {
@@ -832,15 +854,15 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               </Card>
             </div>
 
-            {/* Top 5 Plates/Vehicles & Models ("e assim por diante") */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Top 5 Plates/Vehicles, Top Cartões MAQ & Models */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Top Plates */}
               <Card className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
                 <CardContent className="p-4">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       <Fuel className="w-4 h-4 text-emerald-500" />
-                      TOP 5 Equipamentos de Maior Consumo (Placa)
+                      TOP 5 Equipamentos (Placa)
                     </span>
                     <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[10px] font-black uppercase">
                       Equipamento
@@ -877,13 +899,56 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                 </CardContent>
               </Card>
 
+              {/* Top Cartões MAQ */}
+              <Card className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-violet-500" />
+                      TOP 5 Cartões MAQ por Consumo
+                    </span>
+                    <Badge variant="outline" className="bg-violet-50 text-violet-600 border-violet-100 text-[10px] font-black uppercase">
+                      Cartão MAQ
+                    </Badge>
+                  </h4>
+                  {activeCardChartData.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados no período.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {activeCardChartData.map((item, index) => (
+                        <div key={item.name} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/50 dark:bg-slate-800/50 hover:bg-slate-100/30 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-black flex items-center justify-center text-slate-600 dark:text-slate-300">
+                              {index + 1}
+                            </span>
+                            <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
+                              {item.name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-bold text-violet-600 dark:text-violet-400">
+                            {dbMetric === "custo" 
+                              ? item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                              : dbMetric === "litros"
+                                ? `${item.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`
+                                : `${Math.round(item.value).toLocaleString("pt-BR")} abs.`
+                            }
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Top Models */}
               <Card className="border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
                 <CardContent className="p-4">
                   <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
                     <span className="flex items-center gap-2">
                       <Building2 className="w-4 h-4 text-blue-500" />
-                      Modelos de Máquinas Atendidos (Top 5)
+                      Modelos de Máquinas (Top 5)
                     </span>
                     <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-100 text-[10px] font-black uppercase">
                       Modelo
@@ -908,7 +973,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                               <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 text-[10px] font-black flex items-center justify-center text-slate-600 dark:text-slate-300">
                                 {index + 1}
                               </span>
-                              <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate max-w-[180px]">
+                              <span className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 truncate max-w-[150px]">
                                 {item.name}
                               </span>
                             </div>

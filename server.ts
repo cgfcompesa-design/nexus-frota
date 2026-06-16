@@ -1,5 +1,6 @@
 
 import express from "express";
+import { GoogleGenAI, Type } from "@google/genai";
 import path from "path";
 import https from "https";
 import * as XLSX from "xlsx";
@@ -286,6 +287,92 @@ async function startServer() {
     } catch (error: any) {
       console.error(`[FALHA CRÍTICA] Erro no processamento:`, error.message);
       res.status(500).json({ success: false, error: "Erro interno no servidor de e-mail." });
+    }
+  });
+
+  // API Route to classify vehicle stops using Gemini AI (lazer, lazer spaces etc)
+  let aiClient: any = null;
+  function getGeminiClient() {
+    if (!aiClient) {
+      const key = process.env.GEMINI_API_KEY;
+      if (key) {
+        aiClient = new GoogleGenAI({
+          apiKey: key,
+          httpOptions: {
+            headers: {
+              'User-Agent': 'aistudio-build',
+            }
+          }
+        });
+      }
+    }
+    return aiClient;
+  }
+
+  app.post("/api/classify-stops", async (req, res) => {
+    try {
+      const { stops } = req.body;
+      if (!stops || !Array.isArray(stops) || stops.length === 0) {
+        return res.json({ success: true, classifications: [] });
+      }
+
+      const ai = getGeminiClient();
+      if (!ai) {
+        console.warn("[SERVER] GEMINI_API_KEY is not defined. Returning fallback classification.");
+        return res.json({ 
+          success: true, 
+          fallback: true,
+          classifications: stops.map((s, idx) => ({
+            index: s.index,
+            isLeisure: false,
+            placeType: "Outros",
+            confidence: 0.5,
+            reasoning: "Chave GEMINI_API_KEY do servidor não configurada. Ativando heurística local do cliente.",
+            placeNameDetected: ""
+          })) 
+        });
+      }
+
+      const prompt = `Analise a seguinte lista de locais (endereços/coordenadas) onde veículos corporativos/frotas ficaram parados.
+Sua tarefa é verificar se cada local é correspondente a espaços de lazer, lazer social ou compras de conveniência recreativas, tais como shoppings maciços, praças públicas, academias de ginástica, lojas de departamentos/vestuário varejista, praias, clubes recreativos, arenas, campos de futebol ou parques.
+Se for um espaço desse tipo (lazer/shopping/academia/praça/parque/loja de lazer), classifique "isLeisure" como true.
+Se for um local estritamente institucional, operacional de serviço urbano, condomínio residencial padrão, rua residencial comum, ou utilidades primárias como postos de combustíveis, oficinas mecânicas, delegacias, hospitais ou sedes da empresa pública Compesa, classifique "isLeisure" como false.
+
+Forneça a resposta baseada EXATAMENTE nos índices enviados na entrada.
+
+Lista de locais para análise:
+${JSON.stringify(stops, null, 2)}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: prompt,
+        config: {
+          systemInstruction: "Você é um auditor de conformidade de frotas para uma empresa pública de saneamento. Classifique com rigor e exatidão se cada endereço representa um centro de lazer, recreação ou consumo (shopping, praça, academia, loja, parque, praia, etc.). Retorne exclusivamente a resposta em formato estruturado JSON de array de objetos.",
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                index: { type: Type.INTEGER, description: "O campo index recebido na entrada para rastreamento" },
+                isLeisure: { type: Type.BOOLEAN, description: "True se for shopping, praça, academia, loja varejista de lazer, parque, praia, ou ponto turístico/lazer" },
+                placeType: { type: Type.STRING, description: "Categoria resumida: 'Shopping', 'Praça', 'Academia', 'Loja', 'Serviço/Trabalhos', 'Residencial', 'Outros'" },
+                confidence: { type: Type.NUMBER, description: "Grau de confiança de 0.0 a 1.0" },
+                reasoning: { type: Type.STRING, description: "Breve explicação descritiva de por que esse local foi categorizado com lazer ou não" },
+                placeNameDetected: { type: Type.STRING, description: "Nome comercial ou atração turística/de lazer identificada no endereço se houver" }
+              },
+              required: ["index", "isLeisure", "placeType", "confidence", "reasoning"]
+            }
+          }
+        }
+      });
+
+      const text = response.text || "[]";
+      const classifications = JSON.parse(text);
+      return res.json({ success: true, classifications });
+    } catch (error: any) {
+      console.error("[SERVER] Erro ao classificar paradas com o Gemini:", error.message);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 

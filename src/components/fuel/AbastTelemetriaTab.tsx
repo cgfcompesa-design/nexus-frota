@@ -511,6 +511,222 @@ Coordenação de Gestão de Frotas - CGF`;
     rows: TelemetryRow[];
   }>>([]);
 
+  // --- Stationary Vehicle Stop Detection & AI Classification States ---
+  const [stationaryTimeThreshold, setStationaryTimeThreshold] = useState<number>(30);
+  const [stationaryRadiusThreshold, setStationaryRadiusThreshold] = useState<number>(100);
+  const [activeTabMode, setActiveTabMode] = useState<"auditoria" | "paradas">("auditoria");
+  const [loadingStopIA, setLoadingStopIA] = useState<boolean>(false);
+  const [aiStopClassifications, setAiStopClassifications] = useState<Record<string, {
+    isLeisure: boolean;
+    placeType: string;
+    confidence: number;
+    reasoning: string;
+    placeNameDetected: string;
+  }>>({});
+
+  // Memoized algorithm to scan for stops: starts on transition of Ig L -> D and lasts as long as remaining within radius & ign off (or until changed to L)
+  const detectedStops = useMemo(() => {
+    const stopsList: Array<{
+      id: string;
+      placa: string;
+      startDateTime: Date;
+      endDateTime: Date;
+      duration: number;
+      lat: number;
+      lng: number;
+      address: string;
+      initialRow: TelemetryRow;
+      finalRow: TelemetryRow;
+    }> = [];
+
+    // Helper: Haversine distance in meters
+    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+      const R = 6371e3; // meters
+      const phi1 = (lat1 * Math.PI) / 180;
+      const phi2 = (lat2 * Math.PI) / 180;
+      const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+      const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+      const a =
+        Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+        Math.cos(phi1) *
+          Math.cos(phi2) *
+          Math.sin(deltaLambda / 2) *
+          Math.sin(deltaLambda / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c;
+    };
+
+    telemetryFiles.forEach(file => {
+      const sortedRows = [...file.rows]
+        .filter(r => r.dataHora !== null && !isNaN(r.dataHora.getTime()))
+        .sort((a, b) => a.dataHora!.getTime() - b.dataHora!.getTime());
+
+      if (sortedRows.length === 0) return;
+
+      const n = sortedRows.length;
+      let i = 0;
+      while (i < n) {
+        const row = sortedRows[i];
+        
+        // Audit rule: starts when Ig transitions from "L" (Ligada) to "D" (Desligada)
+        const prevRow = i > 0 ? sortedRows[i - 1] : null;
+        const isTransitionToD = row.ig?.toUpperCase().trim() === "D" && (prevRow === null || prevRow.ig?.toUpperCase().trim() === "L");
+
+        if (isTransitionToD) {
+          const startRow = row;
+          const startLat = startRow.lat;
+          const startLng = startRow.lng;
+          
+          let stopEndIndex = i;
+          let j = i + 1;
+          while (j < n) {
+            const nextRow = sortedRows[j];
+            const dist = calculateDistance(startLat, startLng, nextRow.lat, nextRow.lng);
+            
+            // Ig turns back to "L" or vehicle moves beyond the radius threshold -> stop breaks
+            if (nextRow.ig?.toUpperCase().trim() === "L" || dist > stationaryRadiusThreshold) {
+              break;
+            }
+            stopEndIndex = j;
+            j++;
+          }
+
+          const endRow = sortedRows[stopEndIndex];
+          const durationMs = endRow.dataHora!.getTime() - startRow.dataHora!.getTime();
+          const durationMin = Math.round(durationMs / 60000);
+
+          if (durationMin >= stationaryTimeThreshold) {
+            stopsList.push({
+              id: `${file.placa || "PlacaDesconhecida"}-${startRow.dataHora!.getTime()}`,
+              placa: file.placa || "Sem Placa",
+              startDateTime: startRow.dataHora!,
+              endDateTime: endRow.dataHora!,
+              duration: durationMin,
+              lat: startLat,
+              lng: startLng,
+              address: startRow.endereco || endRow.endereco || `Ponto geográfico: ${startLat}, ${startLng}`,
+              initialRow: startRow,
+              finalRow: endRow,
+            });
+          }
+          
+          i = stopEndIndex + 1;
+        } else {
+          i++;
+        }
+      }
+    });
+
+    return stopsList;
+  }, [telemetryFiles, stationaryTimeThreshold, stationaryRadiusThreshold]);
+
+  // Auditoria IA (Gemini call)
+  const runIAStopAnalysis = async () => {
+    if (detectedStops.length === 0) {
+      toast.error("Nenhuma parada detectada para analisar.");
+      return;
+    }
+    
+    setLoadingStopIA(true);
+    toast.info("Processando auditoria inteligente das paradas com Gemini...");
+    
+    try {
+      const stopsToClassify = detectedStops.map((stop, idx) => ({
+        index: idx,
+        address: stop.address,
+        lat: stop.lat,
+        lng: stop.lng,
+        duration: stop.duration
+      }));
+      
+      const res = await fetch("/api/classify-stops", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ stops: stopsToClassify })
+      });
+      
+      const result = await res.json();
+      if (result.success) {
+        const list = result.classifications;
+        const newClassMap = { ...aiStopClassifications };
+        
+        list.forEach((item: any) => {
+          const stopObj = detectedStops[item.index];
+          if (stopObj) {
+            newClassMap[stopObj.id] = {
+              isLeisure: item.isLeisure,
+              placeType: item.placeType,
+              confidence: item.confidence,
+              reasoning: item.reasoning,
+              placeNameDetected: item.placeNameDetected || "Local Comercial"
+            };
+          }
+        });
+        
+        setAiStopClassifications(newClassMap);
+        const leisureCount = Object.values(newClassMap).filter((c: any) => c.isLeisure).length;
+        if (leisureCount > 0) {
+          toast.warning(`Análise finalizada! Foram detectadas ${leisureCount} paradas em locais suspeitos de lazer/consumo.`);
+        } else {
+          toast.success("Análise concluída! Nenhuma parada em área de lazer foi identificada.");
+        }
+      } else {
+        throw new Error(result.error || "Erro de resposta da IA");
+      }
+    } catch (err: any) {
+      console.error("Erro na classificação IA de paradas:", err);
+      toast.error(`Falha na IA (${err.message}). Ativando heurísticas de fallback...`);
+      
+      const fallbackMap = { ...aiStopClassifications };
+      detectedStops.forEach(stop => {
+        const addrLower = stop.address.toLowerCase();
+        let isLeisure = false;
+        let placeType = "Outros";
+        let reasoning = "Classificado via análise local (Heurística de Fallback).";
+        let placeNameDetected = "";
+
+        if (addrLower.includes("shopping") || addrLower.includes("mall") || addrLower.includes("center")) {
+          isLeisure = true;
+          placeType = "Shopping";
+          reasoning = "Heurística: Endereço contém a palavra chave 'shopping/mall'.";
+          placeNameDetected = "Shopping Comercial Detetado";
+        } else if (addrLower.includes("praça") || addrLower.includes("praca") || addrLower.includes("parque") || addrLower.includes("lagoa") || addrLower.includes("arena")) {
+          isLeisure = true;
+          placeType = "Praça/Parque";
+          reasoning = "Heurística: Endereço associado a praça de lazer ou parque público.";
+          placeNameDetected = "Praça ou Parque Público";
+        } else if (addrLower.includes("academia") || addrLower.includes("gym") || addrLower.includes("fitness")) {
+          isLeisure = true;
+          placeType = "Academia";
+          reasoning = "Heurística: Reconhecido termo de academia ou atividades fitness.";
+          placeNameDetected = "Academia de Ginástica";
+        } else if (addrLower.includes("loja") || addrLower.includes("bazar") || addrLower.includes("magazine") || addrLower.includes("supermercado") || addrLower.includes("comércio")) {
+          isLeisure = true;
+          placeType = "Loja/Comércio";
+          reasoning = "Heurística: Sufixo associado a hipermercado ou loja de grande porte.";
+          placeNameDetected = "Loja Varejista";
+        } else {
+          reasoning = "Endereço verificado. Classificado como local não-lazer padrão.";
+        }
+
+        fallbackMap[stop.id] = {
+          isLeisure,
+          placeType,
+          confidence: 0.75,
+          reasoning,
+          placeNameDetected
+        };
+      });
+      setAiStopClassifications(fallbackMap);
+    } finally {
+      setLoadingStopIA(false);
+    }
+  };
+
   // Dynamically initialize date range when fueling fuel list loads
   React.useEffect(() => {
     if (fuel && fuel.length > 0) {
@@ -1735,8 +1951,35 @@ Coordenação de Gestão de Frotas - CGF`;
             </Card>
           ) : (
             <>
-              {/* Summary Cards */}
-              {crossedStats && (
+              {/* Tab Navigation Mode - Auditoria de Abastecimento vs Análise de Paradas */}
+              <div className="flex bg-slate-100 dark:bg-slate-850 p-1 rounded-2xl max-w-md border border-slate-200/50 dark:border-slate-800">
+                <button
+                  onClick={() => setActiveTabMode("auditoria")}
+                  className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider text-center transition-all ${
+                    activeTabMode === "auditoria"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/20"
+                      : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-200"
+                  }`}
+                >
+                  Auditoria Abastecimento
+                </button>
+                <button
+                  onClick={() => setActiveTabMode("paradas")}
+                  className={`flex-1 py-2 px-3 rounded-xl text-[10px] font-black uppercase tracking-wider text-center transition-all flex items-center justify-center gap-1.5 ${
+                    activeTabMode === "paradas"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm border border-slate-200/20"
+                      : "text-slate-500 hover:text-slate-850 dark:hover:text-slate-200"
+                  }`}
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-indigo-500 animate-pulse" />
+                  Auditoria de Paradas (Lazer/Lojas)
+                </button>
+              </div>
+
+              {activeTabMode === "auditoria" ? (
+                <>
+                  {/* Summary Cards */}
+                  {crossedStats && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl shadow-sm text-center">
                     <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Abastecimentos Cruzados</p>
@@ -1936,7 +2179,244 @@ Coordenação de Gestão de Frotas - CGF`;
                 </div>
               </div>
             </>
+          ) : (
+            <>
+              {/* --- NEW VEHICLE STATIONARY STOPS ANALYZER LAYOUT --- */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 p-5 rounded-3xl shadow-sm text-center">
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Paradas Registradas</p>
+                  <p className="text-2xl font-black text-slate-800 dark:text-slate-100 mt-1">{detectedStops.length}</p>
+                </div>
+                <div className="bg-amber-50/50 dark:bg-amber-950/10 border border-amber-100 dark:border-amber-950/20 p-5 rounded-3xl shadow-sm text-center">
+                  <p className="text-[10px] font-black uppercase text-amber-600 tracking-wider">Classificadas com IA/Heurística</p>
+                  <p className="text-2xl font-black text-amber-700 dark:text-amber-400 mt-1">
+                    {Object.keys(aiStopClassifications).length} / {detectedStops.length}
+                  </p>
+                </div>
+                <div className="bg-rose-50/50 dark:bg-rose-950/10 border border-rose-100 dark:border-rose-950/20 p-5 rounded-3xl shadow-sm text-center">
+                  <p className="text-[10px] font-black uppercase text-rose-600 tracking-wider">Inconformes (Lazer/Lojas)</p>
+                  <p className="text-2xl font-black text-rose-700 dark:text-rose-400 mt-1">
+                    {Object.values(aiStopClassifications).filter((c: any) => c.isLeisure).length}
+                  </p>
+                </div>
+              </div>
+
+              {/* Adjustable Sliders Card & Gemini Run Button */}
+              <Card className="border-none shadow-md bg-white dark:bg-slate-900 rounded-[2rem] overflow-hidden">
+                <CardHeader className="bg-indigo-50/10 dark:bg-slate-800/20 pb-5 border-b flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2 leading-none text-indigo-600 dark:text-indigo-400">
+                      <SlidersHorizontal className="h-4 w-4 text-indigo-500" />
+                      Critérios & Parâmetros de Detecção e Auditoria de Paradas
+                    </CardTitle>
+                    <CardDescription className="text-xs leading-relaxed mt-1">
+                      Ajuste dinamicamente o tempo mínimo de inatividade (ignição desligada) e o raio de tolerância de movimento GPS.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    onClick={runIAStopAnalysis}
+                    disabled={detectedStops.length === 0 || loadingStopIA}
+                    className="h-10 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl gap-2 text-xs font-black px-4 uppercase tracking-wider shadow-md shadow-indigo-500/15 disabled:opacity-50"
+                  >
+                    {loadingStopIA ? (
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                    {loadingStopIA ? "Processando Auditoria..." : "Auditar com Gemini IA"}
+                  </Button>
+                </CardHeader>
+                <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 bg-slate-50/30 dark:bg-slate-900/10">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-emerald-500" />
+                        Tempo Mínimo de Parada:
+                      </span>
+                      <Badge className="bg-emerald-50 text-emerald-700 border-none rounded-md px-2 py-0.5">{stationaryTimeThreshold} minutos</Badge>
+                    </div>
+                    <input
+                      type="range"
+                      min="15"
+                      max="180"
+                      step="5"
+                      value={stationaryTimeThreshold}
+                      onChange={(e) => setStationaryTimeThreshold(Number(e.target.value))}
+                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <p className="text-[10px] text-slate-400 font-medium font-bold uppercase tracking-wider">
+                      O contador de minutos inicia no momento exato em que a ignição sai de "L" (ligada) para "D" (desligada).
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs font-bold text-slate-700 dark:text-slate-300">
+                      <span className="flex items-center gap-2">
+                        <MapPin className="h-4 w-4 text-blue-500" />
+                        Raio de Tolerância Geográfica:
+                      </span>
+                      <Badge className="bg-blue-50 text-blue-700 border-none rounded-md px-2 py-0.5">{stationaryRadiusThreshold} metros</Badge>
+                    </div>
+                    <input
+                      type="range"
+                      min="20"
+                      max="500"
+                      step="10"
+                      value={stationaryRadiusThreshold}
+                      onChange={(e) => setStationaryRadiusThreshold(Number(e.target.value))}
+                      className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <p className="text-[10px] text-slate-400 font-medium font-bold uppercase tracking-wider">
+                      Define a distorção máxima permitida por satélites GPS enquanto o veículo permanecer stationary no mesmo local.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Stops Table List */}
+              <Card className="border-none shadow-md bg-white dark:bg-slate-900 rounded-[2rem] overflow-hidden">
+                <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2 leading-none">
+                      <Activity className="h-4 w-4 text-indigo-500" />
+                      Inconformidades de Parada em Horário Laboral Encontradas ({detectedStops.length})
+                    </CardTitle>
+                    <CardDescription className="text-xs leading-relaxed mt-1">
+                      Visualização de paradas prolongadas e auditoria automática do ponto de permanência em locais de lazer, praças, shoppings, academias ou mercados.
+                    </CardDescription>
+                  </div>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
+                        <TableRow className="border-none">
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3">Placa</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3">Hora Início</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3">Hora Fim</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Duração</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3">Endereço Identificado</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Classificação IA (Lazer?)</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Explicação / Detalhe</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Ações</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {detectedStops.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">
+                              Nenhuma parada superior a {stationaryTimeThreshold} minutos detectada na telemetria ativa.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          detectedStops.map((stop) => {
+                            const classif = aiStopClassifications[stop.id];
+                            
+                            return (
+                              <TableRow key={stop.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/30">
+                                <TableCell className="font-extrabold text-xs text-slate-800 dark:text-slate-300">
+                                  {stop.placa}
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                                  {stop.startDateTime.toLocaleTimeString('pt-BR')} ({stop.startDateTime.toLocaleDateString('pt-BR', {day: '2-digit', month: '2-digit'})})
+                                </TableCell>
+                                <TableCell className="text-xs text-slate-500 whitespace-nowrap">
+                                  {stop.endDateTime.toLocaleTimeString('pt-BR')}
+                                </TableCell>
+                                <TableCell className="text-xs font-bold text-center">
+                                  <Badge className={stop.duration > 60 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}>
+                                    {stop.duration} min
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-xs font-semibold text-slate-600 max-w-[200px] truncate" title={stop.address}>
+                                  {stop.address}
+                                </TableCell>
+                                <TableCell className="text-center">
+                                  {!classif ? (
+                                    <Badge variant="outline" className="border-dashed border-slate-300 text-slate-400 text-[10px] font-bold">
+                                      Pendente de IA
+                                    </Badge>
+                                  ) : classif.isLeisure ? (
+                                    <Badge className="bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-black uppercase">
+                                      🚨 {classif.placeType}
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black uppercase">
+                                      ✅ {classif.placeType}
+                                    </Badge>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-xs font-medium text-slate-500 leading-snug max-w-[240px]">
+                                  {classif ? (
+                                    <div className="space-y-1">
+                                      {classif.placeNameDetected && <p className="font-black text-slate-700 dark:text-slate-300 text-[10px] uppercase">🏷️ {classif.placeNameDetected}</p>}
+                                      <p className="text-[10px]">{classif.reasoning}</p>
+                                    </div>
+                                  ) : (
+                                    <span className="italic text-slate-400">Clique em "Auditar com Gemini IA" no topo do painel para analisar esse local de parada.</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="text-center py-2">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        window.open(`https://www.google.com/maps/search/?api=1&query=${stop.lat},${stop.lng}`, "_blank", "noopener,noreferrer");
+                                      }}
+                                      className="h-8 w-8 p-0 border-slate-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700 rounded-full"
+                                      title="Ver no Google Maps"
+                                    >
+                                      <MapPin className="h-3.5 w-3.5" />
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => {
+                                        // Quick notify modal
+                                        const mockDevItem: DeviationItem = {
+                                          placa: stop.placa,
+                                          dataAbast: stop.startDateTime.toLocaleDateString('pt-BR'),
+                                          status: "INCONFORMIDADE",
+                                          desvio: `Parada Prolongada não Autorizada (${stop.duration} min)`,
+                                          difMin: stop.duration,
+                                          motoristaTelem: stop.initialRow.motorista || "-",
+                                          ignicao: "DESLIGADA",
+                                          obs: `O veículo permaneceu parado por ${stop.duration} min no endereço: ${stop.address}. ${classif ? `Classificação: ${classif.placeType} (${classif.reasoning})` : ""}`
+                                        };
+                                        handleOpenEmailModal(mockDevItem);
+                                      }}
+                                      className="h-8 w-8 p-0 border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-full"
+                                      title="Notificar Responsável"
+                                    >
+                                      <Mail className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Informative Help Alert */}
+              <div className="bg-amber-50/50 dark:bg-amber-950/20 border border-amber-100 dark:border-amber-900/50 p-4 rounded-3xl flex gap-3">
+                <Info className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-amber-900 dark:text-neutral-400">Instruções sobre Conformidade das Paradas Laborais</h4>
+                  <p className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-300 font-medium">
+                    Conforme o regulamento de frotas, motoristas em serviço não devem permanecer estacionados por mais de 30 minutos em áreas de comércio de lazer ou recreação (shoppings, praças de alimentação, parques ou ginásios de esportes) sem justificativa da Ordem de Serviço (OS). Ao verificar suspeitas, use o botão de notificação rápida para obter explicações formais.
+                  </p>
+                </div>
+              </div>
+            </>
           )}
+        </>
+      )}
         </div>
       </div>
 
