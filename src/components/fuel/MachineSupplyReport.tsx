@@ -409,6 +409,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       .slice(0, 5); // top 5
   }, [fillingStats, dbMetric]);
 
+  const activeModelChartData = useMemo(() => {
+    return (Object.values(fillingStats.modelMap || {}) as Array<{ name: string; litros: number; custo: number; value: number }>)
+      .map(item => ({
+        name: item.name || "NÃO INFORMADO",
+        value: Math.round((item[dbMetric] || 0) * 100) / 100
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+  }, [fillingStats, dbMetric]);
+
   const handleExport = () => {
     try {
       const dataToExport = filteredFuel.map(f => {
@@ -847,6 +857,130 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                             </span>
                           </div>
                         ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Second Charts Row Grid for GESTÃO/MASTER - Card MAQ and Machine Model */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Chart 3: Top Consumo por Cartão MAQ */}
+              <Card className="border border-slate-100 dark:border-slate-800 col-span-1 lg:col-span-2 bg-white dark:bg-slate-900">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <CreditCard className="w-4 h-4 text-violet-500" />
+                      Maiores Consumos por Cartão MAQ
+                    </span>
+                    <Badge variant="outline" className="bg-violet-50 text-violet-600 border-violet-100 text-[10px] font-black uppercase">
+                      Visualizando: {dbMetric === "custo" ? "R$" : dbMetric === "litros" ? "Litros" : "Nº Abastecimentos"}
+                    </Badge>
+                  </h4>
+                  {activeCardChartData.length === 0 ? (
+                    <div className="h-60 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados de "Cartão MAQ" preenchidos no período.
+                    </div>
+                  ) : (
+                    <div className="h-60">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={activeCardChartData} layout="vertical" margin={{ left: 10, right: 30, top: 10, bottom: 5 }}>
+                          <CartesianGrid strokeDasharray="3 3" horizontal={false} vertical={true} opacity={0.1} />
+                          <XAxis type="number" tick={{fontSize: 9}} />
+                          <YAxis dataKey="name" type="category" tick={{fontSize: 9, width: 120}} width={120} />
+                          <RechartsTooltip 
+                            formatter={(v: any) => {
+                              const val = Number(v);
+                              if (dbMetric === "custo") {
+                                return [val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), "Custo Total"];
+                              }
+                              if (dbMetric === "litros") {
+                                return [`${val.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`, "Consumo Litros"];
+                              }
+                              return [`${Math.round(val).toLocaleString("pt-BR")} abs.`, "Qtd Abastecimentos"];
+                            }}
+                            contentStyle={{borderRadius: '12px', fontSize: '10px'}} 
+                          />
+                          <Bar dataKey="value" fill="#8b5cf6" radius={[0, 4, 4, 0]} maxBarSize={15} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Chart 4: Modelos de Máquinas */}
+              <Card className="border border-slate-100 dark:border-slate-800 col-span-1 bg-white dark:bg-slate-900">
+                <CardContent className="p-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-emerald-500" />
+                      Top Modelos de Máquinas
+                    </span>
+                    <Badge variant="outline" className="bg-emerald-50 text-emerald-600 border-emerald-100 text-[10px] font-black uppercase">
+                      {dbMetric === "custo" ? "R$" : dbMetric === "litros" ? "L" : "Qtd"}
+                    </Badge>
+                  </h4>
+                  {activeModelChartData.length === 0 ? (
+                    <div className="h-60 flex items-center justify-center text-xs text-muted-foreground font-semibold">
+                      Sem dados de "Modelo" preenchidos no período.
+                    </div>
+                  ) : (
+                    <div className="h-60 flex flex-col justify-between">
+                      <div className="h-44">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={activeModelChartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={45}
+                              outerRadius={65}
+                              paddingAngle={5}
+                              dataKey="value"
+                            >
+                              {activeModelChartData.map((entry, index) => {
+                                const colors = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"];
+                                return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                              })}
+                            </Pie>
+                            <RechartsTooltip 
+                              formatter={(v: any) => {
+                                const val = Number(v);
+                                if (dbMetric === "custo") {
+                                  return [val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), "Custo"];
+                                }
+                                if (dbMetric === "litros") {
+                                  return [`${val.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`, "Consumo"];
+                                }
+                                return [`${Math.round(val).toLocaleString("pt-BR")} abs.`, "Quantidade"];
+                              }}
+                              contentStyle={{borderRadius: '12px', fontSize: '10px'}} 
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div className="flex flex-col gap-1 mt-2">
+                        {activeModelChartData.slice(0, 3).map((item, idx) => {
+                          const colors = ["#10b981", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6"];
+                          return (
+                            <div key={item.name} className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider font-semibold">
+                              <div className="flex items-center gap-1.5 truncate max-w-[140px]">
+                                <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colors[idx % colors.length] }} />
+                                <span className="truncate">{item.name}</span>
+                              </div>
+                              <span className="text-slate-600 dark:text-slate-300 font-bold">
+                                {dbMetric === "custo" 
+                                  ? item.value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })
+                                  : dbMetric === "litros"
+                                    ? `${item.value.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L`
+                                    : `${Math.round(item.value).toLocaleString("pt-BR")} abs.`
+                                }
+                              </span>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   )}
