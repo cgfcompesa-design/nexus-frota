@@ -825,170 +825,360 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
             />
           </div>
 
-          <Select 
-            value={selectedDrivers.length > 0 ? "filtered" : "all"} 
-            onValueChange={(val) => val === "all" ? setSelectedDrivers([]) : null}
-          >
-            <SelectTrigger className="h-9 w-[150px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
-              <div className="flex items-center gap-2">
-                <User className="w-3.5 h-3.5 opacity-50" />
-                <SelectValue placeholder="Motorista" />
-              </div>
-            </SelectTrigger>
-            <SelectContent className="max-h-80 overflow-y-auto">
-              <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="h-9 w-[150px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none text-slate-700 dark:text-slate-300 hover:bg-slate-105 dark:hover:bg-slate-700 flex items-center justify-between px-3 shrink-0"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <User className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                  <span className="truncate">
+                    {selectedDrivers.length === 0 
+                      ? "Motorista" 
+                      : selectedDrivers.length === 1 
+                        ? selectedDrivers[0] 
+                        : `${selectedDrivers.length} Motoristas`}
+                  </span>
+                </div>
+                <ChevronDown className="w-3 h-3 opacity-50 shrink-0 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[240px] p-0 max-h-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[100]" align="start">
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10 flex gap-1">
                 <Input 
                   placeholder="Pesquisar..." 
                   value={driverSearchQuery}
                   onChange={(e) => setDriverSearchQuery(e.target.value)}
-                  className="h-7 text-xs rounded-md"
-                  onClick={(e) => e.stopPropagation()}
+                  className="h-8 text-xs rounded-md"
                 />
+                {selectedDrivers.length > 0 && (
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={() => setSelectedDrivers([])} 
+                    className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 shrink-0"
+                    title="Limpar seleção"
+                  >
+                    <FilterX className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
-              <SelectItem value="all">Todos Motoristas</SelectItem>
-              {filteredDriverOptions.map(d => (
-                <div key={d} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+              <div className="overflow-y-auto flex-1 max-h-60 p-1 custom-scrollbar">
+                <div 
+                  className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium"
+                  onClick={() => setSelectedDrivers([])}
+                >
                   <input 
                     type="checkbox" 
-                    checked={selectedDrivers.includes(d)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedDrivers([...selectedDrivers, d]);
-                      else setSelectedDrivers(selectedDrivers.filter(x => x !== d));
-                    }}
-                    className="mr-2 cursor-pointer"
+                    checked={selectedDrivers.length === 0}
+                    onChange={() => {}} 
+                    className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                    readOnly
                   />
-                  {d}
+                  <span className="text-slate-500 dark:text-slate-400">Todos Motoristas</span>
                 </div>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <Select 
-            value={selectedEstablishments.length > 0 ? "filtered" : "all"} 
-            onValueChange={(val) => val === "all" ? setSelectedEstablishments([]) : null}
-          >
-            <SelectTrigger className="h-9 w-[180px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
-              <div className="flex items-center gap-2">
-                <Building2 className="w-3.5 h-3.5 opacity-50" />
-                <SelectValue placeholder="Estabelecimento" />
+                {filteredDriverOptions.map(d => {
+                  const isChecked = selectedDrivers.includes(d);
+                  return (
+                    <div 
+                      key={d} 
+                      className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium" 
+                      onClick={() => {
+                        if (isChecked) {
+                          setSelectedDrivers(selectedDrivers.filter(x => x !== d));
+                        } else {
+                          setSelectedDrivers([...selectedDrivers, d]);
+                        }
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={() => {}} 
+                        className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                        readOnly
+                      />
+                      <span className="truncate text-slate-755 dark:text-slate-200">{d}</span>
+                    </div>
+                  );
+                })}
               </div>
-            </SelectTrigger>
-            <SelectContent className="max-h-80 overflow-y-auto">
-              <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+            </PopoverContent>
+          </Popover>
+
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="h-9 w-[180px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none text-slate-700 dark:text-slate-300 hover:bg-slate-105 dark:hover:bg-slate-700 flex items-center justify-between px-3 shrink-0"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Building2 className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                  <span className="truncate">
+                    {selectedEstablishments.length === 0 
+                      ? "Estabelecimento" 
+                      : selectedEstablishments.length === 1 
+                        ? selectedEstablishments[0] 
+                        : `${selectedEstablishments.length} Postos`}
+                  </span>
+                </div>
+                <ChevronDown className="w-3 w-3 opacity-50 shrink-0 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[260px] p-0 max-h-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[100]" align="start">
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10 flex gap-1">
                 <Input 
                   placeholder="Pesquisar..." 
                   value={establishmentSearchQuery}
                   onChange={(e) => setEstablishmentSearchQuery(e.target.value)}
-                  className="h-7 text-xs rounded-md"
-                  onClick={(e) => e.stopPropagation()}
+                  className="h-8 text-xs rounded-md"
                 />
+                {selectedEstablishments.length > 0 && (
+                  <Button 
+                    size="icon" 
+                    variant="ghost" 
+                    onClick={() => setSelectedEstablishments([])} 
+                    className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 shrink-0"
+                    title="Limpar seleção"
+                  >
+                    <FilterX className="w-3.5 h-3.5" />
+                  </Button>
+                )}
               </div>
-              <SelectItem value="all">Todos Postos</SelectItem>
-              {filteredEstablishmentOptions.map(e => (
-                <div key={e} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(evt) => evt.stopPropagation()}>
+              <div className="overflow-y-auto flex-1 max-h-60 p-1 custom-scrollbar">
+                <div 
+                  className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium"
+                  onClick={() => setSelectedEstablishments([])}
+                >
                   <input 
                     type="checkbox" 
-                    checked={selectedEstablishments.includes(e)}
-                    onChange={(evt) => {
-                      if (evt.target.checked) setSelectedEstablishments([...selectedEstablishments, e]);
-                      else setSelectedEstablishments(selectedEstablishments.filter(x => x !== e));
-                    }}
-                    className="mr-2 cursor-pointer"
+                    checked={selectedEstablishments.length === 0}
+                    onChange={() => {}} 
+                    className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                    readOnly
                   />
-                  {e}
+                  <span className="text-slate-500 dark:text-slate-400">Todos Postos</span>
                 </div>
-              ))}
-            </SelectContent>
-          </Select>
+                {filteredEstablishmentOptions.map(e => {
+                  const isChecked = selectedEstablishments.includes(e);
+                  return (
+                    <div 
+                      key={e} 
+                      className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium" 
+                      onClick={() => {
+                        if (isChecked) {
+                          setSelectedEstablishments(selectedEstablishments.filter(x => x !== e));
+                        } else {
+                          setSelectedEstablishments([...selectedEstablishments, e]);
+                        }
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={() => {}} 
+                        className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                        readOnly
+                      />
+                      <span className="truncate text-slate-755 dark:text-slate-200">{e}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
 
-          <Select 
-            value={selectedFuels.length > 0 ? "filtered" : "all"} 
-            onValueChange={(val) => val === "all" ? setSelectedFuels([]) : null}
-          >
-            <SelectTrigger className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
-              <div className="flex items-center gap-2">
-                <Fuel className="w-3.5 h-3.5 opacity-50" />
-                <SelectValue placeholder="Combustível" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Combustíveis</SelectItem>
-              {fuelTypeOptions.map(t => (
-                <div key={t} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none text-slate-700 dark:text-slate-300 hover:bg-slate-105 dark:hover:bg-slate-700 flex items-center justify-between px-3 shrink-0"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Fuel className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                  <span className="truncate">
+                    {selectedFuels.length === 0 
+                      ? "Combustível" 
+                      : selectedFuels.length === 1 
+                        ? selectedFuels[0] 
+                        : `${selectedFuels.length} Selecionados`}
+                  </span>
+                </div>
+                <ChevronDown className="w-3 w-3 opacity-50 shrink-0 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[180px] p-0 max-h-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[100]" align="start">
+              <div className="overflow-y-auto p-1 custom-scrollbar">
+                <div 
+                  className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium"
+                  onClick={() => setSelectedFuels([])}
+                >
                   <input 
                     type="checkbox" 
-                    checked={selectedFuels.includes(t)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedFuels([...selectedFuels, t]);
-                      else setSelectedFuels(selectedFuels.filter(x => x !== t));
-                    }}
-                    className="mr-2 cursor-pointer"
+                    checked={selectedFuels.length === 0}
+                    onChange={() => {}} 
+                    className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                    readOnly
                   />
-                  {t}
+                  <span className="text-slate-500 dark:text-slate-400">Todos</span>
                 </div>
-              ))}
-            </SelectContent>
-          </Select>
+                {fuelTypeOptions.map(t => {
+                  const isChecked = selectedFuels.includes(t);
+                  return (
+                    <div 
+                      key={t} 
+                      className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium" 
+                      onClick={() => {
+                        if (isChecked) {
+                          setSelectedFuels(selectedFuels.filter(x => x !== t));
+                        } else {
+                          setSelectedFuels([...selectedFuels, t]);
+                        }
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={() => {}} 
+                        className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                        readOnly
+                      />
+                      <span className="truncate text-slate-755 dark:text-slate-200">{t}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
           
           {isGestaoOrMaster && (
-            <Select 
-              value={selectedUnits.length > 0 ? "filtered" : "all"} 
-              onValueChange={(val) => val === "all" ? setSelectedUnits([]) : null}
-            >
-              <SelectTrigger className="h-9 w-[160px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
-                <div className="flex items-center gap-2">
-                  <Building2 className="w-3.5 h-3.5 opacity-50" />
-                  <SelectValue placeholder="Gerência" />
-                </div>
-              </SelectTrigger>
-              <SelectContent className="max-h-60 overflow-y-auto">
-                <SelectItem value="all">Todas Gerências</SelectItem>
-                {unitOptions.map(u => (
-                  <div key={u} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button 
+                  variant="outline" 
+                  className="h-9 w-[160px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none text-slate-700 dark:text-slate-300 hover:bg-slate-105 dark:hover:bg-slate-700 flex items-center justify-between px-3 shrink-0"
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Building2 className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                    <span className="truncate">
+                      {selectedUnits.length === 0 
+                        ? "Gerência" 
+                        : selectedUnits.length === 1 
+                          ? selectedUnits[0] 
+                          : `${selectedUnits.length} Selecionadas`}
+                    </span>
+                  </div>
+                  <ChevronDown className="w-3 w-3 opacity-50 shrink-0 ml-1" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0 max-h-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[100]" align="start">
+                <div className="overflow-y-auto p-1 custom-scrollbar">
+                  <div 
+                    className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium"
+                    onClick={() => setSelectedUnits([])}
+                  >
                     <input 
                       type="checkbox" 
-                      checked={selectedUnits.includes(u)}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedUnits([...selectedUnits, u]);
-                        else setSelectedUnits(selectedUnits.filter(x => x !== u));
-                      }}
-                      className="mr-2 cursor-pointer"
+                      checked={selectedUnits.length === 0}
+                      onChange={() => {}} 
+                      className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                      readOnly
                     />
-                    {u}
+                    <span className="text-slate-500 dark:text-slate-400">Todas</span>
                   </div>
-                ))}
-              </SelectContent>
-            </Select>
+                  {unitOptions.map(u => {
+                    const isChecked = selectedUnits.includes(u);
+                    return (
+                      <div 
+                        key={u} 
+                        className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium" 
+                        onClick={() => {
+                          if (isChecked) {
+                            setSelectedUnits(selectedUnits.filter(x => x !== u));
+                          } else {
+                            setSelectedUnits([...selectedUnits, u]);
+                          }
+                        }}
+                      >
+                        <input 
+                          type="checkbox" 
+                          checked={isChecked}
+                          onChange={() => {}} 
+                          className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                          readOnly
+                        />
+                        <span className="truncate text-slate-755 dark:text-slate-200">{u}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </PopoverContent>
+            </Popover>
           )}
           
-          <Select 
-            value={selectedMonths.length > 0 ? "filtered" : "all"} 
-            onValueChange={(val) => val === "all" ? setSelectedMonths([]) : null}
-          >
-            <SelectTrigger className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="w-3.5 h-3.5 opacity-50" />
-                <SelectValue placeholder="Mês/Ano" />
-              </div>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos Meses</SelectItem>
-              {monthOptions.map(m => (
-                <div key={m} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button 
+                variant="outline" 
+                className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none text-slate-700 dark:text-slate-300 hover:bg-slate-105 dark:hover:bg-slate-700 flex items-center justify-between px-3 shrink-0"
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <CalendarIcon className="w-3.5 h-3.5 opacity-50 shrink-0" />
+                  <span className="truncate">
+                    {selectedMonths.length === 0 
+                      ? "Mês/Ano" 
+                      : selectedMonths.length === 1 
+                        ? selectedMonths[0] 
+                        : `${selectedMonths.length} Meses`}
+                  </span>
+                </div>
+                <ChevronDown className="w-3 w-3 opacity-50 shrink-0 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[180px] p-0 max-h-80 flex flex-col bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-[100]" align="start">
+              <div className="overflow-y-auto p-1 custom-scrollbar">
+                <div 
+                  className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium"
+                  onClick={() => setSelectedMonths([])}
+                >
                   <input 
                     type="checkbox" 
-                    checked={selectedMonths.includes(m)}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedMonths([...selectedMonths, m]);
-                      else setSelectedMonths(selectedMonths.filter(x => x !== m));
-                    }}
-                    className="mr-2"
+                    checked={selectedMonths.length === 0}
+                    onChange={() => {}} 
+                    className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                    readOnly
                   />
-                  {m}
+                  <span className="text-slate-500 dark:text-slate-400">Todos</span>
                 </div>
-              ))}
-            </SelectContent>
-          </Select>
+                {monthOptions.map(m => {
+                  const isChecked = selectedMonths.includes(m);
+                  return (
+                    <div 
+                      key={m} 
+                      className="flex items-center px-2 py-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 rounded cursor-pointer text-xs font-medium" 
+                      onClick={() => {
+                        if (isChecked) {
+                          setSelectedMonths(selectedMonths.filter(x => x !== m));
+                        } else {
+                          setSelectedMonths([...selectedMonths, m]);
+                        }
+                      }}
+                    >
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={() => {}} 
+                        className="mr-2 cursor-pointer rounded border-slate-300 text-indigo-600 focus:ring-indigo-505"
+                        readOnly
+                      />
+                      <span className="truncate text-slate-755 dark:text-slate-200">{m}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </PopoverContent>
+          </Popover>
  
           <Button 
             variant="outline" 

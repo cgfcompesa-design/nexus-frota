@@ -85,6 +85,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       subItems: [
         { id: 'abast-dash', label: 'Dashboards', icon: PieChart },
         { id: 'abast-desvios', label: 'Monitoramento e Análise', icon: Activity },
+        { id: 'abast-precos', label: 'Análise de Preços', icon: TrendingUp },
       ]
     },
     { 
@@ -187,10 +188,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       
       const abast = filtered.find(item => item.id === 'abastecimento');
       if (abast && abast.subItems) {
-        abast.subItems = [
-          ...abast.subItems.filter(si => si.id === 'abast-dash'),
-          { id: 'abast-precos', label: 'Análise de Preços', icon: TrendingUp }
-        ];
+        abast.subItems = abast.subItems.filter(si => si.id === 'abast-dash' || si.id === 'abast-precos');
       }
       
       const mnt = filtered.find(item => item.id === 'manutencao');
