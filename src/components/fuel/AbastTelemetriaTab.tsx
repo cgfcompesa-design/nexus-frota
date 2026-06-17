@@ -760,6 +760,9 @@ Coordenação de Gestão de Frotas – CGF`;
       if (criticalityFilter === "BAIXA") {
         return classif?.criticality === "Baixa";
       }
+      if (criticalityFilter === "RAPIDAS") {
+        return stop.duration <= 60;
+      }
       if (criticalityFilter === "NENHUMA") {
         return !classif || classif?.criticality === "Nenhuma" || classif?.criticality === "None";
       }
@@ -936,6 +939,11 @@ Coordenação de Gestão de Frotas – CGF`;
           criticality = "Baixa";
           reasoning = "Heurística: Lavagem, serviços mecânicos de rotina rápidos ou estacionamento.";
           placeNameDetected = "Oficinas / Lava-Jato / Park";
+        } else if (addrLower.includes("praça") || addrLower.includes("praca") || addrLower.includes("parque") || addrLower.includes("jardim") || addrLower.includes("square")) {
+          placeType = "Praça / Parque";
+          criticality = "Baixa";
+          reasoning = "Heurística: Parada prolongada detectada em praça pública, parque ou jardim. Requer verificação de finalidade laboral para mitigar risco de paradas pessoais.";
+          placeNameDetected = "Praça / Parque Público";
         }
         // 4. OPERATIONAL AND SYSTEM RECOGNIZED DEFAULT LOCATIONS
         else {
@@ -2578,7 +2586,7 @@ Coordenação de Gestão de Frotas – CGF`;
                       </div>
                       <p className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-400 font-medium space-y-1">
                         <span className="font-bold text-blue-700 block mb-1">Locais considerados:</span>
-                        Instituições bancárias/bancos, lotéricas, padarias e mercearias, cafeterias, sorveterias, postos de conveniência, estacionamentos rotativos privados, oficinas mecânicas, borracharias ou lava-jatos.
+                        Praças, parques públicos, instituições bancárias/bancos, lotéricas, padarias e mercearias, cafeterias, sorveterias, postos de conveniência, estacionamentos rotativos privados, oficinas mecânicas, borracharias ou lava-jatos.
                       </p>
                     </div>
                     <p className="text-[9px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-widest mt-3">Ocorrência de Baixa Gravidade</p>
@@ -2613,6 +2621,7 @@ Coordenação de Gestão de Frotas – CGF`;
                         <option value="ALTA">🔴 Crit. Alta (A)</option>
                         <option value="MEDIA">🟡 Crit. Média (B)</option>
                         <option value="BAIXA">🔵 Crit. Baixa (C)</option>
+                        <option value="RAPIDAS">⚠️ Paradas Rápidas (≤ 1 Hora)</option>
                         <option value="NENHUMA">⚪ Sem Inconformidade</option>
                       </select>
                     </div>
@@ -2669,9 +2678,19 @@ Coordenação de Gestão de Frotas – CGF`;
                                   {stop.endDateTime.toLocaleTimeString('pt-BR')}
                                 </TableCell>
                                 <TableCell className="text-xs font-bold text-center">
-                                  <Badge className={stop.duration > 60 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}>
-                                    {stop.duration} min
-                                  </Badge>
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <Badge className={stop.duration > 60 ? "bg-rose-50 text-rose-700 border border-rose-200" : "bg-indigo-50 text-indigo-700 border border-indigo-200"}>
+                                      {stop.duration} min
+                                    </Badge>
+                                    {stop.duration <= 60 && (
+                                      <span 
+                                        className="text-indigo-600 dark:text-indigo-400 font-black text-sm animate-bounce cursor-help"
+                                        title="Atenção: Parada de duração menor ou igual a 1 hora (60 min). Indica um local onde o veículo esteve inativo temporariamente e depois retornou ao trabalho."
+                                      >
+                                        ❗
+                                      </span>
+                                    )}
+                                  </div>
                                 </TableCell>
                                 <TableCell className="text-xs font-semibold text-slate-600 max-w-[200px] truncate" title={stop.address}>
                                   {stop.address}
