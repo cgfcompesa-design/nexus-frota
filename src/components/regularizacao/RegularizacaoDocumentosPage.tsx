@@ -160,8 +160,9 @@ export default function RegularizacaoDocumentosPage() {
     const comTacografo = filtered.filter(r => r.anexoTacografo && r.anexoTacografo.trim() !== "").length;
     const comCivCipp = filtered.filter(r => r.anexoCivCipp && r.anexoCivCipp.trim() !== "").length;
     const comCarroceria = filtered.filter(r => r.anexoCarroceriaInmetro && r.anexoCarroceriaInmetro.trim() !== "").length;
+    const comAet = filtered.filter(r => r.anexoAet && r.anexoAet.trim() !== "").length;
     
-    return { total, comCrlv, comCsv, comTacografo, comCivCipp, comCarroceria };
+    return { total, comCrlv, comCsv, comTacografo, comCivCipp, comCarroceria, comAet };
   }, [filtered]);
 
   // No page-blocking loading screen to keep tabs accessible immediately
@@ -184,7 +185,7 @@ export default function RegularizacaoDocumentosPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-6">
         {/* Cards de estatísticas */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4 mb-6">
           <Card>
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-slate-900 dark:text-white">{stats.total}</div>
@@ -219,6 +220,12 @@ export default function RegularizacaoDocumentosPage() {
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-amber-600">{stats.comCarroceria}</div>
               <div className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Com Carroceria</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-violet-600">{stats.comAet}</div>
+              <div className="text-[10px] uppercase font-black tracking-widest text-muted-foreground">Com AET</div>
             </CardContent>
           </Card>
         </div>
@@ -298,6 +305,7 @@ export default function RegularizacaoDocumentosPage() {
                       <TableHead className="text-center">Tacógrafo</TableHead>
                       <TableHead className="text-center">CIV/CIPP</TableHead>
                       <TableHead className="text-center">Carroceria</TableHead>
+                      <TableHead className="text-center">AET</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -328,6 +336,9 @@ export default function RegularizacaoDocumentosPage() {
                         </TableCell>
                         <TableCell className="text-center">
                           <AttachmentCell url={doc.anexoCarroceriaInmetro} label="Carroceria" />
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <AttachmentCell url={doc.anexoAet || ""} label="AET" />
                         </TableCell>
                       </TableRow>
                     ))}

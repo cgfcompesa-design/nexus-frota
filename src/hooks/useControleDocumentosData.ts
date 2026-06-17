@@ -11,9 +11,10 @@ export interface ControleDocumento {
   anexoTacografo?: string;
   anexoCivCipp?: string;
   anexoCarroceriaInmetro?: string;
+  anexoAet?: string;
 }
 
-const DOCUMENTOS_API = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KEh8BbV2ta5a_GLcfuYDenLmG7q-g_zGjGER1NVL0mPZwgu3dnCMB0pMQ82YLqEN9oaWYyu6INdo/pub?gid=2081534015&single=true&output=csv";
+const DOCUMENTOS_API = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KEh8BbV2ta5a_GLcfuYDenLmG7q-g_zGjGER1NVL0mPZwgu3dnCMB0pMQ82YLqEN9oaWYyu6INdo/pub?gid=327588252&single=true&output=csv";
 
 const parseCsvLine = (line: string): string[] => {
   const result: string[] = [];
@@ -66,8 +67,9 @@ export function useControleDocumentosData() {
       const dataLines = lines.slice(headerIndex + 1);
       return dataLines.map(line => {
         const cols = parseCsvLine(line);
+        const placa = (cols[0] || "").trim();
         return {
-          placa: cols[0] || "",
+          placa: placa.toUpperCase(),
           diretoria: cols[1] || "",
           gerencia: cols[2] || "",
           coordenacao: cols[3] || "",
@@ -75,8 +77,9 @@ export function useControleDocumentosData() {
           anexoCrlv: cols[5] || "",
           anexoCsv: cols[6] || "",
           anexoTacografo: cols[7] || "",
-          anexoCivCipp: cols[8] || "",
+          anexoCivCipp: cols[10] || "",
           anexoCarroceriaInmetro: cols[9] || "",
+          anexoAet: cols[11] || "",
         };
       });
     },

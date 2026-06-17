@@ -319,12 +319,13 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
                         {getStatusBadge(doc, getDocYear(doc))}
                       </TableCell>
                       <TableCell className="py-6 text-right">
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
                           {renderLink(doc.anexoCrlv, "CRLV")}
                           {renderLink(doc.anexoCsv, "CSV")}
                           {renderLink(doc.anexoTacografo, "TACO.")}
                           {renderLink(doc.anexoCivCipp, "CIV/CIPP")}
                           {renderLink(doc.anexoCarroceriaInmetro, "INMETRO")}
+                          {renderLink(doc.anexoAet, "AET")}
                         </div>
                       </TableCell>
                     </TableRow>

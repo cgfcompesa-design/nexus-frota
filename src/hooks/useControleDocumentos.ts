@@ -12,6 +12,7 @@ export interface ControleDocumento {
   anexoTacografo: string;
   anexoCivCipp: string;
   anexoCarroceriaInmetro: string;
+  anexoAet?: string;
 }
 
 const CONTROLE_DOCUMENTOS_API = "https://docs.google.com/spreadsheets/d/e/2PACX-1vS4KEh8BbV2ta5a_GLcfuYDenLmG7q-g_zGjGER1NVL0mPZwgu3dnCMB0pMQ82YLqEN9oaWYyu6INdo/pub?gid=327588252&single=true&output=csv";
@@ -108,6 +109,7 @@ export const useControleDocumentosData = () => {
           anexoTacografo: (values[8] || '').trim(),
           anexoCivCipp: (values[10] || '').trim(),
           anexoCarroceriaInmetro: (values[9] || '').trim(),
+          anexoAet: (values[11] || '').trim(),
         });
       }
       
