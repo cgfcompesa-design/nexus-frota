@@ -292,7 +292,7 @@ export default function App() {
         setCurrentView('login');
         return;
       }
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist', 'resumo'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'login', 'responder-checklist', 'resumo', 'abast-precos'];
       if (!publicViews.includes(currentView)) {
         setCurrentView('home');
       }
@@ -315,7 +315,7 @@ export default function App() {
   const renderView = () => {
     // Visitor protection
     if (!user) {
-      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo'];
+      const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
       if (!publicViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }

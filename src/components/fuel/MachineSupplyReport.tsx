@@ -162,8 +162,10 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
-  const [searchDriver, setSearchDriver] = useState("");
-  const [searchEstablishment, setSearchEstablishment] = useState("");
+  const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
+  const [selectedEstablishments, setSelectedEstablishments] = useState<string[]>([]);
+  const [driverSearchQuery, setDriverSearchQuery] = useState("");
+  const [establishmentSearchQuery, setEstablishmentSearchQuery] = useState("");
   const [selectedFuels, setSelectedFuels] = useState<string[]>([]);
 
   // Sorting State
@@ -252,6 +254,42 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
     return Array.from(types).sort();
   }, [fuel]);
 
+  const driverOptions = useMemo(() => {
+    const drivers = new Set<string>();
+    fuel.forEach(f => {
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+      const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+      if (isMaqOrGer) {
+        const d = String(f._driver || f.COL_11 || "").trim();
+        if (d) drivers.add(d);
+      }
+    });
+    return Array.from(drivers).sort();
+  }, [fuel]);
+
+  const establishmentOptions = useMemo(() => {
+    const establishments = new Set<string>();
+    fuel.forEach(f => {
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+      const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+      if (isMaqOrGer) {
+        const e = String(f._posto || f._establishment || f.COL_21 || "").trim();
+        if (e) establishments.add(e);
+      }
+    });
+    return Array.from(establishments).sort();
+  }, [fuel]);
+
+  const filteredDriverOptions = useMemo(() => {
+    if (!driverSearchQuery) return driverOptions;
+    return driverOptions.filter(d => d.toLowerCase().includes(driverSearchQuery.toLowerCase()));
+  }, [driverOptions, driverSearchQuery]);
+
+  const filteredEstablishmentOptions = useMemo(() => {
+    if (!establishmentSearchQuery) return establishmentOptions;
+    return establishmentOptions.filter(e => e.toLowerCase().includes(establishmentSearchQuery.toLowerCase()));
+  }, [establishmentOptions, establishmentSearchQuery]);
+
   const filteredFuel = useMemo(() => {
     // If not matching any MAQ/GER first, return empty to speed up
     return fuel.filter(f => {
@@ -268,16 +306,16 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       // Apply UI filters
       if (searchPlaca && !placa.includes(searchPlaca.toUpperCase())) return false;
 
-      // Filter by Driver
-      if (searchDriver) {
-        const driverName = String(f._driver || f.COL_11 || "").toUpperCase();
-        if (!driverName.includes(searchDriver.toUpperCase())) return false;
+      // Filter by Driver list
+      if (selectedDrivers.length > 0) {
+        const driverName = String(f._driver || f.COL_11 || "").trim();
+        if (!selectedDrivers.includes(driverName)) return false;
       }
 
-      // Filter by Establishment
-      if (searchEstablishment) {
-        const estName = String(f._posto || f._establishment || f.COL_21 || "").toUpperCase();
-        if (!estName.includes(searchEstablishment.toUpperCase())) return false;
+      // Filter by Establishment list
+      if (selectedEstablishments.length > 0) {
+        const estName = String(f._posto || f._establishment || f.COL_21 || "").trim();
+        if (!selectedEstablishments.includes(estName)) return false;
       }
 
       // Filter by Fuel type
@@ -305,12 +343,12 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
 
       return true;
     });
-  }, [fuel, searchPlaca, searchDriver, searchEstablishment, selectedFuels, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
+  }, [fuel, searchPlaca, selectedDrivers, selectedEstablishments, selectedFuels, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchPlaca, searchDriver, searchEstablishment, selectedFuels, selectedUnits, selectedDestinations, selectedProperties, selectedMonths]);
+  }, [searchPlaca, selectedDrivers, selectedEstablishments, selectedFuels, selectedUnits, selectedDestinations, selectedProperties, selectedMonths]);
 
   const parseDateString = (str: string) => {
     if (!str) return 0;
@@ -787,25 +825,81 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
             />
           </div>
 
-          <div className="relative flex-1 md:w-36 lg:w-44">
-            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-            <Input 
-              placeholder="Motorista..." 
-              value={searchDriver}
-              onChange={(e) => setSearchDriver(e.target.value)}
-              className="pl-8 h-9 text-xs rounded-lg border-slate-200 dark:bg-slate-800"
-            />
-          </div>
+          <Select 
+            value={selectedDrivers.length > 0 ? "filtered" : "all"} 
+            onValueChange={(val) => val === "all" ? setSelectedDrivers([]) : null}
+          >
+            <SelectTrigger className="h-9 w-[150px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
+              <div className="flex items-center gap-2">
+                <User className="w-3.5 h-3.5 opacity-50" />
+                <SelectValue placeholder="Motorista" />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="max-h-80 overflow-y-auto">
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                <Input 
+                  placeholder="Pesquisar..." 
+                  value={driverSearchQuery}
+                  onChange={(e) => setDriverSearchQuery(e.target.value)}
+                  className="h-7 text-xs rounded-md"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <SelectItem value="all">Todos Motoristas</SelectItem>
+              {filteredDriverOptions.map(d => (
+                <div key={d} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedDrivers.includes(d)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedDrivers([...selectedDrivers, d]);
+                      else setSelectedDrivers(selectedDrivers.filter(x => x !== d));
+                    }}
+                    className="mr-2 cursor-pointer"
+                  />
+                  {d}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
 
-          <div className="relative flex-1 md:w-40 lg:w-48">
-            <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
-            <Input 
-              placeholder="Estabelecimento..." 
-              value={searchEstablishment}
-              onChange={(e) => setSearchEstablishment(e.target.value)}
-              className="pl-8 h-9 text-xs rounded-lg border-slate-200 dark:bg-slate-800"
-            />
-          </div>
+          <Select 
+            value={selectedEstablishments.length > 0 ? "filtered" : "all"} 
+            onValueChange={(val) => val === "all" ? setSelectedEstablishments([]) : null}
+          >
+            <SelectTrigger className="h-9 w-[180px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-3.5 h-3.5 opacity-50" />
+                <SelectValue placeholder="Estabelecimento" />
+              </div>
+            </SelectTrigger>
+            <SelectContent className="max-h-80 overflow-y-auto">
+              <div className="p-2 border-b border-slate-100 dark:border-slate-800 sticky top-0 bg-white dark:bg-slate-900 z-10">
+                <Input 
+                  placeholder="Pesquisar..." 
+                  value={establishmentSearchQuery}
+                  onChange={(e) => setEstablishmentSearchQuery(e.target.value)}
+                  className="h-7 text-xs rounded-md"
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
+              <SelectItem value="all">Todos Postos</SelectItem>
+              {filteredEstablishmentOptions.map(e => (
+                <div key={e} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(evt) => evt.stopPropagation()}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedEstablishments.includes(e)}
+                    onChange={(evt) => {
+                      if (evt.target.checked) setSelectedEstablishments([...selectedEstablishments, e]);
+                      else setSelectedEstablishments(selectedEstablishments.filter(x => x !== e));
+                    }}
+                    className="mr-2 cursor-pointer"
+                  />
+                  {e}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
 
           <Select 
             value={selectedFuels.length > 0 ? "filtered" : "all"} 
@@ -901,8 +995,10 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
             size="sm" 
             onClick={() => {
               setSearchPlaca("");
-              setSearchDriver("");
-              setSearchEstablishment("");
+              setSelectedDrivers([]);
+              setSelectedEstablishments([]);
+              setDriverSearchQuery("");
+              setEstablishmentSearchQuery("");
               setSelectedFuels([]);
               setSelectedUnits([]);
               setSelectedDestinations([]);
