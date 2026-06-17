@@ -28,7 +28,8 @@ import {
   Gavel,
   Files,
   Home as HomeIcon,
-  Share2
+  Share2,
+  TrendingUp
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useState, useEffect } from 'react';
@@ -137,6 +138,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       'abastecimento': Fuel,
       'abast-dash': PieChart,
       'abast-desvios': Activity,
+      'abast-precos': TrendingUp,
       'manutencao': Wrench,
       'proprios': Car,
       'mnt-ctrl-op': ClipboardList,
@@ -185,7 +187,10 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       
       const abast = filtered.find(item => item.id === 'abastecimento');
       if (abast && abast.subItems) {
-        abast.subItems = abast.subItems.filter(si => si.id === 'abast-dash');
+        abast.subItems = [
+          ...abast.subItems.filter(si => si.id === 'abast-dash'),
+          { id: 'abast-precos', label: 'Análise de Preços', icon: TrendingUp }
+        ];
       }
       
       const mnt = filtered.find(item => item.id === 'manutencao');

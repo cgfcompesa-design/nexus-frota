@@ -186,6 +186,31 @@ function AbastPerformanceView({ userRole }: { userRole: string }) {
   );
 }
 
+function AbastPrecosView({ userRole }: { userRole: string }) {
+  const { data: fuel = [], isLoading: loadingFuel } = useFuelData();
+  const { data: assets = [], isLoading: loadingAssets } = useAssets();
+  const { data: autonomia = [], isLoading: loadingAutonomia } = useAutonomiaData();
+  const { data: autonomiaPadrao = [], isLoading: loadingAutonomiaPadrao } = useAutonomiaPadraoData();
+  const { data: maintenanceCost = [], isLoading: loadingCost } = useMaintenanceCostData();
+  const { data: maintenance = [], isLoading: loadingMaint } = useMaintenanceData();
+  
+  const isLoading = loadingFuel || loadingAssets || loadingAutonomia || loadingAutonomiaPadrao || loadingCost || loadingMaint;
+  
+  return (
+    <FuelDashboard 
+      fuel={fuel} 
+      assets={assets} 
+      autonomia={autonomia} 
+      autonomiaPadrao={autonomiaPadrao} 
+      maintenanceCost={maintenanceCost} 
+      maintenance={maintenance} 
+      initialTab="prices" 
+      userRole={userRole}
+      isLoading={isLoading}
+    />
+  );
+}
+
 function MaintenanceDesempenhoView() {
   const { data: maintenanceCost = [] } = useMaintenanceCostData();
   return <MaintenanceHistoryDashboard maintenanceCost={maintenanceCost} />;
@@ -298,7 +323,7 @@ export default function App() {
 
     // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
@@ -324,6 +349,7 @@ export default function App() {
       case 'responder-checklist': return <ResponderChecklistPage onBack={user ? () => setCurrentView('gerenciamento-atividades') : undefined} />;
       case 'abast-desvios': return <AbastDesviosView desviosOnly={true} userRole={effectiveRole} />;
       case 'abast-perf': return <AbastPerformanceView userRole={effectiveRole} />;
+      case 'abast-precos': return <AbastPrecosView userRole={effectiveRole} />;
       case 'rankings': return <RankingView />;
       case 'reg-infracoes': return <RegularizacaoDashboard />;
       case 'reg-taxas': return <TaxasInspecoesDashboard />;
@@ -378,7 +404,7 @@ export default function App() {
 
   // Visitor Access (Public BI)
   if (!user) {
-    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo'];
+    const publicViews = ['home', 'abast-dash', 'mnt-ctrl-op', 'locados', 'cco', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
     if (publicViews.includes(currentView)) {
       return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-950 overflow-hidden">

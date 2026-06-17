@@ -162,6 +162,13 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [searchDriver, setSearchDriver] = useState("");
+  const [searchEstablishment, setSearchEstablishment] = useState("");
+  const [selectedFuels, setSelectedFuels] = useState<string[]>([]);
+
+  // Sorting State
+  const [sortField, setSortField] = useState<string>("data");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -232,6 +239,19 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
     return Array.from(months).sort((a, b) => b.localeCompare(a));
   }, [fuel]);
 
+  const fuelTypeOptions = useMemo(() => {
+    const types = new Set<string>();
+    fuel.forEach(f => {
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+      const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
+      if (isMaqOrGer) {
+        const t = String(f._fuelType || f.COL_13 || "").trim();
+        if (t) types.add(t);
+      }
+    });
+    return Array.from(types).sort();
+  }, [fuel]);
+
   const filteredFuel = useMemo(() => {
     // If not matching any MAQ/GER first, return empty to speed up
     return fuel.filter(f => {
@@ -247,6 +267,24 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
 
       // Apply UI filters
       if (searchPlaca && !placa.includes(searchPlaca.toUpperCase())) return false;
+
+      // Filter by Driver
+      if (searchDriver) {
+        const driverName = String(f._driver || f.COL_11 || "").toUpperCase();
+        if (!driverName.includes(searchDriver.toUpperCase())) return false;
+      }
+
+      // Filter by Establishment
+      if (searchEstablishment) {
+        const estName = String(f._posto || f._establishment || f.COL_21 || "").toUpperCase();
+        if (!estName.includes(searchEstablishment.toUpperCase())) return false;
+      }
+
+      // Filter by Fuel type
+      if (selectedFuels.length > 0) {
+        const fuelType = String(f._fuelType || f.COL_13 || "").trim();
+        if (!selectedFuels.includes(fuelType)) return false;
+      }
       
       const unit = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
       if (selectedUnits.length > 0 && !selectedUnits.includes(unit)) return false;
@@ -267,18 +305,124 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
 
       return true;
     });
-  }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
+  }, [fuel, searchPlaca, searchDriver, searchEstablishment, selectedFuels, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths]);
+  }, [searchPlaca, searchDriver, searchEstablishment, selectedFuels, selectedUnits, selectedDestinations, selectedProperties, selectedMonths]);
+
+  const parseDateString = (str: string) => {
+    if (!str) return 0;
+    const rawDate = str.includes(" ") ? str.split(" ")[0] : str;
+    const parts = rawDate.split("/");
+    if (parts.length === 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10) - 1;
+      const y = parseInt(parts[2], 10);
+      return new Date(y, m, d).getTime();
+    }
+    return new Date(str).getTime() || 0;
+  };
+
+  const sortedFuel = useMemo(() => {
+    const data = [...filteredFuel];
+    if (!sortField) return data;
+    
+    data.sort((a, b) => {
+      let valA: any = "";
+      let valB: any = "";
+      
+      const txIdA = String(a.COL_0 || a._txId || "");
+      const txIdB = String(b.COL_0 || b._txId || "");
+      const assignA = assignments.find(x => x.transactionId === txIdA);
+      const assignB = assignments.find(x => x.transactionId === txIdB);
+
+      switch (sortField) {
+        case "transacao":
+          valA = txIdA;
+          valB = txIdB;
+          break;
+        case "data":
+          valA = parseDateString(String(a._date || a.COL_4 || ""));
+          valB = parseDateString(String(b._date || b.COL_4 || ""));
+          break;
+        case "placa":
+          valA = String(a._placa || a.COL_5 || "");
+          valB = String(b._placa || b.COL_5 || "");
+          break;
+        case "motorista":
+          valA = String(a._driver || a.COL_11 || "");
+          valB = String(b._driver || b.COL_11 || "");
+          break;
+        case "combustivel":
+          valA = String(a._fuelType || a.COL_13 || "");
+          valB = String(b._fuelType || b.COL_13 || "");
+          break;
+        case "litros":
+          valA = Number(a._litros !== undefined && a._litros !== null ? a._litros : a.COL_14 || 0);
+          valB = Number(b._litros !== undefined && b._litros !== null ? b._litros : b.COL_14 || 0);
+          break;
+        case "vll":
+          valA = Number(a._vlLitro !== undefined && a._vlLitro !== null ? a._vlLitro : a.COL_15 || 0);
+          valB = Number(b._vlLitro !== undefined && b._vlLitro !== null ? b._vlLitro : b.COL_15 || 0);
+          break;
+        case "estabelecimento":
+          valA = String(a._posto || a._establishment || a.COL_21 || "");
+          valB = String(b._posto || b._establishment || b.COL_21 || "");
+          break;
+        case "lotacao":
+          valA = String(a.COL_29 || a.UNIDADE || a.GERÊNCIA || a.GERENCIA || a._unit || "");
+          valB = String(b.COL_29 || b.UNIDADE || b.GERÊNCIA || b.GERENCIA || b._unit || "");
+          break;
+        case "cartao":
+          valA = String(a.COL_35 || "");
+          valB = String(b.COL_35 || "");
+          break;
+        case "mesAno":
+          valA = String(a.COL_41 || "");
+          valB = String(b.COL_41 || "");
+          break;
+        case "destino":
+          valA = String(assignA?.machineryDestination || "");
+          valB = String(assignB?.machineryDestination || "");
+          break;
+        case "modelo":
+          valA = String(assignA?.model || "");
+          valB = String(assignB?.model || "");
+          break;
+        case "propriedade":
+          valA = String(assignA?.property || "");
+          valB = String(assignB?.property || "");
+          break;
+        case "tombamento":
+          valA = String(assignA?.tombamentoNumber || "");
+          valB = String(assignB?.tombamentoNumber || "");
+          break;
+        default:
+          break;
+      }
+      
+      if (typeof valA === "number" && typeof valB === "number") {
+        return sortOrder === "asc" ? valA - valB : valB - valA;
+      }
+      
+      const strA = String(valA).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const strB = String(valB).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      
+      return sortOrder === "asc" 
+        ? strA.localeCompare(strB, "pt-BR") 
+        : strB.localeCompare(strA, "pt-BR");
+    });
+    
+    return data;
+  }, [filteredFuel, sortField, sortOrder, assignments]);
 
   // Paginated data for rendering in the table
   const paginatedFuel = useMemo(() => {
     const startIndex = (currentPage - 1) * itemsPerPage;
-    return filteredFuel.slice(startIndex, startIndex + itemsPerPage);
-  }, [filteredFuel, currentPage, itemsPerPage]);
+    return sortedFuel.slice(startIndex, startIndex + itemsPerPage);
+  }, [sortedFuel, currentPage, itemsPerPage]);
 
   // Preenchimento Stats & Graficos
   const fillingStats = useMemo(() => {
@@ -595,6 +739,20 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
     );
   }
 
+  const requestSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
+
+  const renderSortIcon = (field: string) => {
+    if (sortField !== field) return <span className="ml-1 opacity-40">↕</span>;
+    return sortOrder === "asc" ? <span className="ml-1 text-indigo-600 dark:text-indigo-400">▲</span> : <span className="ml-1 text-indigo-600 dark:text-indigo-400">▼</span>;
+  };
+
   return (
     <div className={isEmbedded ? "space-y-6" : "min-h-screen bg-white dark:bg-slate-950 flex flex-col"}>
       {/* Header */}
@@ -619,7 +777,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-          <div className="relative flex-1 md:w-48 lg:w-64">
+          <div className="relative flex-1 md:w-36 lg:w-44">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
             <Input 
               placeholder="Buscar Placa..." 
@@ -628,6 +786,55 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
               className="pl-8 h-9 text-xs rounded-lg border-slate-200 dark:bg-slate-800"
             />
           </div>
+
+          <div className="relative flex-1 md:w-36 lg:w-44">
+            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Input 
+              placeholder="Motorista..." 
+              value={searchDriver}
+              onChange={(e) => setSearchDriver(e.target.value)}
+              className="pl-8 h-9 text-xs rounded-lg border-slate-200 dark:bg-slate-800"
+            />
+          </div>
+
+          <div className="relative flex-1 md:w-40 lg:w-48">
+            <Building2 className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <Input 
+              placeholder="Estabelecimento..." 
+              value={searchEstablishment}
+              onChange={(e) => setSearchEstablishment(e.target.value)}
+              className="pl-8 h-9 text-xs rounded-lg border-slate-200 dark:bg-slate-800"
+            />
+          </div>
+
+          <Select 
+            value={selectedFuels.length > 0 ? "filtered" : "all"} 
+            onValueChange={(val) => val === "all" ? setSelectedFuels([]) : null}
+          >
+            <SelectTrigger className="h-9 w-[130px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
+              <div className="flex items-center gap-2">
+                <Fuel className="w-3.5 h-3.5 opacity-50" />
+                <SelectValue placeholder="Combustível" />
+              </div>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos Combustíveis</SelectItem>
+              {fuelTypeOptions.map(t => (
+                <div key={t} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedFuels.includes(t)}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedFuels([...selectedFuels, t]);
+                      else setSelectedFuels(selectedFuels.filter(x => x !== t));
+                    }}
+                    className="mr-2 cursor-pointer"
+                  />
+                  {t}
+                </div>
+              ))}
+            </SelectContent>
+          </Select>
           
           {isGestaoOrMaster && (
             <Select 
@@ -688,12 +895,15 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
               ))}
             </SelectContent>
           </Select>
-
+ 
           <Button 
             variant="outline" 
             size="sm" 
             onClick={() => {
               setSearchPlaca("");
+              setSearchDriver("");
+              setSearchEstablishment("");
+              setSelectedFuels([]);
               setSelectedUnits([]);
               setSelectedDestinations([]);
               setSelectedProperties([]);
@@ -1216,24 +1426,56 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
             <Table className="min-w-[1800px]">
               <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                 <TableRow>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest py-4 border-b border-r sticky left-0 z-20 bg-slate-50 dark:bg-slate-800">Cód. Transação</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Data</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Placa</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Motorista</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Combustível</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b text-right">LITROS</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b text-right">VL/L</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[200px]">Estabelecimento</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[300px]">Endereço / Bairro / Cidade</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Lotação</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Cartão</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b">Mês/Ano</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest py-4 border-b border-r sticky left-0 z-20 bg-slate-50 dark:bg-slate-800 cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-700" onClick={() => requestSort("transacao")}>
+                    Cód. Transação {renderSortIcon("transacao")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("data")}>
+                    Data {renderSortIcon("data")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("placa")}>
+                    Placa {renderSortIcon("placa")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("motorista")}>
+                    Motorista {renderSortIcon("motorista")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("combustivel")}>
+                    Combustível {renderSortIcon("combustivel")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b text-right cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("litros")}>
+                    LITROS {renderSortIcon("litros")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b text-right cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("vll")}>
+                    VL/L {renderSortIcon("vll")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[200px] cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("estabelecimento")}>
+                    Estabelecimento {renderSortIcon("estabelecimento")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b min-w-[300px]">
+                    Endereço / Bairro / Cidade
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("lotacao")}>
+                    Lotação {renderSortIcon("lotacao")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("cartao")}>
+                    Cartão {renderSortIcon("cartao")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800" onClick={() => requestSort("mesAno")}>
+                    Mês/Ano {renderSortIcon("mesAno")}
+                  </TableHead>
                   
                   {/* Inputs */}
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[250px]">Destino Maquinário</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[150px]">Modelo</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 w-[120px]">Propriedade</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-100/10 min-w-[150px]">Tombamento</TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[250px] cursor-pointer select-none hover:bg-indigo-100/50" onClick={() => requestSort("destino")}>
+                    Destino Maquinário {renderSortIcon("destino")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 min-w-[150px] cursor-pointer select-none hover:bg-indigo-100/50" onClick={() => requestSort("modelo")}>
+                    Modelo {renderSortIcon("modelo")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-900/10 w-[120px] cursor-pointer select-none hover:bg-indigo-100/50" onClick={() => requestSort("propriedade")}>
+                    Propriedade {renderSortIcon("propriedade")}
+                  </TableHead>
+                  <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-100/10 min-w-[150px] cursor-pointer select-none hover:bg-indigo-100/50" onClick={() => requestSort("tombamento")}>
+                    Tombamento {renderSortIcon("tombamento")}
+                  </TableHead>
                   <TableHead className="text-[10px] font-black uppercase tracking-widest border-b bg-indigo-50/50 dark:bg-indigo-100/10 text-center w-[60px]">Ok</TableHead>
                 </TableRow>
               </TableHeader>
