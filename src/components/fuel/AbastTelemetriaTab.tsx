@@ -456,7 +456,7 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
   const [emailSubject, setEmailSubject] = useState<string>("");
   const [emailBody, setEmailBody] = useState<string>("");
 
-  const handleOpenEmailModal = (row: DeviationItem) => {
+  const handleOpenEmailModal = (row: DeviationItem, isStopAudit = false, stopEvent?: any) => {
     const cleanPlaca = limparPlaca(row.placa);
     const asset = assets.find(a => limparPlaca(a.PLACA || a.placa) === cleanPlaca);
     
@@ -467,14 +467,50 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
     const emailsList = getEmailsByGerencia(gerenciaName);
     const emailsToUse = emailsList.join("; ");
     
-    const subject = `Solicitação de Esclarecimentos - Inconsistências Identificadas em Relatório de Abastecimento x Telemetria, veículo ${row.placa}`;
-    
-    const desvioTxt = `Desvio identificado: ${row.desvio}
+    let subject = "";
+    let bodyText = "";
+
+    if (isStopAudit && stopEvent) {
+      subject = `Notificação de Ocorrência - Auditoria de Parada - veículo ${row.placa}`;
+      
+      const motorista = stopEvent.initialRow?.motorista || "Não Informado";
+      const local = stopEvent.address || "Não Informado";
+      const data = stopEvent.startDateTime.toLocaleDateString('pt-BR');
+      const horario = `${stopEvent.startDateTime.toLocaleTimeString('pt-BR')} até ${stopEvent.endDateTime.toLocaleTimeString('pt-BR')} (Duração: ${stopEvent.duration} min)`;
+      const desvio = `Parada Prolongada não Autorizada em Local de Lazer/Comércio (${stopEvent.duration} min)`;
+
+      bodyText = `Prezado(a) Gestor(a),
+
+Ao analisarmos os relatórios e documentos em anexo (Relatório de Telemetria), identificamos ocorrência relacionada ao veículo de placa *${row.placa}*, que necessita de esclarecimentos.
+
+A ocorrência apontada é a seguinte:
+
+* Desvio identificado: *${desvio}*.
+* Data da ocorrência: *${data}*.
+* Horário: *${horario}*.
+* Local: *${local}*.
+* Condutor identificado: ${motorista}
+
+Diante do exposto, solicitamos, por gentileza, o envio dos devidos esclarecimentos acerca da ocorrência identificada, informando, quando aplicável, se a situação possuía autorização prévia, se estava relacionada a alguma demanda emergencial ou excepcional da unidade ou se há outra justificativa pertinente.
+
+Solicitamos que os esclarecimentos sejam encaminhados no prazo de até **2 (dois) dias úteis**, a fim de subsidiar as análises e eventuais providências administrativas.
+
+Informamos que, em caso de ausência de manifestação dentro do prazo estabelecido, poderão ser adotadas as medidas administrativas cabíveis, inclusive o bloqueio do cartão de abastecimento, quando aplicável.
+
+Contamos com a colaboração de todos para o cumprimento das diretrizes de utilização dos veículos da frota, contribuindo para a eficiência na gestão dos recursos, a segurança das operações e a adequada prestação dos serviços.
+
+Atenciosamente,
+
+Coordenação de Gestão de Frotas – CGF`;
+    } else {
+      subject = `Solicitação de Esclarecimentos - Inconsistências Identificadas em Relatório de Abastecimento x Telemetria, veículo ${row.placa}`;
+      
+      const desvioTxt = `Desvio identificado: ${row.desvio}
 Data do Abastecimento: ${row.dataAbast}
 Posto: ${row.posto || "N/A"}
 Detalhe do Cruzamento: ${row.obs}`;
 
-    const bodyText = `Prezado(a) Gestor(a),
+      bodyText = `Prezado(a) Gestor(a),
 
 Ao analisarmos o relatório em anexo, identificamos inconsistência relacionada ao veículo de placa ${row.placa}, marca ${marca}, modelo ${modelo}, que necessita de esclarecimentos.
 
@@ -486,6 +522,7 @@ Informamos que, em caso de ausência de retorno dentro do prazo estabelecido, o 
 
 Atenciosamente,
 Coordenação de Gestão de Frotas - CGF`;
+    }
 
     setSelectedRowForEmail(row);
     setEmailGerencia(gerenciaName);
@@ -2384,7 +2421,7 @@ Coordenação de Gestão de Frotas - CGF`;
                                           ignicao: "DESLIGADA",
                                           obs: `O veículo permaneceu parado por ${stop.duration} min no endereço: ${stop.address}. ${classif ? `Classificação: ${classif.placeType} (${classif.reasoning})` : ""}`
                                         };
-                                        handleOpenEmailModal(mockDevItem);
+                                        handleOpenEmailModal(mockDevItem, true, stop);
                                       }}
                                       className="h-8 w-8 p-0 border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 rounded-full"
                                       title="Notificar Responsável"

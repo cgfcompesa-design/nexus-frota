@@ -93,6 +93,7 @@ import { SupplyPerformanceDashboard } from './SupplyPerformanceDashboard';
 import { SearchableMultiSelect } from "@/components/ui/searchable-multi-select";
 
 import { MachineSupplyIndicators } from './MachineSupplyIndicators';
+import MachineSupplyReport from './MachineSupplyReport';
 
 interface FuelDashboardProps {
   fuel: FuelData[];
@@ -374,6 +375,16 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
   const [selectedDesviosChart, setSelectedDesviosChart] = useState<string[]>([
     'Autonomia', 'KM/Hora', 'Litros/m³', 'Item Abastecido', 'Dias s/ Abastecer', 'Valor/Litro', 'Alerta Vale'
   ]);
+  
+  const isGestaoOrMaster = useMemo(() => {
+    const roleLower = (userRole || "").toLowerCase().trim();
+    return roleLower === "master" || 
+           roleLower === "gestão" || 
+           roleLower === "gestao" || 
+           roleLower === "master_cgf" || 
+           roleLower === "coordenador" || 
+           roleLower === "admin";
+  }, [userRole]);
   
   // Estado para o modo de agrupamento na seção Top 10 Placas
   const [top10GroupMode, setTop10GroupMode] = useState<'individual' | 'agrupado'>('individual');
@@ -1911,7 +1922,7 @@ Coordenação de Gestão de Frotas - CGF`;
             >
               Abastecimento x Telemetria
             </TabsTrigger>
-            {(userRole === 'Master' || userRole === 'Gestão') && (
+            {isGestaoOrMaster && (
               <TabsTrigger 
                 value="maq-report" 
                 className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
@@ -2161,9 +2172,15 @@ Coordenação de Gestão de Frotas - CGF`;
           </div>
         </TabsContent>
 
-        {(userRole === 'Master' || userRole === 'Gestão') && (
+        {isGestaoOrMaster && (
           <TabsContent value="maq-report" className="space-y-6 mt-0">
+            <MachineSupplyReport isEmbedded={true} />
+            
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 shadow-sm">
+              <div className="mb-4">
+                <h3 className="text-sm font-bold uppercase text-slate-800 dark:text-slate-100 italic">Auditoria e Conciliação de Comprovantes (MAQ/GER)</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Visão complementar de controle físico de comprovantes anexados para a frota de maquinários</p>
+              </div>
               <MachineSupplyIndicators fuel={fuel} />
             </div>
           </TabsContent>

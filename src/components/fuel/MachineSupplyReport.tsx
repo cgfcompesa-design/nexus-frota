@@ -56,6 +56,7 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { exportToExcel } from "@/lib/exportToExcel";
 
@@ -75,7 +76,7 @@ const MACHINERY_OPTIONS = [
 
 const PROPERTY_OPTIONS = ["PRÓPRIO", "LOCADO"];
 
-const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
+const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => void; isEmbedded?: boolean }) => {
   const { data: fuel = [], isLoading: loadingFuel } = useFuelData();
   const { data: assets = [], isLoading: loadingAssets } = useAssets();
   const { data: assignments = [], isLoading: loadingAssignments } = useMachineSupplyAssignments();
@@ -89,42 +90,66 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   const [checkingAuth, setCheckingAuth] = useState(true);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
-      setCheckingAuth(true);
-      const currentUser = auth.currentUser;
+    setCheckingAuth(true);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUserName(currentUser.displayName || currentUser.email || "");
         
-        // Try to fetch unit from profile
         try {
           const profileDoc = await getDoc(doc(db, "users", currentUser.uid));
+          let role = "Visualizador";
+          let unit = "";
+          
           if (profileDoc.exists()) {
             const data = profileDoc.data();
-            const unit = data.gerencia || data.unidade || data.lotacao || "";
-            const role = data.role || 'Visualizador';
-            
-            setUserUnit(unit);
-            setUserRole(role);
-            
-            // If user has a unit in profile and is not Master, lock them to it
-            if (unit && role !== 'Master') {
-              setIsAccessGranted(true);
-            }
+            unit = data.gerencia || data.unidade || data.lotacao || "";
+            role = data.role || "Visualizador";
+          }
+          
+          // Master email check override (ensure cgf.compesa@gmail.com is always Master)
+          if (currentUser.email === "cgf.compesa@gmail.com") {
+            role = "Master";
+          }
+          
+          setUserUnit(unit);
+          setUserRole(role);
+          
+          const roleLower = role.toLowerCase().trim();
+          const isGM = roleLower === "master" || 
+                       roleLower === "gestão" || 
+                       roleLower === "gestao" || 
+                       roleLower === "master_cgf" || 
+                       roleLower === "coordenador" || 
+                       roleLower === "admin";
+                       
+          if (isGM) {
+            // Master / Management profiles bypass unit-locking and get immediate access
+            setIsAccessGranted(true);
+          } else if (unit) {
+            // Regular user with a profile unit gets automatic access
+            setIsAccessGranted(true);
           } else {
-            // Check localStorage for previously saved unit if no profile doc (fallback)
+            // Fallback for custom user/viewer check in localStorage
             const savedUnit = localStorage.getItem("machine_report_unit");
             if (savedUnit) {
-               setUserUnit(savedUnit);
-               setIsAccessGranted(true);
+              setUserUnit(savedUnit);
+              setIsAccessGranted(true);
             }
           }
         } catch (e) {
           console.error("Error fetching profile:", e);
+          // Fallback if error occurs
+          if (currentUser.email === "cgf.compesa@gmail.com") {
+            setUserRole("Master");
+            setIsAccessGranted(true);
+          }
         }
+      } else {
+        setIsAccessGranted(false);
       }
       setCheckingAuth(false);
-    };
-    fetchUserProfile();
+    });
+    return () => unsubscribe();
   }, []);
 
   // Filters State
@@ -208,8 +233,8 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (!isMaqOrGer) return false;
 
-      // Filter by fixed User Unit (from login)
-      if (isAccessGranted && userUnit) {
+      // Filter by fixed User Unit (from login) - only if they are not GESTÃO/MASTER
+      if (isAccessGranted && userUnit && !isGestaoOrMaster) {
         const lotacao = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
         if (lotacao !== userUnit) return false;
       }
@@ -537,14 +562,16 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
                 Acessar Relatório
               </Button>
             </form>
-            <div className="text-center pt-4">
-              <button 
-                onClick={onBack}
-                className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 flex items-center justify-center gap-2 mx-auto"
-              >
-                <ArrowLeft className="w-3 h-3" /> Voltar ao Sistema
-              </button>
-            </div>
+            {onBack && (
+              <div className="text-center pt-4">
+                <button 
+                  onClick={() => onBack?.()}
+                  className="text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 flex items-center justify-center gap-2 mx-auto"
+                >
+                  <ArrowLeft className="w-3 h-3" /> Voltar ao Sistema
+                </button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -552,13 +579,15 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">
+    <div className={isEmbedded ? "space-y-6" : "min-h-screen bg-white dark:bg-slate-950 flex flex-col"}>
       {/* Header */}
-      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 z-50 shadow-sm">
+      <header className={isEmbedded ? "bg-slate-50/50 dark:bg-slate-900/40 p-4 md:p-6 rounded-3xl border border-slate-100 dark:border-slate-800/80 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 z-10 shadow-none mb-6" : "bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sticky top-0 z-50 shadow-sm"}>
         <div className="flex items-center gap-4">
-          <Button onClick={onBack} variant="ghost" size="icon" className="rounded-full hover:bg-slate-100">
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
+          {!isEmbedded && onBack && (
+            <Button onClick={() => onBack?.()} variant="ghost" size="icon" className="rounded-full hover:bg-slate-100">
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+          )}
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">Cartões Máquinas e Equipamentos</h1>
@@ -567,7 +596,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2 mt-0.5">
               Responsável: <span className="text-slate-600 dark:text-slate-300">{userName}</span>
               <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-              Lotação Ativa: <span className="text-slate-600 dark:text-slate-300">{userUnit}</span>
+              Lotação Ativa: <span className="text-slate-600 dark:text-slate-300">{userUnit || "Todas (Master / Gestão)"}</span>
             </p>
           </div>
         </div>
@@ -582,6 +611,37 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
               className="pl-8 h-9 text-xs rounded-lg border-slate-200 dark:bg-slate-800"
             />
           </div>
+          
+          {isGestaoOrMaster && (
+            <Select 
+              value={selectedUnits.length > 0 ? "filtered" : "all"} 
+              onValueChange={(val) => val === "all" ? setSelectedUnits([]) : null}
+            >
+              <SelectTrigger className="h-9 w-[160px] text-xs font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800 border-none shrink-0 border-slate-200">
+                <div className="flex items-center gap-2">
+                  <Building2 className="w-3.5 h-3.5 opacity-50" />
+                  <SelectValue placeholder="Gerência" />
+                </div>
+              </SelectTrigger>
+              <SelectContent className="max-h-60 overflow-y-auto">
+                <SelectItem value="all">Todas Gerências</SelectItem>
+                {unitOptions.map(u => (
+                  <div key={u} className="flex items-center px-2 py-1.5 hover:bg-slate-50 cursor-pointer text-xs font-medium" onClick={(e) => e.stopPropagation()}>
+                    <input 
+                      type="checkbox" 
+                      checked={selectedUnits.includes(u)}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedUnits([...selectedUnits, u]);
+                        else setSelectedUnits(selectedUnits.filter(x => x !== u));
+                      }}
+                      className="mr-2 cursor-pointer"
+                    />
+                    {u}
+                  </div>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           
           <Select 
             value={selectedMonths.length > 0 ? "filtered" : "all"} 
@@ -651,7 +711,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       </header>
 
       {/* Main Table */}
-      <main className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
+      <main className={isEmbedded ? "space-y-6" : "flex-1 overflow-auto p-4 md:p-6 custom-scrollbar"}>
         {isGestaoOrMaster && showCharts && (
           <div className="mb-6 space-y-6">
             {/* Metric Selector Panel */}
@@ -1297,7 +1357,7 @@ const MachineSupplyReport = ({ onBack }: { onBack: () => void }) => {
       </main>
 
       {/* Footer */}
-      <footer className="bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+      <footer className={isEmbedded ? "bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-3xl border border-slate-100 dark:border-slate-800 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400 mt-6" : "bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400"}>
         <div className="flex items-center gap-4">
           <span>Total: {filteredFuel.length}</span>
           <span className="w-px h-3 bg-slate-300"></span>
