@@ -360,8 +360,8 @@ Você deve enquadrar os endereços/paradas nos seguintes grupos:
 Diretriz de Classificação de Criticidade ("criticality"):
 - "Alta": Motel, praia, hotel, pousada, bar, boate, residência particular, shopping center, clube recreativo, resort, airbnb.
 - "Média": Restaurante, lanchonete, supermercado, academia, escola, colégio, universidade, cinema, teatro, hospital particular, clínica de estética, templo/igreja, aeroporto/rodoviária.
-- "Baixa": Banco, lotérica, padaria, cafeteria, sorveteria, posto de conveniência, estacionamento privado, oficina/lava-jato.
-- "Nenhuma": Base operacional real da COMPESA, escritório institucional oficial da empresa, ou obras públicas nas vias.
+- "Baixa": Banco, lotérica, padaria, cafeteria, sorveteria, posto de conveniência, estacionamento privado, oficina/lava-jato, além de qualquer "Via Pública", "Rua", "Avenida" ou via pública comum que NÃO possua identificação explícita de uma instalação física ou base operacional da COMPESA ou obras públicas ativas. Para vias públicas comuns, marqueisLeisure como true, categoria "Via Pública / Rua", criticidade "Baixa", alertando que a parada prolongada em via pública requer verificação pois o veículo pode ter sido estacionado para fins pessoais.
+- "Nenhuma": Base operacional física confirmada da COMPESA, escritório institucional oficial da empresa, ou postos operacionais da concessionária.
 
 Forneça respostas precisas e baseadas na interpretação de nomes comerciais presentes no endereço ou em coordenadas de geolocalização.
 

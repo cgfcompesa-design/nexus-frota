@@ -539,6 +539,88 @@ Coordenação de Gestão de Frotas - CGF`;
     setEmailModalOpen(false);
     toast.success("Notificação enviada para o cliente de e-mail!");
   };
+
+  const handleOpenUnifiedEmail = () => {
+    // Collect all elements from filteredStops that have classification
+    const stopsWithClassif = filteredStops.filter(stop => aiStopClassifications[stop.id]);
+    
+    if (stopsWithClassif.length === 0) {
+      toast.error("Nenhuma parada auditada/classificada na listagem atual para unificar.");
+      return;
+    }
+
+    const plates = Array.from(new Set(stopsWithClassif.map(s => String(s.placa).toUpperCase())));
+    const samplePlaca = String(plates[0] || "FR-COMPESA");
+    
+    const asset = assets.find(a => limparPlaca(String(a.PLACA || a.placa || "")) === limparPlaca(samplePlaca));
+    const gerenciaName = asset?.GERENCIA || asset?.gerencia || asset?.["GERÊNCIA"] || "FROTA CENTRAL";
+    const emailsList = getEmailsByGerencia(gerenciaName);
+    const emailsToUse = emailsList.join("; ");
+
+    const subject = `Notificação Unificada - Auditoria de Paradas e Inconformidades de Frota - Veículo(s) ${plates.join(", ")}`;
+    
+    let occurrencesText = "";
+    stopsWithClassif.forEach((stop, index) => {
+      const classif = aiStopClassifications[stop.id];
+      const motorista = stop.initialRow?.motorista || "Não Informado";
+      const startStr = stop.startDateTime.toLocaleTimeString('pt-BR');
+      const dateStr = stop.startDateTime.toLocaleDateString('pt-BR');
+      const endStr = stop.endDateTime.toLocaleTimeString('pt-BR');
+      
+      const criticidadeFormatted = classif?.criticality === "Alta" ? "ALTA (A)" :
+                                 classif?.criticality === "Média" || classif?.criticality === "Medium" ? "MÉDIA (B)" :
+                                 classif?.criticality === "Baixa" ? "BAIXA (C)" : "NENHUMA";
+
+      occurrencesText += `
+--------------------------------------------------
+Ocorrência #${index + 1}:
+* Veículo Placa: ${stop.placa.toUpperCase()}
+* Tipo de Local / Classificação: ${classif?.placeType || "Não Definido"}
+* Nível de Criticidade: ${criticidadeFormatted}
+* Data e Horário: ${dateStr} das ${startStr} às ${endStr} (${stop.duration} minutos de duração)
+* Endereço do desvio: ${stop.address}
+* Condutor Identificado: ${motorista}
+* Resumo / Motivo do Alerta: ${classif?.reasoning || "Relatório de Telemetria"}
+`;
+    });
+
+    const bodyText = `Prezado(a) Gestor(a),
+
+Ao analisarmos os relatórios unificados de telemetria da frota da COMPESA, identificamos ocorrências relacionadas a paradas prolongadas em pontos de lazer, atividades pessoais ou comerciais em horário de serviço ativo.
+
+Solicitamos esclarecimentos detalhados sobre as seguintes paradas do(s) veículo(s) sob sua supervisão técnica frotista:
+${occurrencesText}
+
+Diante do exposto, solicitamos o envio das justificativas cabíveis acerca destas ocorrências, informando se as situações possuíam autorização prévia por escrito, se estavam vinculadas a missões institucionais comprovadas por ordem de tráfego, ou se há outra justificativa excepcional aplicável.
+
+Solicitamos que os esclarecimentos sejam encaminhados no prazo de até **2 (dois) dias úteis**, a fim de mitigar riscos de interrupção operacional e para subsidiar as análises de conduta e frotas.
+
+Informamos que, em caso de ausência de manifestação dentro do prazo estabelecido, poderão ser tomadas as devidas providências operacionais.
+
+Agradecemos a colaboração no zelo e integridade dos recursos públicos rodoviários.
+
+Atenciosamente,
+
+Coordenação de Gestão de Frotas – CGF`;
+
+    setSelectedRowForEmail({
+      placa: samplePlaca,
+      dataAbast: new Date().toLocaleDateString('pt-BR'),
+      status: "INCONFORMIDADE",
+      desvio: `${stopsWithClassif.length} Parada(s) Unificada(s)`,
+      difMin: stopsWithClassif.reduce((acc, curr) => acc + curr.duration, 0),
+      motoristaTelem: "Multi-condutores",
+      ignicao: "DESLIGADA",
+      obs: `${stopsWithClassif.length} paradas reunidas.`
+    });
+    setEmailGerencia(gerenciaName);
+    setEmailDestinatarios(emailsToUse || "");
+    setEmailSubject(subject);
+    setEmailBody(bodyText);
+    setEmailModalOpen(true);
+
+    toast.success(`${stopsWithClassif.length} anomalias unificadas em um único e-mail de notificação!`);
+  };
   
   // Telemetry parsed files state
   const [telemetryFiles, setTelemetryFiles] = useState<Array<{
@@ -561,6 +643,8 @@ Coordenação de Gestão de Frotas - CGF`;
     placeNameDetected: string;
     criticality?: "Alta" | "Média" | "Baixa" | "Nenhuma";
   }>>({});
+
+  const [criticalityFilter, setCriticalityFilter] = useState<string>("TODAS");
 
   // Memoized algorithm to scan for stops: starts on transition of Ig L -> D and lasts as long as remaining within radius & ign off (or until changed to L)
   const detectedStops = useMemo(() => {
@@ -659,6 +743,29 @@ Coordenação de Gestão de Frotas - CGF`;
 
     return stopsList;
   }, [telemetryFiles, stationaryTimeThreshold, stationaryRadiusThreshold]);
+
+  const filteredStops = useMemo(() => {
+    return detectedStops.filter(stop => {
+      const classif = aiStopClassifications[stop.id];
+      if (criticalityFilter === "TODAS") return true;
+      if (criticalityFilter === "INCONFORMES") {
+        return classif?.isLeisure === true;
+      }
+      if (criticalityFilter === "ALTA") {
+        return classif?.criticality === "Alta";
+      }
+      if (criticalityFilter === "MEDIA") {
+        return classif?.criticality === "Média" || classif?.criticality === "Medium";
+      }
+      if (criticalityFilter === "BAIXA") {
+        return classif?.criticality === "Baixa";
+      }
+      if (criticalityFilter === "NENHUMA") {
+        return !classif || classif?.criticality === "Nenhuma" || classif?.criticality === "None";
+      }
+      return true;
+    });
+  }, [detectedStops, aiStopClassifications, criticalityFilter]);
 
   // Auditoria IA (Gemini call)
   const runIAStopAnalysis = async () => {
@@ -832,11 +939,31 @@ Coordenação de Gestão de Frotas - CGF`;
         }
         // 4. OPERATIONAL AND SYSTEM RECOGNIZED DEFAULT LOCATIONS
         else {
-          isLeisure = false;
-          placeType = "Operacional/Institucional";
-          criticality = "Nenhuma";
-          reasoning = "Classificado como local corporativo de utilidade geral, operacional ou via pública padrão.";
-          placeNameDetected = "Via Pública / Ponto Operacional";
+          const isCompesaBase = addrLower.includes("compesa") || 
+                                addrLower.includes("eta") || 
+                                addrLower.includes("ete") || 
+                                addrLower.includes("sede") || 
+                                addrLower.includes("gerência") || 
+                                addrLower.includes("gerencia") || 
+                                addrLower.includes("reservatório") || 
+                                addrLower.includes("reservatorio") ||
+                                addrLower.includes("estação de tratamento") ||
+                                addrLower.includes("estacao de tratamento") ||
+                                addrLower.includes("centro operacional");
+
+          if (isCompesaBase) {
+            isLeisure = false;
+            placeType = "Operacional/Institucional";
+            criticality = "Nenhuma";
+            reasoning = "Heurística: Base de operação ou instalação física oficial identificada como pertencente à COMPESA.";
+            placeNameDetected = "Instalação COMPESA / Base Operacional";
+          } else {
+            isLeisure = true;
+            placeType = "Via Pública / Rua";
+            criticality = "Baixa";
+            reasoning = "Parada prolongada detectada em via pública ou rua comum. Emitido alerta para verificação de finalidade, pois o veículo pode ter estacionado para fins pessoais.";
+            placeNameDetected = "Via Pública / Rua (Alerta de Parada Pessoal)";
+          }
         }
 
         fallbackMap[stop.id] = {
@@ -2400,17 +2527,107 @@ Coordenação de Gestão de Frotas - CGF`;
                 </CardContent>
               </Card>
 
+              {/* LEGENDA DE CRITICIDADES E CLASSIFICAÇÃO DE LOCAL (A, B, C) */}
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-[2rem] space-y-4 shadow-sm mb-1">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-350">
+                    Legenda de Criticidade & Classificação de Paradas (GAD/CGF)
+                  </h4>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* ALTA A */}
+                  <div className="bg-rose-500/5 dark:bg-rose-950/10 p-4 rounded-2xl border border-rose-200/50 dark:border-rose-900/30 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-rose-500/15 text-rose-700 border border-rose-200 hover:bg-rose-500/15 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5">
+                          🔴 CRITICIDADE ALTA (A)
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-400 font-medium space-y-1">
+                        <span className="font-bold text-rose-700 block mb-1">Locais considerados:</span>
+                        Motel, praia, hotel, pousada, bar, boate, residência particular, shopping center, clube recreativo, resorts, pousadas ou acomodações temporárias (Airbnb).
+                      </p>
+                    </div>
+                    <p className="text-[9px] text-rose-600 dark:text-rose-400 font-extrabold uppercase tracking-widest mt-3">Rigor Alto de Auditoria</p>
+                  </div>
+
+                  {/* MÉDIA B */}
+                  <div className="bg-amber-500/5 dark:bg-amber-950/10 p-4 rounded-2xl border border-amber-200/50 dark:border-amber-900/30 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-amber-500/15 text-amber-700 border border-amber-200 hover:bg-amber-500/15 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5">
+                          🟡 CRITICIDADE MÉDIA (B)
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-400 font-medium space-y-1">
+                        <span className="font-bold text-amber-700 block mb-1">Locais considerados:</span>
+                        Restaurante, lanchonete, supermercado, academia, escolas e colégios, universidades, cinema, teatro, hospitais e clínicas particulares, templos/igrejas, aeroportos ou rodoviárias.
+                      </p>
+                    </div>
+                    <p className="text-[9px] text-amber-600 dark:text-amber-400 font-extrabold uppercase tracking-widest mt-3">Análise de Justificativa Requerida</p>
+                  </div>
+
+                  {/* BAIXA C */}
+                  <div className="bg-blue-500/5 dark:bg-blue-950/10 p-4 rounded-2xl border border-blue-200/50 dark:border-blue-900/30 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Badge className="bg-blue-500/15 text-blue-700 border border-blue-200 hover:bg-blue-500/15 text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5">
+                          🔵 CRITICIDADE BAIXA (C)
+                        </Badge>
+                      </div>
+                      <p className="text-[10px] leading-relaxed text-slate-600 dark:text-slate-400 font-medium space-y-1">
+                        <span className="font-bold text-blue-700 block mb-1">Locais considerados:</span>
+                        Instituições bancárias/bancos, lotéricas, padarias e mercearias, cafeterias, sorveterias, postos de conveniência, estacionamentos rotativos privados, oficinas mecânicas, borracharias ou lava-jatos.
+                      </p>
+                    </div>
+                    <p className="text-[9px] text-blue-600 dark:text-blue-400 font-extrabold uppercase tracking-widest mt-3">Ocorrência de Baixa Gravidade</p>
+                  </div>
+                </div>
+              </div>
+
               {/* Stops Table List */}
               <Card className="border-none shadow-md bg-white dark:bg-slate-900 rounded-[2rem] overflow-hidden">
-                <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b pb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                  <div>
+                <CardHeader className="bg-slate-50/50 dark:bg-slate-800/50 border-b pb-5 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                  <div className="space-y-1">
                     <CardTitle className="text-sm font-semibold flex items-center gap-2 leading-none">
                       <Activity className="h-4 w-4 text-indigo-500" />
-                      Inconformidades de Parada em Horário Laboral Encontradas ({detectedStops.length})
+                      Inconformidades de Parada — Filtradas ({filteredStops.length} de {detectedStops.length})
                     </CardTitle>
                     <CardDescription className="text-xs leading-relaxed mt-1">
                       Visualização de paradas prolongadas e auditoria automática do ponto de permanência em locais de lazer, praças, shoppings, academias ou mercados.
                     </CardDescription>
+                  </div>
+                  
+                  {/* Controles de Ação de Unificação e Filtros */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-850 px-3 py-1.5 rounded-xl border border-slate-200/50 dark:border-slate-800">
+                      <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Filtrar Criticidade:</span>
+                      <select
+                        value={criticalityFilter}
+                        onChange={(e) => setCriticalityFilter(e.target.value)}
+                        className="bg-transparent text-[10px] font-extrabold text-slate-700 dark:text-slate-350 outline-none cursor-pointer uppercase tracking-wider"
+                      >
+                        <option value="TODAS">Todas as Paradas</option>
+                        <option value="INCONFORMES">❗ Apenas Inconformes (Lazer)</option>
+                        <option value="ALTA">🔴 Crit. Alta (A)</option>
+                        <option value="MEDIA">🟡 Crit. Média (B)</option>
+                        <option value="BAIXA">🔵 Crit. Baixa (C)</option>
+                        <option value="NENHUMA">⚪ Sem Inconformidade</option>
+                      </select>
+                    </div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenUnifiedEmail}
+                      disabled={filteredStops.length === 0}
+                      className="h-9 gap-1.5 font-bold text-[10px] uppercase rounded-xl border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700 dark:border-indigo-950 dark:text-indigo-400"
+                      title="Unifica as paradas encontradas no filtro atual em um único e-mail."
+                    >
+                      <Mail className="h-3.5 w-3.5 animate-pulse" />
+                      Unificar e Notificar Gestor
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -2430,14 +2647,14 @@ Coordenação de Gestão de Frotas - CGF`;
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {detectedStops.length === 0 ? (
+                        {filteredStops.length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={9} className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">
-                              Nenhuma parada superior a {stationaryTimeThreshold} minutos detectada na telemetria ativa.
+                              Nenhuma parada com criticidade "{criticalityFilter}" foi localizada na telemetria ativa.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          detectedStops.map((stop) => {
+                          filteredStops.map((stop) => {
                             const classif = aiStopClassifications[stop.id];
                             
                             return (

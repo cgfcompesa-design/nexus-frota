@@ -35,6 +35,8 @@ import {
   Loader2,
   FilterX,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Calendar as CalendarIcon,
   BarChart2,
   PieChart as PieIcon,
@@ -161,6 +163,10 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const [selectedProperties, setSelectedProperties] = useState<string[]>([]);
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
 
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(25);
+
   const isGestaoOrMaster = useMemo(() => {
     const roleLower = (userRole || "").toLowerCase().trim();
     return roleLower === "master" || 
@@ -262,6 +268,17 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       return true;
     });
   }, [fuel, searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths, assignments, userUnit, isAccessGranted]);
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchPlaca, selectedUnits, selectedDestinations, selectedProperties, selectedMonths]);
+
+  // Paginated data for rendering in the table
+  const paginatedFuel = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredFuel.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredFuel, currentPage, itemsPerPage]);
 
   // Preenchimento Stats & Graficos
   const fillingStats = useMemo(() => {
@@ -1221,7 +1238,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredFuel.map((f, idx) => {
+                {paginatedFuel.map((f, idx) => {
                   const txId = String(f.COL_0 || f._txId || "");
                   const assignment = assignments.find(a => a.transactionId === txId);
                   
@@ -1354,6 +1371,75 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
             </div>
           )}
         </div>
+
+        {/* CONTROLES DE PAGINAÇÃO */}
+        {filteredFuel.length > 0 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl mt-4">
+            <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-wider">
+              <span>Exibindo</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => {
+                  setItemsPerPage(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-2 py-1.5 rounded-lg text-slate-700 dark:text-slate-200 font-bold text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value={10}>10 por página</option>
+                <option value={25}>25 por página</option>
+                <option value={50}>50 por página</option>
+                <option value={100}>100 por página</option>
+              </select>
+              <span>de {filteredFuel.length} registros</span>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="h-8 px-2 text-xs font-semibold"
+                title="Primeira Página"
+              >
+                {"<<"}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                className="h-8 gap-1 pl-2.5 pr-3 text-xs font-semibold"
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Anterior
+              </Button>
+              <div className="text-xs font-bold text-slate-600 dark:text-slate-300 px-3 uppercase tracking-wider">
+                Página {currentPage} de {Math.max(1, Math.ceil(filteredFuel.length / itemsPerPage))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= Math.ceil(filteredFuel.length / itemsPerPage)}
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(filteredFuel.length / itemsPerPage)))}
+                className="h-8 gap-1 pl-3 pr-2.5 text-xs font-semibold"
+              >
+                Próxima
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage >= Math.ceil(filteredFuel.length / itemsPerPage)}
+                onClick={() => setCurrentPage(Math.ceil(filteredFuel.length / itemsPerPage))}
+                className="h-8 px-2 text-xs font-semibold"
+                title="Última Página"
+              >
+                {">>"}
+              </Button>
+            </div>
+          </div>
+        )}
       </main>
 
       {/* Footer */}
