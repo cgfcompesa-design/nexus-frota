@@ -169,6 +169,15 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       if (mnt) {
         mnt.subItems = [
           { 
+            id: 'proprios', 
+            label: 'Próprios', 
+            icon: Car,
+            subItems: [
+              { id: 'mnt-ctrl-op', label: 'Controle Operacional', icon: ClipboardList },
+              { id: 'mnt-desemp', label: 'Desempenho &\nHistórico', icon: History }
+            ]
+          },
+          { 
             id: 'locados-parent', 
             label: 'Locados', 
             icon: Truck,
