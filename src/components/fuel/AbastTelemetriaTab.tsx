@@ -559,6 +559,7 @@ Coordenação de Gestão de Frotas - CGF`;
     confidence: number;
     reasoning: string;
     placeNameDetected: string;
+    criticality?: "Alta" | "Média" | "Baixa" | "Nenhuma";
   }>>({});
 
   // Memoized algorithm to scan for stops: starts on transition of Ig L -> D and lasts as long as remaining within radius & ign off (or until changed to L)
@@ -699,7 +700,8 @@ Coordenação de Gestão de Frotas - CGF`;
               placeType: item.placeType,
               confidence: item.confidence,
               reasoning: item.reasoning,
-              placeNameDetected: item.placeNameDetected || "Local Comercial"
+              placeNameDetected: item.placeNameDetected || "Local Comercial",
+              criticality: item.criticality || (item.isLeisure ? "Média" : "Nenhuma")
             };
           }
         });
@@ -721,33 +723,120 @@ Coordenação de Gestão de Frotas - CGF`;
       const fallbackMap = { ...aiStopClassifications };
       detectedStops.forEach(stop => {
         const addrLower = stop.address.toLowerCase();
-        let isLeisure = false;
+        let isLeisure = true;
         let placeType = "Outros";
         let reasoning = "Classificado via análise local (Heurística de Fallback).";
         let placeNameDetected = "";
+        let criticality: "Alta" | "Média" | "Baixa" | "Nenhuma" = "Média";
 
-        if (addrLower.includes("shopping") || addrLower.includes("mall") || addrLower.includes("center")) {
-          isLeisure = true;
-          placeType = "Shopping";
-          reasoning = "Heurística: Endereço contém a palavra chave 'shopping/mall'.";
-          placeNameDetected = "Shopping Comercial Detetado";
-        } else if (addrLower.includes("praça") || addrLower.includes("praca") || addrLower.includes("parque") || addrLower.includes("lagoa") || addrLower.includes("arena")) {
-          isLeisure = true;
-          placeType = "Praça/Parque";
-          reasoning = "Heurística: Endereço associado a praça de lazer ou parque público.";
-          placeNameDetected = "Praça ou Parque Público";
-        } else if (addrLower.includes("academia") || addrLower.includes("gym") || addrLower.includes("fitness")) {
-          isLeisure = true;
-          placeType = "Academia";
-          reasoning = "Heurística: Reconhecido termo de academia ou atividades fitness.";
-          placeNameDetected = "Academia de Ginástica";
-        } else if (addrLower.includes("loja") || addrLower.includes("bazar") || addrLower.includes("magazine") || addrLower.includes("supermercado") || addrLower.includes("comércio")) {
-          isLeisure = true;
-          placeType = "Loja/Comércio";
-          reasoning = "Heurística: Sufixo associado a hipermercado ou loja de grande porte.";
-          placeNameDetected = "Loja Varejista";
-        } else {
-          reasoning = "Endereço verificado. Classificado como local não-lazer padrão.";
+        // 1. HIGH CRITICALITY MATCHES (Alta - A)
+        if (addrLower.includes("motel") || addrLower.includes("privé") || addrLower.includes("prive")) {
+          placeType = "Hospedagem (Motel)";
+          criticality = "Alta";
+          reasoning = "Heurística: Identificado motel ou estabelecimento de hospedagem privado altamente sensível.";
+          placeNameDetected = "Motel / Privé";
+        } else if (addrLower.includes("praia") || addrLower.includes("beach") || addrLower.includes("orla") || addrLower.includes("marina") || addrLower.includes("píer") || addrLower.includes("pier") || addrLower.includes("balneário") || addrLower.includes("balneario") || addrLower.includes("parque aquático") || addrLower.includes("parque aquatico")) {
+          placeType = "Lazer (Praia/Clube)";
+          criticality = "Alta";
+          reasoning = "Heurística: Local de lazer costeiro, beira-mar, praia ou turismo aquático.";
+          placeNameDetected = "Área de Praia / Lazer Marítimo";
+        } else if (addrLower.includes("hotel") || addrLower.includes("pousada") || addrLower.includes("hostel") || addrLower.includes("resort") || addrLower.includes("airbnb")) {
+          placeType = "Hospedagem";
+          criticality = "Alta";
+          reasoning = "Heurística: Estabelecimento destinado a hospedagem turística ou comercial.";
+          placeNameDetected = "Hotel / Pousada";
+        } else if (addrLower.includes("bar ") || addrLower.includes(" bar") || addrLower.includes("pub") || addrLower.includes("boate") || addrLower.includes("nightclub") || addrLower.includes("casa noturna") || addrLower.includes("lounge") || addrLower.includes("adega") || addrLower.includes("cervejaria") || addrLower.includes("choperia")) {
+          placeType = "Vida Noturna (Bar)";
+          criticality = "Alta";
+          reasoning = "Heurística: Estabelecimento de vida noturna, bar, pub, adega ou boate.";
+          placeNameDetected = "Bar / Pub / Vida Noturna";
+        } else if (addrLower.includes("condomínio") || addrLower.includes("condominio") || addrLower.includes("residência") || addrLower.includes("residencia") || addrLower.includes("chácara") || addrLower.includes("chacara") || addrLower.includes("sítio") || addrLower.includes("sitio") || addrLower.includes("fazenda") || addrLower.includes("casa de praia") || addrLower.includes("casa de campo") || addrLower.includes("apto") || addrLower.includes("residencial") || addrLower.includes("particular")) {
+          placeType = "Residencial";
+          criticality = "Alta";
+          reasoning = "Heurística: Ponto localizado em condomínio habitacional ou residência particular privada.";
+          placeNameDetected = "Área Residencial Particular";
+        } else if (addrLower.includes("shopping") || addrLower.includes("mall") || addrLower.includes("center") || addrLower.includes("clube recreativo") || addrLower.includes("clube de campo") || addrLower.includes("parque de diversões") || addrLower.includes("parque de diver") || addrLower.includes("zoológico") || addrLower.includes("zoologico") || addrLower.includes("botânico") || addrLower.includes("botanico") || addrLower.includes("mirante")) {
+          placeType = "Shopping / Clube";
+          criticality = "Alta";
+          reasoning = "Heurística: Grande polo comercial varejista de lazer ou clube recreativo de campo.";
+          placeNameDetected = "Shopping Center ou Clube Recreativo";
+        }
+        // 2. MEDIUM CRITICALITY MATCHES (Média - B)
+        else if (addrLower.includes("restaurante") || addrLower.includes("lanchonete") || addrLower.includes("fast-food") || addrLower.includes("fastfood") || addrLower.includes("churrascaria") || addrLower.includes("pizzaria") || addrLower.includes("food park")) {
+          placeType = "Alimentação (Restaurante)";
+          criticality = "Média";
+          reasoning = "Heurística: Ponto voltado para refeições estruturadas, churrascaria ou praças de fast-food.";
+          placeNameDetected = "Restaurante ou Lanchonete";
+        } else if (addrLower.includes("supermercado") || addrLower.includes("hipermercado") || addrLower.includes("atacadista") || addrLower.includes("mercado público") || addrLower.includes("mercado publico") || addrLower.includes("centro comercial") || addrLower.includes("galeria comercial")) {
+          placeType = "Compras (Mercado)";
+          criticality = "Média";
+          reasoning = "Heurística: Grande mercado varejista, atacadista ou galeria de lojas.";
+          placeNameDetected = "Supermercado ou Atacadista";
+        } else if (addrLower.includes("academia") || addrLower.includes("gym") || addrLower.includes("fitness") || addrLower.includes("crossfit") || addrLower.includes("estética") || addrLower.includes("estetica") || addrLower.includes("salão de beleza") || addrLower.includes("salao de beleza") || addrLower.includes("barbearia") || addrLower.includes("spa")) {
+          placeType = "Estética & Fitness";
+          criticality = "Média";
+          reasoning = "Heurística: Academia, salão de beleza, barbearia ou centro de tratamento de estética.";
+          placeNameDetected = "Academia / Salão de Beleza / SPA";
+        } else if (addrLower.includes("escola") || addrLower.includes("colégio") || addrLower.includes("colegio") || addrLower.includes("creche") || addrLower.includes("universidade") || addrLower.includes("faculdade") || addrLower.includes("preparatório") || addrLower.includes("preparatorio") || addrLower.includes("idiomas")) {
+          placeType = "Educação";
+          criticality = "Média";
+          reasoning = "Heurística: Estabelecimento de ensino infantil, superior, preparatório ou de idiomas.";
+          placeNameDetected = "Instituição de Ensino";
+        } else if (addrLower.includes("cinema") || addrLower.includes("teatro") || addrLower.includes("casa de shows") || addrLower.includes("estádio") || addrLower.includes("estadio") || addrLower.includes("arena") || addrLower.includes("ginásio") || addrLower.includes("ginasio") || addrLower.includes("quadra") || addrLower.includes("boliche") || addrLower.includes("kartódromo") || addrLower.includes("kartodromo")) {
+          placeType = "Entretenimento & Esportes";
+          criticality = "Média";
+          reasoning = "Heurística: Local associado a atividades esportivas, boliche, cinema ou shows.";
+          placeNameDetected = "Espaço Esportivo / Entretenimento";
+        } else if (addrLower.includes("clínica") || addrLower.includes("clinica") || addrLower.includes("consultório") || addrLower.includes("consultorio") || addrLower.includes("hospital particular") || addrLower.includes("laboratório") || addrLower.includes("laboratorio")) {
+          placeType = "Saúde Particular";
+          criticality = "Média";
+          reasoning = "Heurística: Clínica de consultas privadas ou hospital privado sem vínculo direto de salvamento/operacional.";
+          placeNameDetected = "Clínica ou Laboratório Privado";
+        } else if (addrLower.includes("igreja") || addrLower.includes("templo") || addrLower.includes("espírita") || addrLower.includes("espirita") || addrLower.includes("mesquita") || addrLower.includes("sinagoga")) {
+          placeType = "Religioso";
+          criticality = "Média";
+          reasoning = "Heurística: Templo de cultos, igreja, centro de pregação ou sinagoga.";
+          placeNameDetected = "Templo Comercial / Religioso";
+        } else if (addrLower.includes("aeroporto") || addrLower.includes("rodoviária") || addrLower.includes("rodoviaria") || addrLower.includes("porto") || addrLower.includes("terminal marítimo") || addrLower.includes("terminal maritimo") || addrLower.includes("feiras livres") || addrLower.includes("casa de festas") || addrLower.includes("buffet") || addrLower.includes("convenções") || addrLower.includes("convencoes")) {
+          placeType = "Logística & Eventos";
+          criticality = "Média";
+          reasoning = "Heurística: Aeroporto, rodoviária, terminal portuário ou centro privado de eventos.";
+          placeNameDetected = "Terminal de Viagem / Convenções";
+        }
+        // 3. LOW CRITICALITY MATCHES (Baixa - C)
+        else if (addrLower.includes("banco") || addrLower.includes("itau") || addrLower.includes("bradesco") || addrLower.includes("santander") || addrLower.includes("caixa econômica") || addrLower.includes("caixa economica") || addrLower.includes("câmbio") || addrLower.includes("cambio")) {
+          placeType = "Serviço (Banco)";
+          criticality = "Baixa";
+          reasoning = "Heurística: Agência ou correspondente bancário para pagamentos e saques rápidos.";
+          placeNameDetected = "Instituição Bancária / Agência";
+        } else if (addrLower.includes("lotérica") || addrLower.includes("loterica")) {
+          placeType = "Serviço (Lotérica)";
+          criticality = "Baixa";
+          reasoning = "Heurística: Casa lotérica para conveniências financeiras.";
+          placeNameDetected = "Casa Lotérica / Caixa";
+        } else if (addrLower.includes("padaria") || addrLower.includes("panificadora") || addrLower.includes("cafeteria") || addrLower.includes("café") || addrLower.includes("sorvete") || addrLower.includes("sorveteria")) {
+          placeType = "Alimentação (Rápida)";
+          criticality = "Baixa";
+          reasoning = "Heurística: Alimentação ou consumo rápido em padaria, cafeteria ou sorveteria.";
+          placeNameDetected = "Padaria / Cafeteria / Sorveteria";
+        } else if (addrLower.includes("conveniência") || addrLower.includes("conveniencia") || addrLower.includes("posto de conveni")) {
+          placeType = "Conveniência";
+          criticality = "Baixa";
+          reasoning = "Heurística: Loja de conveniência de postos ou minimercado de posto.";
+          placeNameDetected = "Loja de Conveniência";
+        } else if (addrLower.includes("lava-jato") || addrLower.includes("lavajato") || addrLower.includes("oficina") || addrLower.includes("borracharia") || addrLower.includes("estacionamento")) {
+          placeType = "Serviços Automotivos";
+          criticality = "Baixa";
+          reasoning = "Heurística: Lavagem, serviços mecânicos de rotina rápidos ou estacionamento.";
+          placeNameDetected = "Oficinas / Lava-Jato / Park";
+        }
+        // 4. OPERATIONAL AND SYSTEM RECOGNIZED DEFAULT LOCATIONS
+        else {
+          isLeisure = false;
+          placeType = "Operacional/Institucional";
+          criticality = "Nenhuma";
+          reasoning = "Classificado como local corporativo de utilidade geral, operacional ou via pública padrão.";
+          placeNameDetected = "Via Pública / Ponto Operacional";
         }
 
         fallbackMap[stop.id] = {
@@ -755,7 +844,8 @@ Coordenação de Gestão de Frotas - CGF`;
           placeType,
           confidence: 0.75,
           reasoning,
-          placeNameDetected
+          placeNameDetected,
+          criticality
         };
       });
       setAiStopClassifications(fallbackMap);
@@ -2334,14 +2424,15 @@ Coordenação de Gestão de Frotas - CGF`;
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Duração</TableHead>
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3">Endereço Identificado</TableHead>
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Classificação IA (Lazer?)</TableHead>
-                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Explicação / Detalhe</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Criticidade</TableHead>
+                          <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Explicação / Detalhes Adicionais</TableHead>
                           <TableHead className="text-[10px] font-black uppercase text-slate-400 py-3 text-center">Ações</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {detectedStops.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={8} className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">
+                            <TableCell colSpan={9} className="py-12 text-center text-xs font-bold text-slate-400 uppercase tracking-wide">
                               Nenhuma parada superior a {stationaryTimeThreshold} minutos detectada na telemetria ativa.
                             </TableCell>
                           </TableRow>
@@ -2383,6 +2474,27 @@ Coordenação de Gestão de Frotas - CGF`;
                                     </Badge>
                                   )}
                                 </TableCell>
+                                <TableCell className="text-center">
+                                  {!classif ? (
+                                    <Badge variant="outline" className="border-dashed border-slate-300 text-slate-400 text-[10px] font-medium">-</Badge>
+                                  ) : classif.criticality === "Alta" ? (
+                                    <Badge className="bg-rose-500/10 text-rose-700 border border-rose-200 text-[10px] font-extrabold uppercase">
+                                      🔴 ALTA (A)
+                                    </Badge>
+                                  ) : classif.criticality === "Média" || classif.criticality === "Medium" ? (
+                                    <Badge className="bg-amber-500/10 text-amber-700 border border-amber-200 text-[10px] font-extrabold uppercase">
+                                      🟡 MÉDIA (B)
+                                    </Badge>
+                                  ) : classif.criticality === "Baixa" ? (
+                                    <Badge className="bg-blue-500/10 text-blue-700 border border-blue-200 text-[10px] font-extrabold uppercase">
+                                      🔵 BAIXA (C)
+                                    </Badge>
+                                  ) : (
+                                    <Badge className="bg-slate-100 text-slate-600 border border-slate-200 text-[10px] font-bold uppercase">
+                                      ⚪ NENHUMA
+                                    </Badge>
+                                  )}
+                                </TableCell>
                                 <TableCell className="text-xs font-medium text-slate-500 leading-snug max-w-[240px]">
                                   {classif ? (
                                     <div className="space-y-1">
@@ -2419,7 +2531,7 @@ Coordenação de Gestão de Frotas - CGF`;
                                           difMin: stop.duration,
                                           motoristaTelem: stop.initialRow.motorista || "-",
                                           ignicao: "DESLIGADA",
-                                          obs: `O veículo permaneceu parado por ${stop.duration} min no endereço: ${stop.address}. ${classif ? `Classificação: ${classif.placeType} (${classif.reasoning})` : ""}`
+                                          obs: `O veículo permaneceu parado por ${stop.duration} min no endereço: ${stop.address}. ${classif ? `Classificação: ${classif.placeType}. Criticidade: ${classif.criticality || "Média"}. Relato: ${classif.reasoning}` : ""}`
                                         };
                                         handleOpenEmailModal(mockDevItem, true, stop);
                                       }}

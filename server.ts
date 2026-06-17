@@ -328,17 +328,42 @@ async function startServer() {
             placeType: "Outros",
             confidence: 0.5,
             reasoning: "Chave GEMINI_API_KEY do servidor não configurada. Ativando heurística local do cliente.",
-            placeNameDetected: ""
+            placeNameDetected: "",
+            criticality: "Nenhuma"
           })) 
         });
       }
 
-      const prompt = `Analise a seguinte lista de locais (endereços/coordenadas) onde veículos corporativos/frotas ficaram parados.
-Sua tarefa é verificar se cada local é correspondente a espaços de lazer, lazer social ou compras de conveniência recreativas, tais como shoppings maciços, praças públicas, academias de ginástica, lojas de departamentos/vestuário varejista, praias, clubes recreativos, arenas, campos de futebol ou parques.
-Se for um espaço desse tipo (lazer/shopping/academia/praça/parque/loja de lazer), classifique "isLeisure" como true.
-Se for um local estritamente institucional, operacional de serviço urbano, condomínio residencial padrão, rua residencial comum, ou utilidades primárias como postos de combustíveis, oficinas mecânicas, delegacias, hospitais ou sedes da empresa pública Compesa, classifique "isLeisure" como false.
+      const prompt = `Analise a seguinte lista de locais (endereços/coordenadas/atividades) onde veículos de frota corporativa ficaram parados estacionados.
+Sua tarefa é verificar a natureza do local e classificá-lo conforme o regulamento de frotas da empresa pública de saneamento (Compesa).
 
-Forneça a resposta baseada EXATAMENTE nos índices enviados na entrada.
+Regras de Classificação e Categorização:
+- "isLeisure" deve ser verdadeiro (true) se o local NÃO for um local operacional autorizado de serviço público de saneamento. Qualquer desvio ou ponto recreativo, comercial de lazer, pessoal ou não autorizado deve ser true.
+- "placeType" deve conter a categoria resumida em português (Ex: "Lazer", "Hospedagem", "Alimentação", "Educação", "Compras", "Saúde Particular", "Estética & Fitness", "Entretenimento", "Vida Noturna", "Serviços Pessoais", "Residencial", "Religioso", "Outros Alertas").
+
+Você deve enquadrar os endereços/paradas nos seguintes grupos:
+1. Locais de Lazer: Praia, parque aquático, clube recreativo, clube de campo, marina, píer turístico, balneário, parque de diversões, zoológico, jardim botânico, mirante turístico.
+2. Hospedagem: Hotel, pousada, motel, hostel, resort, airbnb.
+3. Alimentação: Restaurante, lanchonete, fast-food, cafeteria, padaria, sorveteria, churrascaria, pizzaria, food park.
+4. Educação: Escola, colégio, creche, universidade, faculdade, curso preparatório, escola de idiomas.
+5. Compras: Shopping Center, loja de departamentos, supermercado, hipermercado, atacadista, mercado público, centro comercial, galeria comercial.
+6. Saúde: Clínica, consultório, hospital particular, laboratório.
+7. Estética, Fitness e Bem-estar: Academia, centro de estética, salão de beleza, barbearia, SPA.
+8. Entretenimento: Cinema, teatro, casa de shows, estádio, arena esportiva, ginásio, quadra esportiva, boliche, kartódromo.
+9. Vida noturna: Bar, pub, casa noturna, boate, lounge, adega.
+10. Serviços pessoais: Lava-jato, oficina não credenciada, borracharia não credenciada, loja de conveniência, lotérica.
+11. Bancos e utilidades: Banco, casa de câmbio.
+12. Residenciais: Condomínio residencial, residência particular, chácara, sítio, fazenda, casa de praia, casa de campo.
+13. Religiosos: Igreja, templo, centro espírita, mesquita, sinagoga.
+14. Outros locais de alerta: Aeroporto, rodoviária, porto, terminal marítimo, feiras livres, eventos particulares (casa de festas, buffet, centro de convenções).
+
+Diretriz de Classificação de Criticidade ("criticality"):
+- "Alta": Motel, praia, hotel, pousada, bar, boate, residência particular, shopping center, clube recreativo, resort, airbnb.
+- "Média": Restaurante, lanchonete, supermercado, academia, escola, colégio, universidade, cinema, teatro, hospital particular, clínica de estética, templo/igreja, aeroporto/rodoviária.
+- "Baixa": Banco, lotérica, padaria, cafeteria, sorveteria, posto de conveniência, estacionamento privado, oficina/lava-jato.
+- "Nenhuma": Base operacional real da COMPESA, escritório institucional oficial da empresa, ou obras públicas nas vias.
+
+Forneça respostas precisas e baseadas na interpretação de nomes comerciais presentes no endereço ou em coordenadas de geolocalização.
 
 Lista de locais para análise:
 ${JSON.stringify(stops, null, 2)}`;
@@ -347,7 +372,7 @@ ${JSON.stringify(stops, null, 2)}`;
         model: "gemini-3.5-flash",
         contents: prompt,
         config: {
-          systemInstruction: "Você é um auditor de conformidade de frotas para uma empresa pública de saneamento. Classifique com rigor e exatidão se cada endereço representa um centro de lazer, recreação ou consumo (shopping, praça, academia, loja, parque, praia, etc.). Retorne exclusivamente a resposta em formato estruturado JSON de array de objetos.",
+          systemInstruction: "Você é um auditor sênior de conformidade de frotas da COMPESA. Classifique rigorosamente as paradas de veículos na base de inteligência com base nas regras de criticidade (Alta, Média, Baixa, Nenhuma) e categorias em português fornecidas nas diretrizes do usuário. Retorne exclusivamente a resposta em formato estruturado JSON de array de objetos.",
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.ARRAY,
@@ -355,13 +380,14 @@ ${JSON.stringify(stops, null, 2)}`;
               type: Type.OBJECT,
               properties: {
                 index: { type: Type.INTEGER, description: "O campo index recebido na entrada para rastreamento" },
-                isLeisure: { type: Type.BOOLEAN, description: "True se for shopping, praça, academia, loja varejista de lazer, parque, praia, ou ponto turístico/lazer" },
-                placeType: { type: Type.STRING, description: "Categoria resumida: 'Shopping', 'Praça', 'Academia', 'Loja', 'Serviço/Trabalhos', 'Residencial', 'Outros'" },
+                isLeisure: { type: Type.BOOLEAN, description: "True se for centro comercial, lazer, turismo, residência ou qualquer parada particular" },
+                placeType: { type: Type.STRING, description: "Categoria resumida: 'Lazer', 'Hospedagem', 'Alimentação', 'Educação', 'Compras', 'Saúde', 'Estética & Fitness', 'Entretenimento', 'Vida Noturna', 'Serviços Pessoais', 'Residencial', 'Religioso', 'Outros Alertas'" },
+                criticality: { type: Type.STRING, description: "Grau de criticidade do desvio: 'Alta', 'Média', 'Baixa' ou 'Nenhuma'" },
                 confidence: { type: Type.NUMBER, description: "Grau de confiança de 0.0 a 1.0" },
-                reasoning: { type: Type.STRING, description: "Breve explicação descritiva de por que esse local foi categorizado com lazer ou não" },
-                placeNameDetected: { type: Type.STRING, description: "Nome comercial ou atração turística/de lazer identificada no endereço se houver" }
+                reasoning: { type: Type.STRING, description: "Breve explicação em português de por que esse local foi categorizado com lazer e a criticidade atribuída" },
+                placeNameDetected: { type: Type.STRING, description: "Nome comercial, condomínio residencial, praia, ou igreja identificada no endereço" }
               },
-              required: ["index", "isLeisure", "placeType", "confidence", "reasoning"]
+              required: ["index", "isLeisure", "placeType", "criticality", "confidence", "reasoning"]
             }
           }
         }
