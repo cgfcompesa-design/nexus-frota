@@ -1541,10 +1541,28 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         "Modelo", 
         "Titularidade", 
         "Últ. Odo.", 
-        ...displayMonths.map(m => formatMonthLabel(m))
+        ...displayMonths.map(m => formatMonthLabel(m)),
+        "Total Período"
       ];
 
       const vehicleSummaryBody = vehicleSummaryData.map(row => {
+        const totalLines = [];
+        if (row.totalTicketKms > 0) totalLines.push(`${row.totalTicketKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km(Tkt)`);
+        if (row.totalTelemetryKms > 0) totalLines.push(`${row.totalTelemetryKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km(Tel)`);
+        
+        if (row.totalFuelLiters > 0 || row.totalArlaLiters > 0) {
+          let litStr = "";
+          if (row.totalFuelLiters > 0) {
+            litStr += `${row.totalFuelLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L (Comb)`;
+          }
+          if (row.totalArlaLiters > 0) {
+            if (litStr) litStr += "\n";
+            litStr += `${row.totalArlaLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L (Arla)`;
+          }
+          totalLines.push(litStr);
+        }
+        if (row.totalCost > 0) totalLines.push(`R$ ${row.totalCost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`);
+
         return [
           row.placa,
           row.diretoria,
@@ -1568,9 +1586,20 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
             }
             if (stats.cost > 0) lines.push(`R$ ${stats.cost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}`);
             return lines.join("\n") || "-";
-          })
+          }),
+          totalLines.join("\n") || "-"
         ];
       });
+
+      const colStyles: any = {
+        0: { fontStyle: 'bold', halign: 'center' }, // Placa
+        1: { halign: 'left' }, // Diretoria
+        2: { halign: 'left' }, // Gerencia
+        3: { halign: 'center' }, // Tipo
+        4: { halign: 'left' }, // Modelo
+        5: { halign: 'center' }, // Titularidade
+      };
+      colStyles[7 + displayMonths.length] = { fontStyle: 'bold', fillColor: [240, 244, 255], halign: 'center' }; // Slate-blue tint for Period Totals
 
       autoTable(doc, {
         startY: 30,
@@ -1579,14 +1608,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         body: vehicleSummaryBody,
         headStyles: { fillColor: [51, 65, 85], halign: 'center', valign: 'middle', fontSize: 7 },
         styles: { fontSize: 6, cellPadding: 1, halign: 'center', valign: 'middle' },
-        columnStyles: {
-          0: { fontStyle: 'bold', halign: 'center' }, // Placa
-          1: { halign: 'left' }, // Diretoria
-          2: { halign: 'left' }, // Gerencia
-          3: { halign: 'center' }, // Tipo
-          4: { halign: 'left' }, // Modelo
-          5: { halign: 'center' }, // Titularidade
-        }
+        columnStyles: colStyles
       });
 
       // Page 7: Visual charts fallback image handler (back to portrait)
@@ -1757,6 +1779,29 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           ? (monthStats[lastMonth] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} }) 
           : { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} };
 
+        // Calculate totals across all displayMonths (the filtered months)
+        let totalFuelLiters = 0;
+        let totalArlaLiters = 0;
+        let totalTicketKms = 0;
+        let totalTelemetryKms = 0;
+        let totalCost = 0;
+
+        displayMonths.forEach(m => {
+          const stats = monthStats[m] || { kms: 0, telemetryKms: 0, liters: 0, cost: 0, litersByFuel: {} };
+          totalTicketKms += stats.kms;
+          totalTelemetryKms += stats.telemetryKms;
+          totalCost += stats.cost;
+          if (stats.litersByFuel) {
+            Object.entries(stats.litersByFuel).forEach(([fType, fLiters]) => {
+              if (fType === "Arla 32") {
+                totalArlaLiters += (fLiters as number);
+              } else {
+                totalFuelLiters += (fLiters as number);
+              }
+            });
+          }
+        });
+
         return {
           ...a,
           placa,
@@ -1770,7 +1815,12 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
           currentMonthLiters: currentMonthStats.liters,
           currentMonthLitersByFuel: currentMonthStats.litersByFuel || {},
           currentMonthCost: currentMonthStats.cost,
-          lastOdo
+          lastOdo,
+          totalFuelLiters,
+          totalArlaLiters,
+          totalTicketKms,
+          totalTelemetryKms,
+          totalCost
         };
       });
   }, [assets, fuel, filteredFuel, platesInFuelWithoutDate, displayMonths, searchPlaca, selectedGerencias, selectedDirectorias, selectedFuelTypes, selectedVehicleModels, selectedTipos, selectedTipoControleAutonomia, selectedMonthsYears, telemetryByPlateAndMonth]);
@@ -1896,6 +1946,12 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         }
         item[`Custo R$ ${formatMonthLabel(m)}`] = stats.cost;
       });
+      // Add Totals for the filtered period
+      item[`Km Ticket Total`] = row.totalTicketKms;
+      item[`Km Telemetria Total`] = row.totalTelemetryKms;
+      item[`Volume Total Combustível (L)`] = row.totalFuelLiters;
+      item[`Volume Total Arla 32 (L)`] = row.totalArlaLiters;
+      item[`Custo Total (R$)`] = row.totalCost;
       return item;
     });
 
@@ -2826,7 +2882,7 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                   <TableHead className="text-center border-b px-2 py-1 select-none text-[10px] font-bold" rowSpan={2}>Modelo</TableHead>
                   <TableHead className="text-center border-b px-1 py-1 select-none text-[10px] font-bold whitespace-nowrap" rowSpan={2}>Titularidade</TableHead>
                   <TableHead className="text-center border-b px-1 py-1 select-none text-[10px] font-bold" rowSpan={2}>Ano</TableHead>
-                  <TableHead className="text-center bg-slate-50 dark:bg-slate-900/50 border-x border-b text-[10px] font-black uppercase tracking-widest text-primary py-1" colSpan={displayMonths.length}>
+                  <TableHead className="text-center bg-slate-50 dark:bg-slate-900/50 border-x border-b text-[10px] font-black uppercase tracking-widest text-primary py-1" colSpan={displayMonths.length + 1}>
                     Desempenho por Período (Km / L / R$)
                   </TableHead>
                   <TableHead className="text-center border-b px-1 py-1 text-[10px] font-bold leading-tight" rowSpan={2}>Último<br/>Odômetro</TableHead>
@@ -2842,6 +2898,9 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                       )}
                     </TableHead>
                   ))}
+                  <TableHead className="text-center border-x border-b text-[10px] py-1 font-extrabold uppercase tracking-widest bg-violet-50/70 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300">
+                    Soma Período
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -2908,6 +2967,49 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
                         </TableCell>
                       );
                     })}
+                    <TableCell className="text-center py-1.5 px-2 border-x whitespace-pre-wrap bg-violet-50/15 dark:bg-violet-950/5 font-semibold">
+                      <div className="flex flex-col space-y-0.5 items-center justify-center text-[10px] leading-tight">
+                        {row.totalTicketKms > 0 ? (
+                          <span className="font-bold text-slate-850 dark:text-slate-200" title="Total Deslocamento Ticket">
+                            {row.totalTicketKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km (Tkt)
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                        {row.totalTelemetryKms > 0 ? (
+                          <span className="font-semibold text-indigo-700 dark:text-indigo-400" title="Total Deslocamento Telemetria">
+                            {row.totalTelemetryKms.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} km (Tel)
+                          </span>
+                        ) : (
+                          <span className="text-indigo-400/60" title="Total Deslocamento Telemetria">- (Tel)</span>
+                        )}
+                        {(row.totalFuelLiters > 0 || row.totalArlaLiters > 0) ? (
+                          <div className="flex flex-col items-center">
+                            {row.totalFuelLiters > 0 && (
+                              <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                {row.totalFuelLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L
+                              </span>
+                            )}
+                            {row.totalArlaLiters > 0 && (
+                              <div className="text-[7.5px] font-mono leading-none tracking-tighter flex flex-col items-center mt-1 space-y-0.5 bg-purple-50/55 dark:bg-purple-950/20 border border-purple-200/50 dark:border-purple-800/50 p-1 rounded max-w-[115px] w-full text-center">
+                                <span className="truncate max-w-full text-purple-600 dark:text-purple-400">
+                                  Arla: <span className="font-bold">{row.totalArlaLiters.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}L</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                        {row.totalCost > 0 ? (
+                          <span className="font-extrabold text-emerald-600 dark:text-emerald-400">
+                            R$ {row.totalCost.toLocaleString('pt-BR', { maximumFractionDigits: 0 })}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="text-center font-mono py-1 px-2 text-[10px]">
                       {row.lastOdo > 0 ? row.lastOdo.toLocaleString('pt-BR') : "-"}
                     </TableCell>
