@@ -809,8 +809,28 @@ Coordenação de Gestão de Frotas - CGF`;
       return "Outras Regiões";
     };
 
+    const getTimestamp = (f: FuelData) => {
+      let data = f._timestamp || 0;
+      if (data === 0 && f._monthYearBase && f._monthYearBase !== "N/A" && f._monthYearBase !== null) {
+        const parts = f._monthYearBase.replace(/\./g, "").split('/');
+        if (parts.length === 2) {
+          const mes = parts[0].trim().charAt(0).toUpperCase() + parts[0].trim().slice(1).toLowerCase();
+          const ano = parts[1].trim();
+          const mesesMap: Record<string, number> = { "Jan": 0, "Fev": 1, "Mar": 2, "Abr": 3, "Mai": 4, "Jun": 5, "Jul": 6, "Ago": 7, "Set": 8, "Out": 9, "Nov": 10, "Dez": 11 };
+          if (mesesMap[mes] !== undefined) {
+             data = new Date(2000 + parseInt(ano), mesesMap[mes], 15).getTime();
+          }
+        }
+      }
+      return data;
+    };
+
+    const hasSpecificDateFilter = !!(dateFrom || dateTo);
+    const maxTsInData = filteredFuel.reduce((max, f) => Math.max(max, getTimestamp(f)), 0);
+    const windowStartTs = maxTsInData > 0 ? maxTsInData - (20 * 24 * 60 * 60 * 1000) : 0;
+
     // Group transactions by cidade and fuelType
-    const groups: Record<string, FuelData[]> = {};
+    const groups: Record<string, any[]> = {};
     filteredFuel.forEach(f => {
       const cidade = String(f._cidade || f["CIDADE"] || "N/A").toUpperCase().trim();
       const tipo = String(f._fuelType || f["TIPO COMBUSTIVEL"] || "N/A").toUpperCase().trim();
@@ -821,12 +841,16 @@ Coordenação de Gestão de Frotas - CGF`;
 
       // Exclude specific benchmarks requested by user
       const postoNomeNorm = String(f._posto || f._establishment || f["NOME POSTO"] || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      const enderecoNorm = String(f._endereco || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
       if (postoNomeNorm.includes("PICHILAU")) return;
       if (postoNomeNorm.includes("ECO POSTO") && (postoNomeNorm.includes("VITORIA") || postoNomeNorm.includes("SANTO ANTAO"))) return;
+      if (postoNomeNorm.includes("VIT") && postoNomeNorm.includes("VITORIA") && enderecoNorm.includes("BR-232")) return;
 
       const key = `${cidade}|${tipo}`;
       if (!groups[key]) groups[key] = [];
-      groups[key].push(f);
+      
+      const ts = getTimestamp(f);
+      groups[key].push({ ...f, _dataWork: ts });
     });
 
     const results: any[] = [];
@@ -834,32 +858,45 @@ Coordenação de Gestão de Frotas - CGF`;
     Object.entries(groups).forEach(([key, txs]) => {
       const [cidade, tipo] = key.split("|");
 
-      // Group by station in this city/fuel type to find minimum
-      const pricesByStation: Record<string, { minPrice: number, record: FuelData }> = {};
-      txs.forEach(t => {
-        const pName = String(t._posto || t["NOME POSTO"] || "N/A").toUpperCase().trim();
-        if (pName === "N/A" || !pName) return;
-        const price = t._vlLitro || t["VALOR UNITARIO"] || t["VL/UNITARIO"] || 0;
-        if (price <= 0.5) return;
+      // Filter recent records using same logic as PriceAnalysis
+      const recentRecords = (!hasSpecificDateFilter && windowStartTs > 0) ? txs.filter(f => f._dataWork >= windowStartTs) : txs;
+      if (recentRecords.length === 0) return;
 
-        if (!pricesByStation[pName] || price < pricesByStation[pName].minPrice) {
-          pricesByStation[pName] = { minPrice: price, record: t };
+      // Sort recent records descending by date
+      const sortedByDate = [...recentRecords].sort((a, b) => b._dataWork - a._dataWork);
+      const focusGroup = sortedByDate.slice(0, 5);
+
+      // Find best match in the focus group of last 5 transactions
+      const bestMatch = focusGroup.reduce((best, curr) => {
+        const fuelType = String(curr._fuelType || curr["TIPO COMBUSTIVEL"] || "").toUpperCase();
+        const isGas = fuelType.includes("GASOLINA");
+        const isDiesel = fuelType.includes("DIESEL");
+        const isArla = fuelType.includes("ARLA");
+        
+        const price = curr._vlLitro || curr["VALOR UNITARIO"] || curr["VL/UNITARIO"] || 0;
+        const bestPrice = best ? (best._vlLitro || best["VALOR UNITARIO"] || best["VL/UNITARIO"] || 0) : 0;
+
+        if (!isArla) {
+          if (isGas && (price < 4.00 || price > 8.50)) return best;
+          if (isDiesel && (price < 4.00 || price > 8.00)) return best;
+        } else {
+          if (price > 15.00 || price < 2.00) return best;
         }
-      });
+        
+        if (price <= 0.5 || price > 100) return best;
+        
+        return (!best || bestPrice <= 0.5 || price < bestPrice) ? curr : best;
+      }, focusGroup[0]);
 
-      const stationsList = Object.entries(pricesByStation).map(([name, val]) => ({
-        name,
-        minPrice: val.minPrice,
-        record: val.record
-      }));
+      const finalMatch = (bestMatch && (bestMatch._vlLitro || bestMatch["VALOR UNITARIO"] || bestMatch["VL/UNITARIO"] || 0) < 0.5)
+        ? sortedByDate.find(r => (r._vlLitro || r["VALOR UNITARIO"] || r["VL/UNITARIO"] || 0) > 2.0) || bestMatch
+        : bestMatch;
 
-      // We only compare if there's alternative choices (minimum 2 stations in this city/fuel combination)
-      if (stationsList.length < 2) return;
+      if (!finalMatch) return;
 
-      stationsList.sort((a, b) => a.minPrice - b.minPrice);
-      const bestStationOfGroup = stationsList[0];
-      const bestPrice = bestStationOfGroup.minPrice;
-      const bestStationName = bestStationOfGroup.name;
+      const bestPrice = finalMatch._vlLitro || finalMatch["VALOR UNITARIO"] || finalMatch["VL/UNITARIO"] || 0;
+      const bestStationName = String(finalMatch._posto || finalMatch["NOME POSTO"] || "N/A").toUpperCase().trim();
+      if (bestPrice <= 0.5) return;
 
       let otherFuelingsCount = 0;
       let otherLitersPaid = 0;
@@ -870,7 +907,7 @@ Coordenação de Gestão de Frotas - CGF`;
       const otherStationsUsed: Record<string, { count: number, liters: number, cost: number }> = {};
       const gestoesConfronted = new Set<string>();
 
-      txs.forEach(t => {
+      recentRecords.forEach(t => {
         const pName = String(t._posto || t["NOME POSTO"] || "N/A").toUpperCase().trim();
         const price = t._vlLitro || t["VALOR UNITARIO"] || t["VL/UNITARIO"] || 0;
         const litros = t._litros || t["LITROS"] || 0;
@@ -884,18 +921,21 @@ Coordenação de Gestão de Frotas - CGF`;
           bestStationFuelingsCount++;
           bestStationLitersPaid += litros;
         } else {
-          otherFuelingsCount++;
-          otherLitersPaid += litros;
-          otherCostPaid += totalCost;
-          if (gerencia && gerencia !== "N/A" && gerencia !== "") {
-            gestoesConfronted.add(gerencia);
+          // Compare with best price in this period
+          if (price > bestPrice) {
+            otherFuelingsCount++;
+            otherLitersPaid += litros;
+            otherCostPaid += totalCost;
+            if (gerencia && gerencia !== "N/A" && gerencia !== "") {
+              gestoesConfronted.add(gerencia);
+            }
+            if (!otherStationsUsed[pName]) {
+              otherStationsUsed[pName] = { count: 0, liters: 0, cost: 0 };
+            }
+            otherStationsUsed[pName].count++;
+            otherStationsUsed[pName].liters += litros;
+            otherStationsUsed[pName].cost += totalCost;
           }
-          if (!otherStationsUsed[pName]) {
-            otherStationsUsed[pName] = { count: 0, liters: 0, cost: 0 };
-          }
-          otherStationsUsed[pName].count++;
-          otherStationsUsed[pName].liters += litros;
-          otherStationsUsed[pName].cost += totalCost;
         }
       });
 
@@ -904,30 +944,30 @@ Coordenação de Gestão de Frotas - CGF`;
         const priceDifference = avgPricePaidOther - bestPrice;
         const potentialSavings = priceDifference > 0 ? priceDifference * otherLitersPaid : 0;
 
-        // If the best station got 0 or very few percent of fuelings, or even if it's generally unutilized/avoided
-        // Users can easily review all of them to notify and save money
-        results.push({
-          regiao: getPERegion(cidade),
-          cidade,
-          tipo,
-          bestStationName,
-          bestPrice,
-          bestStationFuelingsCount,
-          bestStationLitersPaid,
-          otherFuelingsCount,
-          otherLitersPaid,
-          otherCostPaid,
-          avgPricePaidOther,
-          priceDifference,
-          potentialSavings,
-          gestoes: Array.from(gestoesConfronted),
-          otherStations: Object.keys(otherStationsUsed)
-        });
+        if (potentialSavings > 0) {
+          results.push({
+            regiao: getPERegion(cidade),
+            cidade,
+            tipo,
+            bestStationName,
+            bestPrice,
+            bestStationFuelingsCount,
+            bestStationLitersPaid,
+            otherFuelingsCount,
+            otherLitersPaid,
+            otherCostPaid,
+            avgPricePaidOther,
+            priceDifference,
+            potentialSavings,
+            gestoes: Array.from(gestoesConfronted),
+            otherStations: Object.keys(otherStationsUsed)
+          });
+        }
       }
     });
 
     return results.sort((a, b) => b.potentialSavings - a.potentialSavings);
-  }, [filteredFuel, allAssetsMap]);
+  }, [filteredFuel, allAssetsMap, dateFrom, dateTo]);
 
   const unutilizedStations = useMemo(() => {
     return unutilizedStationsRaw.filter(x => {
