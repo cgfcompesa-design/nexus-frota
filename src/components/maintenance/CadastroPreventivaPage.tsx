@@ -29,7 +29,8 @@ import {
   Mail,
   Settings,
   AlertTriangle,
-  X
+  X,
+  Copy
 } from "lucide-react";
 import { useContactsData } from "@/hooks/useContactsData";
 import { auth, db } from "../../lib/firebase";
@@ -2233,12 +2234,29 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
               {/* CC (Cópia) */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Cópia (CC)</label>
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Cópia (CC)</label>
+                  {emailCc && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        navigator.clipboard.writeText(emailCc);
+                        toast.success("E-mails de cópia copiados!");
+                      }} 
+                      className="h-5 text-[9px] font-black uppercase px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 flex items-center gap-1"
+                    >
+                      <Copy className="w-2.5 h-2.5" />
+                      Copiar
+                    </Button>
+                  )}
+                </div>
                 <Input
                   type="text"
-                  disabled
+                  readOnly
                   value={emailCc}
-                  className="font-medium text-xs bg-slate-50 dark:bg-slate-900 h-10 text-slate-500"
+                  className="font-medium text-xs bg-slate-50 dark:bg-slate-900 h-10 text-slate-600 dark:text-slate-300 cursor-text"
                 />
               </div>
 
@@ -2344,12 +2362,29 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
               {/* CC (Cópia) */}
               <div className="space-y-1.5">
-                <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400 ml-1">Cópia (CC)</label>
+                <div className="flex justify-between items-center ml-1">
+                  <label className="text-[10px] font-black uppercase text-slate-500 dark:text-slate-400">Cópia (CC)</label>
+                  {groupEmailCc && (
+                    <Button 
+                      type="button" 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        navigator.clipboard.writeText(groupEmailCc);
+                        toast.success("E-mails de cópia copiados!");
+                      }} 
+                      className="h-5 text-[9px] font-black uppercase px-2 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 flex items-center gap-1"
+                    >
+                      <Copy className="w-2.5 h-2.5" />
+                      Copiar
+                    </Button>
+                  )}
+                </div>
                 <Input
                   type="text"
-                  disabled
+                  readOnly
                   value={groupEmailCc}
-                  className="font-medium text-xs bg-slate-50 dark:bg-slate-900 h-10 text-slate-500"
+                  className="font-medium text-xs bg-slate-50 dark:bg-slate-900 h-10 text-slate-600 dark:text-slate-300 cursor-text"
                 />
               </div>
 

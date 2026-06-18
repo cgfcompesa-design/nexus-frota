@@ -469,6 +469,15 @@ export async function fetchFuelData(): Promise<any[]> {
       }
     }
 
+    const fuelName = String(obj._fuelType || obj["TIPO COMBUSTIVEL"] || obj["TIPO COMBUSTÍVEL"] || obj["PRODUTO"] || "").toUpperCase();
+    if (fuelName.includes("ARLA 32") || fuelName.includes("ARLA")) {
+      obj._kmRodados = 0;
+      obj.KM_RODADOS = 0;
+      if (obj["KM RODADOS OU HORAS TRABALHADAS"]) obj["KM RODADOS OU HORAS TRABALHADAS"] = 0;
+      if (obj["KM_RODADOS"]) obj["KM_RODADOS"] = 0;
+      if (obj["KM RODADOS"]) obj["KM RODADOS"] = 0;
+    }
+
     return obj;
   });
 
@@ -511,33 +520,11 @@ export async function fetchFuelData(): Promise<any[]> {
       const isArla = fuelName.includes("ARLA");
       
       if (isArla) {
-        const currentOdo = current._odometer || 0;
-        if (currentOdo > 0) {
-          let hasSameOdoNeighbor = false;
-          
-          if (i > 0) {
-            const prev = txs[i - 1];
-            const prevOdo = prev._odometer || 0;
-            if (prevOdo === currentOdo) {
-              hasSameOdoNeighbor = true;
-            }
-          }
-          
-          if (i < txs.length - 1) {
-            const next = txs[i + 1];
-            const nextOdo = next._odometer || 0;
-            if (nextOdo === currentOdo) {
-              hasSameOdoNeighbor = true;
-            }
-          }
-          
-          if (hasSameOdoNeighbor) {
-            current._kmRodados = 0;
-            current.KM_RODADOS = 0;
-            if (current["KM RODADOS OU HORAS TRABALHADAS"]) current["KM RODADOS OU HORAS TRABALHADAS"] = 0;
-            if (current["KM_RODADOS"]) current["KM_RODADOS"] = 0;
-          }
-        }
+        current._kmRodados = 0;
+        current.KM_RODADOS = 0;
+        if (current["KM RODADOS OU HORAS TRABALHADAS"]) current["KM RODADOS OU HORAS TRABALHADAS"] = 0;
+        if (current["KM_RODADOS"]) current["KM_RODADOS"] = 0;
+        if (current["KM RODADOS"]) current["KM RODADOS"] = 0;
       }
     }
   }
