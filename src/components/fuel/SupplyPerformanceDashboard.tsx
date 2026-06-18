@@ -19,7 +19,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   FileSpreadsheet,
-  Building2
+  Building2,
+  TrendingDown,
+  Send
 } from "lucide-react";
 import { Asset, FuelData } from "@/types";
 import { 
@@ -102,6 +104,18 @@ const rangeLabels: Record<string, string> = {
   const [searchInconsistencyGerencia, setSearchInconsistencyGerencia] = useState("");
   const [searchGroupedInconsistencyGerencia, setSearchGroupedInconsistencyGerencia] = useState("");
 
+  // Estados para a Tabela de Postos de Melhor Preço Não Utilizados
+  const [unutilizedSelectedRegion, setUnutilizedSelectedRegion] = useState<string>("ALL");
+  const [unutilizedSelectedCity, setUnutilizedSelectedCity] = useState<string>("ALL");
+  const [unutilizedSelectedStation, setUnutilizedSelectedStation] = useState<string>("ALL");
+  const [unutilizedSelectedGestao, setUnutilizedSelectedGestao] = useState<string>("ALL");
+  const [unutilizedCurrentPage, setUnutilizedCurrentPage] = useState(1);
+  
+  const [isUnutilizedDialogOpen, setIsUnutilizedDialogOpen] = useState(false);
+  const [selectedUnutilizedRow, setSelectedUnutilizedRow] = useState<any>(null);
+  const [selectedUnutilizedGerencia, setSelectedUnutilizedGerencia] = useState<string>("");
+  const [searchUnutilizedGerencia, setSearchUnutilizedGerencia] = useState<string>("");
+
   const { getEmailsByGerencia, contactsData, isLoading: isContactsLoading } = useContactsData();
 
   // Consolidação da lista de unidades (Ativos + Contatos) de forma normalizada
@@ -148,6 +162,10 @@ const rangeLabels: Record<string, string> = {
   const filteredGroupedInconsistencyUnits = useMemo(() => {
     return (unitList || []).filter(g => normalizeText(g).includes(normalizeText(searchGroupedInconsistencyGerencia)));
   }, [unitList, searchGroupedInconsistencyGerencia]);
+
+  const filteredUnutilizedUnits = useMemo(() => {
+    return (unitList || []).filter(g => normalizeText(g).includes(normalizeText(searchUnutilizedGerencia)));
+  }, [unitList, searchUnutilizedGerencia]);
 
   const getCCEmails = () => "gadabastecimento@compesa.com.br;gadmonitoramento@compesa.com.br";
 
@@ -768,6 +786,255 @@ Coordenação de Gestão de Frotas - CGF`;
       .slice(0, 8); // Top 8 units
   }, [timeAndDayAnalysis.vehicles, inconsistencyAnalysis]);
 
+  const unutilizedStationsRaw = useMemo(() => {
+    const PERNAMBUCO_REGIONS: Record<string, string[]> = {
+      "RMR": ["RECIFE", "OLINDA", "JABOATAO", "PAULISTA", "CAMARAGIBE", "IGARASSU", "ABREU E LIMA", "SAO LOURENCO DA MATA", "ARACOIABA", "IPOJUCA", "MORENO", "ITAPISSUMA", "ITAMARACA", "CABO DE SANTO AGOSTINHO", "CABO"],
+      "Agreste": ["CARUARU", "GARANHUNS", "ARCOVERDE", "SANTA CRUZ DO CAPIBARIBE", "BEZERROS", "GRAVATA", "PESQUEIRA", "SURUBIM", "BELO JARDIM", "BOM CONSELHO", "LAJEDO", "LIMOEIRO", "BUIQUE", "CUSTODIA", "PEDRA", "VENTUROSA", "SALOA", "CAETES", "SANTA MARIA DO CAMBUCA", "VERTENTES", "TAQUARITINGA", "TORITAMA", "AGRESTE"],
+      "Mata Norte": ["GOIANA", "TIMBAUBA", "CARPINA", "PAUDALHO", "ALIANCA", "CONDADO", "NAZARE DA MATA", "VICENCIA", "MACAPARANA", "ITAMBE", "LAGOA DO CARRO", "TRACUNHAEM", "BUENOS AIRES"],
+      "Mata Sul": ["PALMARES", "VITORIA DE SANTO ANTAO", "VITORIA", "SIRINHAEM", "BARREIROS", "CATENDE", "ESCADA", "RIBEIRAO", "RIO FORMOSO", "AGUA PRETA", "TAMANDARE", "QUIPAPA", "AMARAGI", "CORTES", "JOAQUIM NABUCO", "MARAIAL", "SAO BENEDITO DO SUL"],
+      "Sertão": ["PETROLINA", "SALGUEIRO", "SERRA TALHADA", "ARARIPINA", "AFOGADOS DA INGAZEIRA", "CABROBO", "OURICURI", "TABIRA", "PETROLANDIA", "SAO JOSE DO EGITO", "FLORESTA", "BODOCO", "EXU", "PARNAMIRIM", "STALHADA", "S J DO EGITO", "TRIUNFO", "BELMONTE", "ITACURUBA", "SAO JOSE DO BELMONTE", "VERDEJANTE", "MIRANDIBA", "SERTAO", "TABIRA", "CUSTODIA", "BETANIA", "IBIMIRIM", "INAJA", "MANARI"]
+    };
+
+    const getPERegion = (entry: string): string => {
+      if (!entry) return "Outras Regiões";
+      const c = entry.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (c.includes("RMR") || c.includes("METROPOLITANA")) return "RMR";
+      if (c.includes("AGRESTE")) return "Agreste";
+      if (c.includes("MATA NORTE")) return "Mata Norte";
+      if (c.includes("MATA SUL")) return "Mata Sul";
+      if (c.includes("SERTAO")) return "Sertão";
+      for (const [region, cities] of Object.entries(PERNAMBUCO_REGIONS)) {
+        if (cities.some(item => c.includes(item))) return region;
+      }
+      return "Outras Regiões";
+    };
+
+    // Group transactions by cidade and fuelType
+    const groups: Record<string, FuelData[]> = {};
+    filteredFuel.forEach(f => {
+      const cidade = String(f._cidade || f["CIDADE"] || "N/A").toUpperCase().trim();
+      const tipo = String(f._fuelType || f["TIPO COMBUSTIVEL"] || "N/A").toUpperCase().trim();
+      if (cidade === "N/A" || tipo === "N/A" || !cidade || !tipo) return;
+
+      const preco = f._vlLitro || f["VALOR UNITARIO"] || f["VL/UNITARIO"] || 0;
+      if (preco <= 0.5 || preco > 20.00) return;
+
+      // Exclude specific benchmarks requested by user
+      const postoNomeNorm = String(f._posto || f._establishment || f["NOME POSTO"] || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      if (postoNomeNorm.includes("PICHILAU")) return;
+      if (postoNomeNorm.includes("ECO POSTO") && (postoNomeNorm.includes("VITORIA") || postoNomeNorm.includes("SANTO ANTAO"))) return;
+
+      const key = `${cidade}|${tipo}`;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(f);
+    });
+
+    const results: any[] = [];
+
+    Object.entries(groups).forEach(([key, txs]) => {
+      const [cidade, tipo] = key.split("|");
+
+      // Group by station in this city/fuel type to find minimum
+      const pricesByStation: Record<string, { minPrice: number, record: FuelData }> = {};
+      txs.forEach(t => {
+        const pName = String(t._posto || t["NOME POSTO"] || "N/A").toUpperCase().trim();
+        if (pName === "N/A" || !pName) return;
+        const price = t._vlLitro || t["VALOR UNITARIO"] || t["VL/UNITARIO"] || 0;
+        if (price <= 0.5) return;
+
+        if (!pricesByStation[pName] || price < pricesByStation[pName].minPrice) {
+          pricesByStation[pName] = { minPrice: price, record: t };
+        }
+      });
+
+      const stationsList = Object.entries(pricesByStation).map(([name, val]) => ({
+        name,
+        minPrice: val.minPrice,
+        record: val.record
+      }));
+
+      // We only compare if there's alternative choices (minimum 2 stations in this city/fuel combination)
+      if (stationsList.length < 2) return;
+
+      stationsList.sort((a, b) => a.minPrice - b.minPrice);
+      const bestStationOfGroup = stationsList[0];
+      const bestPrice = bestStationOfGroup.minPrice;
+      const bestStationName = bestStationOfGroup.name;
+
+      let otherFuelingsCount = 0;
+      let otherLitersPaid = 0;
+      let otherCostPaid = 0;
+      let bestStationFuelingsCount = 0;
+      let bestStationLitersPaid = 0;
+
+      const otherStationsUsed: Record<string, { count: number, liters: number, cost: number }> = {};
+      const gestoesConfronted = new Set<string>();
+
+      txs.forEach(t => {
+        const pName = String(t._posto || t["NOME POSTO"] || "N/A").toUpperCase().trim();
+        const price = t._vlLitro || t["VALOR UNITARIO"] || t["VL/UNITARIO"] || 0;
+        const litros = t._litros || t["LITROS"] || 0;
+        const totalCost = t._total || t["VALOR EMISSAO"] || 0;
+
+        const placa = String(t._placa || t.PLACA || t.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        const asset = allAssetsMap.get(placa);
+        const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || "N/A";
+
+        if (pName === bestStationName) {
+          bestStationFuelingsCount++;
+          bestStationLitersPaid += litros;
+        } else {
+          otherFuelingsCount++;
+          otherLitersPaid += litros;
+          otherCostPaid += totalCost;
+          if (gerencia && gerencia !== "N/A" && gerencia !== "") {
+            gestoesConfronted.add(gerencia);
+          }
+          if (!otherStationsUsed[pName]) {
+            otherStationsUsed[pName] = { count: 0, liters: 0, cost: 0 };
+          }
+          otherStationsUsed[pName].count++;
+          otherStationsUsed[pName].liters += litros;
+          otherStationsUsed[pName].cost += totalCost;
+        }
+      });
+
+      if (otherFuelingsCount > 0) {
+        const avgPricePaidOther = otherLitersPaid > 0 ? otherCostPaid / otherLitersPaid : 0;
+        const priceDifference = avgPricePaidOther - bestPrice;
+        const potentialSavings = priceDifference > 0 ? priceDifference * otherLitersPaid : 0;
+
+        // If the best station got 0 or very few percent of fuelings, or even if it's generally unutilized/avoided
+        // Users can easily review all of them to notify and save money
+        results.push({
+          regiao: getPERegion(cidade),
+          cidade,
+          tipo,
+          bestStationName,
+          bestPrice,
+          bestStationFuelingsCount,
+          bestStationLitersPaid,
+          otherFuelingsCount,
+          otherLitersPaid,
+          otherCostPaid,
+          avgPricePaidOther,
+          priceDifference,
+          potentialSavings,
+          gestoes: Array.from(gestoesConfronted),
+          otherStations: Object.keys(otherStationsUsed)
+        });
+      }
+    });
+
+    return results.sort((a, b) => b.potentialSavings - a.potentialSavings);
+  }, [filteredFuel, allAssetsMap]);
+
+  const unutilizedStations = useMemo(() => {
+    return unutilizedStationsRaw.filter(x => {
+      if (unutilizedSelectedRegion !== "ALL" && x.regiao !== unutilizedSelectedRegion) return false;
+      if (unutilizedSelectedCity !== "ALL" && x.cidade !== unutilizedSelectedCity) return false;
+      if (unutilizedSelectedStation !== "ALL" && x.bestStationName !== unutilizedSelectedStation) return false;
+      if (unutilizedSelectedGestao !== "ALL" && !x.gestoes.includes(unutilizedSelectedGestao)) return false;
+      return true;
+    });
+  }, [unutilizedStationsRaw, unutilizedSelectedRegion, unutilizedSelectedCity, unutilizedSelectedStation, unutilizedSelectedGestao]);
+
+  const unutilizedRegionOptions = useMemo(() => {
+    return Array.from(new Set(unutilizedStationsRaw.map(x => x.regiao))).sort();
+  }, [unutilizedStationsRaw]);
+
+  const unutilizedCityOptions = useMemo(() => {
+    return Array.from(new Set(unutilizedStationsRaw.map(x => x.cidade))).sort();
+  }, [unutilizedStationsRaw]);
+
+  const unutilizedStationOptions = useMemo(() => {
+    return Array.from(new Set(unutilizedStationsRaw.map(x => x.bestStationName))).sort();
+  }, [unutilizedStationsRaw]);
+
+  const unutilizedGestaoOptions = useMemo(() => {
+    const gest = new Set<string>();
+    unutilizedStationsRaw.forEach(x => {
+      x.gestoes.forEach((g: string) => gest.add(g));
+    });
+    return Array.from(gest).sort();
+  }, [unutilizedStationsRaw]);
+
+  const totalAvoidableCostSum = useMemo(() => {
+    return unutilizedStations.reduce((sum, x) => sum + x.potentialSavings, 0);
+  }, [unutilizedStations]);
+
+  const handleSendUnutilizedNotification = () => {
+    if (!selectedUnutilizedGerencia) {
+      toast.error("Por favor, selecione uma gerência/gestão");
+      return;
+    }
+    const row = selectedUnutilizedRow;
+    if (!row) return;
+
+    const subject = `Melhores Preços não Utilizados - Alerta de Desperdício e Otimização - COMPESA`;
+    const body = `Prezado Gestor da Unidade (${selectedUnutilizedGerencia}),
+
+A Coordenação de Gestão de Frotas (CGF) identificou uma importante oportunidade de economia que não está sendo aproveitada na sua unidade em relação ao direcionamento de abastecimento dos veículos corporativos.
+
+Na tela de Análise de Preços da COMPESA, foi detectado o seguinte posto credenciado com o melhor preço para a sua localidade:
+
+📍 Localidade: ${row.cidade} (${row.regiao})
+Gasolina/Diesel: ${row.tipo}
+⛽ Posto com Melhor Preço Credenciado: ${row.bestStationName}
+💰 Valor de Melhor Preço: R$ ${row.bestPrice.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} / L
+
+Pelo nosso levantamento mais recente, veículos sob a sua gestão realizaram abastecimentos em OUTROS postos de combustíveis na mesma cidade, pagando mais caro pelo mesmo tipo de combustível:
+
+📊 Volume de Abastecimentos noutros postos: ${row.otherLitersPaid.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Litros
+📈 Preço Médio Pago nos Outros Postos: R$ ${row.avgPricePaidOther.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} / L
+📉 Impacto Financeiro (Desperdício) Evitável Mensurado: R$ ${row.potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+
+Ressaltamos que a COMPESA possui convênio direto e regras estritas para priorização dos postos de combustíveis de menor preço cadastrados no sistema Nexus BI, sendo estes os mais viáveis economicamente para as despesas públicas de nossa frota corporativa.
+
+Solicitamos esclarecer por que os condutores sob sua gestão não estão efetuando os abastecimentos no posto indicado (${row.bestStationName}) e requeremos que os oriente a priorizar este posto credenciado em futuros abastecimentos, visando conter o desperdício identificado.
+
+Contamos com sua colaboração urgente para regularizar o direcionamento de abastecimento da frota.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas - CGF
+Companhia Pernambucana de Saneamento - COMPESA`;
+
+    const cc = getCCEmails();
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toRaw = getEmailsByGerencia(selectedUnutilizedGerencia);
+    const toFiltered = toRaw.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    const to = toFiltered.join(";");
+
+    const mailto = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}&cc=${encodeURIComponent(cc)}`;
+    window.location.href = mailto;
+    setIsUnutilizedDialogOpen(false);
+    toast.success("E-mail de recomendação e cobrança preparado!");
+  };
+
+  const handleExportUnutilizedSummary = () => {
+    const dataExport = unutilizedStations.map(x => ({
+      "Região": x.regiao,
+      "Cidade": x.cidade,
+      "Tipo Combustível": x.tipo,
+      "Posto Credenciado Melhor Preço": x.bestStationName,
+      "Melhor Preço Praticado": x.bestPrice,
+      "Abastecimentos no Posto Econômico": x.bestStationFuelingsCount,
+      "Volume no Posto Econômico (L)": x.bestStationLitersPaid,
+      "Abastecimentos em Postos Caros": x.otherFuelingsCount,
+      "Volume em Postos Caros (L)": x.otherLitersPaid,
+      "Preço Médio nos Outros (R$/L)": x.avgPricePaidOther,
+      "Diferença por Litro (R$)": x.priceDifference,
+      "Economia Evitável Potencial (R$)": x.potentialSavings,
+      "Gestões/Gerências Envolvidas": x.gestoes.join(", ")
+    }));
+    exportToExcelMultiSheet([{ data: dataExport, sheetName: "Oportunidades de Direcionamento" }], "Auditoria_Melhores_Precos_COMPESA");
+  };
+
+  const paginatedUnutilized = useMemo(() => {
+    const start = (unutilizedCurrentPage - 1) * itemsPerPage;
+    return unutilizedStations.slice(start, start + itemsPerPage);
+  }, [unutilizedStations, unutilizedCurrentPage]);
+
   const COLORS = ['#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#f43f5e'];
 
   return (
@@ -902,6 +1169,299 @@ Coordenação de Gestão de Frotas - CGF`;
         </CardHeader>
         <CardContent className="pt-6">
           <CoringaCardsTable fuel={filteredFuel} assetsMap={allAssetsMap} />
+        </CardContent>
+      </Card>
+
+      {/* SEÇÃO: POSTOS DE MELHORES PREÇOS NÃO UTILIZADOS (OPORTUNIDADES DE ECONOMIA) */}
+      <Card className="border-none shadow-sm bg-white dark:bg-slate-900 border-t-4 border-t-emerald-500 overflow-hidden">
+        <CardHeader className="border-b border-slate-50 dark:border-slate-800 pb-4">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 flex items-center justify-center text-emerald-600">
+                <TrendingDown className="h-5 w-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle className="text-sm font-black uppercase tracking-widest text-slate-700 dark:text-slate-200">
+                    Oportunidades de Economia: Melhores Preços Omitidos
+                  </CardTitle>
+                  <Badge className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-none font-black text-[10px] uppercase">
+                    R$ {totalAvoidableCostSum.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Evitáveis
+                  </Badge>
+                </div>
+                <CardDescription className="text-[9px] uppercase font-bold text-slate-400">
+                  Auditoria de postos credenciados com melhores preços na localidade sendo subutilizados por veículos abastecendo em estabelecimentos mais caros
+                </CardDescription>
+              </div>
+            </div>
+            <div>
+              <Button 
+                onClick={handleExportUnutilizedSummary}
+                disabled={unutilizedStations.length === 0}
+                className="h-8 text-[9px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white border-none shrink-0"
+              >
+                <Download className="h-3.5 w-3.5 mr-1" /> Exportar Auditoria
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        
+        <CardContent className="pt-6 space-y-4">
+          {/* Filtros locais */}
+          <div className="flex flex-wrap gap-3 items-end bg-slate-50/55 dark:bg-slate-950/20 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
+            <div className="w-[180px]">
+              <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Filtrar por Região</label>
+              <Select value={unutilizedSelectedRegion} onValueChange={(val) => { setUnutilizedSelectedRegion(val); setUnutilizedCurrentPage(1); }}>
+                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="Todas as Regiões" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todas as Regiões</SelectItem>
+                  {unutilizedRegionOptions.map(r => (
+                    <SelectItem key={r} value={r} className="text-[10px] font-bold uppercase">{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-[200px]">
+              <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Filtrar por Cidade</label>
+              <Select value={unutilizedSelectedCity} onValueChange={(val) => { setUnutilizedSelectedCity(val); setUnutilizedCurrentPage(1); }}>
+                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="Todas as Cidades" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todas as Cidades</SelectItem>
+                  {unutilizedCityOptions.map(c => (
+                    <SelectItem key={c} value={c} className="text-[10px] font-bold uppercase">{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-[220px]">
+              <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Melhor Preço Posto</label>
+              <Select value={unutilizedSelectedStation} onValueChange={(val) => { setUnutilizedSelectedStation(val); setUnutilizedCurrentPage(1); }}>
+                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="Todos os Postos" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todos os Postos</SelectItem>
+                  {unutilizedStationOptions.map(s => (
+                    <SelectItem key={s} value={s} className="text-[10px] font-bold uppercase">{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="w-[220px]">
+              <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Gestão com Desvio</label>
+              <Select value={unutilizedSelectedGestao} onValueChange={(val) => { setUnutilizedSelectedGestao(val); setUnutilizedCurrentPage(1); }}>
+                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+                  <SelectValue placeholder="Todas as Gestões" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[250px] overflow-y-auto">
+                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todas as Gestões</SelectItem>
+                  {unutilizedGestaoOptions.map(g => (
+                    <SelectItem key={g} value={g} className="text-[10px] font-bold uppercase">{g}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-end pb-0.5 ml-auto">
+              {(unutilizedSelectedRegion !== "ALL" || unutilizedSelectedCity !== "ALL" || unutilizedSelectedStation !== "ALL" || unutilizedSelectedGestao !== "ALL") && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-8 text-[9px] font-black uppercase underline hover:bg-transparent text-slate-500"
+                  onClick={() => {
+                    setUnutilizedSelectedRegion("ALL");
+                    setUnutilizedSelectedCity("ALL");
+                    setUnutilizedSelectedStation("ALL");
+                    setUnutilizedSelectedGestao("ALL");
+                    setUnutilizedCurrentPage(1);
+                  }}
+                >
+                  Limpar Filtros Locais
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Tabela de resultados */}
+          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-x-auto">
+            <ScrollArea className="w-full">
+              <Table className="min-w-[1300px]">
+                <TableHeader className="bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10">
+                  <TableRow className="hover:bg-transparent border-slate-100 dark:border-slate-800">
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto">Região / Cidade</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto">Combustível</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto">Posto Melhor Preço (Foco)</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto text-center">Nosso Giro no Posto Foco</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto text-center">Desvios noutros Postos</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto text-right">Preço Médio nos Outros</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto text-center">Diferença / L</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto text-right text-emerald-600 dark:text-emerald-400 font-extrabold">Potencial Economia</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto">Gestões com Abastecimento Externo</TableHead>
+                    <TableHead className="text-[9px] font-black uppercase text-slate-400 py-3 h-auto text-center"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {paginatedUnutilized.length > 0 ? (
+                    paginatedUnutilized.map((item, idx) => (
+                      <TableRow key={idx} className="hover:bg-slate-50/20 dark:hover:bg-slate-800/10 border-slate-50 dark:border-slate-800/50 transition-colors">
+                        <TableCell className="py-3">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase leading-none">{item.cidade}</span>
+                            <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest bg-indigo-50/30 text-indigo-600 border-indigo-100 max-w-max py-0 leading-tight">
+                              {item.regiao}
+                            </Badge>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <Badge variant="outline" className="text-[8px] font-black uppercase tracking-wider bg-slate-50 text-slate-500 border-slate-200">
+                            {item.tipo}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="py-3 max-w-[200px]">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase leading-tight truncate" title={item.bestStationName}>
+                              {item.bestStationName}
+                            </span>
+                            <span className="text-[10px] font-black text-emerald-600 leading-tight">
+                              R$ {item.bestPrice.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 text-center">
+                          {item.bestStationFuelingsCount > 0 ? (
+                            <div className="flex flex-col items-center">
+                              <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">
+                                {item.bestStationFuelingsCount}x
+                              </span>
+                              <span className="text-[8px] font-bold text-emerald-500">
+                                ({item.bestStationLitersPaid.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L)
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] font-medium text-rose-500 italic uppercase">
+                              Nenhum (0 L)
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-3 text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="text-[10px] font-black text-rose-600">
+                              {item.otherFuelingsCount}x
+                            </span>
+                            <span className="text-[8px] font-bold text-slate-400 uppercase">
+                              ({item.otherLitersPaid.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L em {item.otherStations.length} postos)
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 text-right">
+                          <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                            R$ {item.avgPricePaidOther.toLocaleString('pt-BR', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3 text-center">
+                          {item.priceDifference > 0 ? (
+                            <span className="text-[10px] font-black text-rose-500">
+                              +R$ {item.priceDifference.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-400">-</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="py-3 text-right bg-emerald-50/10 dark:bg-emerald-950/5">
+                          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 tracking-tighter">
+                            R$ {item.potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </TableCell>
+                        <TableCell className="py-3">
+                          <div className="flex flex-wrap gap-1 max-w-[320px]">
+                            {item.gestoes.slice(0, 3).map((g: string, i: number) => (
+                              <Badge key={i} variant="outline" className="text-[8px] font-black uppercase text-slate-500 border-slate-200">
+                                {g}
+                              </Badge>
+                            ))}
+                            {item.gestoes.length > 3 && (
+                              <Badge variant="outline" className="text-[8px] font-black uppercase text-slate-400 border-slate-200">
+                                +{item.gestoes.length - 3} UN
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="py-3 text-center">
+                          <Select
+                            onValueChange={(val) => {
+                              setSelectedUnutilizedRow(item);
+                              setSelectedUnutilizedGerencia(val);
+                              setSearchUnutilizedGerencia("");
+                              setIsUnutilizedDialogOpen(true);
+                            }}
+                          >
+                            <SelectTrigger className="h-7 text-[9px] font-black uppercase border-emerald-200 dark:border-emerald-800 text-emerald-700 hover:bg-emerald-50 rounded-lg bg-emerald-50 hover:text-emerald-800 transition-all max-w-[140px] px-2.5">
+                              <div className="flex items-center gap-1.5 justify-center">
+                                <Send className="h-3 w-3 shrink-0" />
+                                <span>Cobrar Unidade</span>
+                              </div>
+                            </SelectTrigger>
+                            <SelectContent className="max-h-[250px] overflow-y-auto">
+                              <div className="p-2 border-b border-slate-100 dark:border-slate-800 text-[9px] font-black uppercase text-slate-400">
+                                SELECIONE A UNIDADE PARCEIRA DO DESVIO:
+                              </div>
+                              {item.gestoes.map((unit: string) => (
+                                <SelectItem key={unit} value={unit} className="text-[10px] font-bold uppercase">
+                                  {unit}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={10} className="py-8 text-center text-xs text-slate-400 uppercase font-black">
+                        Nenhuma omissão ou desvio de preço identificado nos filtros vigentes.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+
+          {/* Paginação */}
+          {unutilizedStations.length > itemsPerPage && (
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/50">
+              <span className="text-[8px] font-black text-slate-400 uppercase">
+                Pág. {unutilizedCurrentPage} de {Math.ceil(unutilizedStations.length / itemsPerPage)} ({unutilizedStations.length} registros)
+              </span>
+              <div className="flex gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6" 
+                  disabled={unutilizedCurrentPage === 1} 
+                  onClick={() => setUnutilizedCurrentPage(p => p - 1)}
+                >
+                  <Filter className="h-3 w-3 rotate-90 text-slate-400" />
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-6 w-6" 
+                  disabled={unutilizedCurrentPage >= Math.ceil(unutilizedStations.length / itemsPerPage)} 
+                  onClick={() => setUnutilizedCurrentPage(p => p + 1)}
+                >
+                  <Filter className="h-3 w-3 -rotate-90 text-slate-400" />
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1317,6 +1877,70 @@ Coordenação de Gestão de Frotas - CGF`;
         </Card>
       </div>
     </div>
+
+      {/* UNUTILIZED BEST PRICE DIALOG */}
+      <Dialog open={isUnutilizedDialogOpen} onOpenChange={setIsUnutilizedDialogOpen}>
+        <DialogContent className="max-w-md bg-white dark:bg-slate-900 border-none shadow-2xl rounded-3xl">
+          <DialogHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
+            <DialogTitle className="flex items-center gap-2 text-emerald-600 uppercase font-black tracking-tighter text-sm">
+              <Mail className="h-4 w-4" /> Cobrança de Otimização de Abastecimento
+            </DialogTitle>
+            <DialogDescription className="text-[10px] font-bold uppercase text-slate-400 leading-tight pt-1">
+              Enviar justificativa de abastecimento fora da frota pelo posto de menor preço.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4 space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[9px] font-black uppercase text-slate-500 ml-1">Unidade Selecionada</label>
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-800 text-[11px] font-black uppercase text-slate-700 dark:text-slate-200">
+                {selectedUnutilizedGerencia || "Nenhuma unidade selecionada"}
+              </div>
+            </div>
+
+            {selectedUnutilizedRow && (
+              <div className="bg-emerald-50/40 dark:bg-emerald-950/10 p-4 rounded-xl border border-emerald-100/50 dark:border-emerald-900/30 text-[10px] space-y-2 uppercase font-semibold text-slate-600 dark:text-slate-400">
+                <div className="flex justify-between">
+                  <span>Cidade / Região:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedUnutilizedRow.cidade} ({selectedUnutilizedRow.regiao})</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Combustível / Posto Recom.:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedUnutilizedRow.tipo} - {selectedUnutilizedRow.bestStationName}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Melhor Preço Praticado:</span>
+                  <span className="font-black text-emerald-600">R$ {selectedUnutilizedRow.bestPrice.toLocaleString('pt-BR', { minimumFractionDigits: 3 })}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Volume Abastecido em Outros:</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{selectedUnutilizedRow.otherLitersPaid.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} L</span>
+                </div>
+                <div className="flex justify-between border-t border-emerald-100/30 pt-2 text-[11px]">
+                  <span className="font-black text-emerald-700 dark:text-emerald-400">Desperdício Estimado:</span>
+                  <span className="font-black text-rose-500">R$ {selectedUnutilizedRow.potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setIsUnutilizedDialogOpen(false)}
+              className="h-9 rounded-xl text-[10px] font-black uppercase shadow-none border-slate-200 dark:border-slate-800"
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSendUnutilizedNotification}
+              className="h-9 rounded-xl text-[10px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm"
+            >
+              Enviar Notificação por E-mail
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* EMAIL DIALOG */}
       <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
