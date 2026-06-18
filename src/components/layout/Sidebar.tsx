@@ -165,6 +165,10 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
 
     if (userRole === 'Gestão') {
       const withNoRootPreventiva = items.filter(item => item.id !== 'cadastro-preventiva' && item.id !== 'users');
+      const abast = withNoRootPreventiva.find(item => item.id === 'abastecimento');
+      if (abast && abast.subItems) {
+        abast.subItems = abast.subItems.filter(si => si.id !== 'abast-precos');
+      }
       const mnt = withNoRootPreventiva.find(item => item.id === 'manutencao');
       if (mnt) {
         mnt.subItems = [
@@ -208,6 +212,13 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         }
       }
       return filtered;
+    }
+
+    if (userRole === 'Master') {
+      const abast = items.find(item => item.id === 'abastecimento');
+      if (abast && abast.subItems) {
+        abast.subItems = abast.subItems.filter(si => si.id !== 'abast-precos');
+      }
     }
 
     return items;

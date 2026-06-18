@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect, Fragment } from "react";
+import { useMemo, useState, useEffect, Fragment, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +21,8 @@ import {
   FileSpreadsheet,
   Building2,
   TrendingDown,
-  Send
+  Send,
+  ChevronDown
 } from "lucide-react";
 import { Asset, FuelData } from "@/types";
 import { 
@@ -58,6 +59,141 @@ import { toast } from "sonner";
 import { useContactsData } from "@/hooks/useContactsData";
 import { useSpecialHoursData } from "@/hooks/useFleetData";
 import { CoringaCardsTable } from "./CoringaCardsTable";
+
+interface MultiSelectDropdownProps {
+  options: string[];
+  selected: string[];
+  onChange: (values: string[]) => void;
+  placeholder: string;
+  searchPlaceholder?: string;
+}
+
+export function MultiSelectDropdown({
+  options,
+  selected,
+  onChange,
+  placeholder,
+  searchPlaceholder = "Buscar..."
+}: MultiSelectDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const filteredOptions = options.filter(opt =>
+    String(opt || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(
+      searchTerm.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    )
+  );
+
+  const toggleOption = (opt: string) => {
+    if (selected.includes(opt)) {
+      onChange(selected.filter(item => item !== opt));
+    } else {
+      onChange([...selected, opt]);
+    }
+  };
+
+  const handleSelectAll = () => {
+    const toAdd = filteredOptions.filter(opt => !selected.includes(opt));
+    onChange([...selected, ...toAdd]);
+  };
+
+  const handleClearAll = () => {
+    onChange(selected.filter(opt => !filteredOptions.includes(opt)));
+  };
+
+  const isAllSelected = filteredOptions.length > 0 && filteredOptions.every(opt => selected.includes(opt));
+
+  return (
+    <div className="relative w-full" ref={containerRef}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex h-8 w-full items-center justify-between rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-[10px] font-bold uppercase text-slate-700 dark:text-slate-200 shadow-none focus:outline-none focus:ring-1 focus:ring-indigo-500 text-left transition-all"
+      >
+        <span className="truncate">
+          {selected.length === 0 
+            ? placeholder 
+            : selected.length === options.length 
+              ? "Todos Selecionados" 
+              : `${selected.length} Selecionado(s)`}
+        </span>
+        <ChevronDown className="h-3.5 w-3.5 opacity-55 shrink-0 ml-1" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1 z-50 w-full min-w-[220px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2 shadow-xl animate-in fade-in-50 duration-100">
+          <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-50 dark:bg-slate-950 rounded-xl mb-1.5 border border-slate-100 dark:border-slate-800">
+            <Search className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="w-full bg-transparent text-[10px] text-slate-800 dark:text-slate-100 placeholder:text-slate-400 border-none outline-none focus:ring-0 p-0 font-medium"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex gap-2 justify-between py-1 px-1.5 text-[8px] font-black uppercase text-slate-400 border-b border-slate-100 dark:border-slate-800 mb-1">
+            <button
+              type="button"
+              onClick={isAllSelected ? handleClearAll : handleSelectAll}
+              className="hover:text-indigo-600 transition-colors"
+            >
+              {isAllSelected ? "Deselecionar" : "Selecionar Tudo"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="hover:text-rose-500 transition-colors"
+            >
+              Limpar
+            </button>
+          </div>
+
+          <div className="max-h-[160px] overflow-y-auto space-y-0.5 custom-scrollbar">
+            {filteredOptions.length === 0 ? (
+              <div className="py-4 text-center text-[9px] text-slate-450 uppercase font-black">
+                Sem resultados
+              </div>
+            ) : (
+              filteredOptions.map((opt) => {
+                const isChecked = selected.includes(opt);
+                return (
+                  <label
+                    key={opt}
+                    className="flex items-center gap-2 px-2 py-1 rounded-lg hover:bg-slate-55 dark:hover:bg-slate-800 cursor-pointer select-none transition-colors"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={() => toggleOption(opt)}
+                      className="rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 focus:ring-offset-0 h-3 w-3"
+                    />
+                    <span className="text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase truncate">
+                      {opt}
+                    </span>
+                  </label>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface SupplyPerformanceDashboardProps {
   fuel: FuelData[];
@@ -105,10 +241,10 @@ const rangeLabels: Record<string, string> = {
   const [searchGroupedInconsistencyGerencia, setSearchGroupedInconsistencyGerencia] = useState("");
 
   // Estados para a Tabela de Postos de Melhor Preço Não Utilizados
-  const [unutilizedSelectedRegion, setUnutilizedSelectedRegion] = useState<string>("ALL");
-  const [unutilizedSelectedCity, setUnutilizedSelectedCity] = useState<string>("ALL");
-  const [unutilizedSelectedStation, setUnutilizedSelectedStation] = useState<string>("ALL");
-  const [unutilizedSelectedGestao, setUnutilizedSelectedGestao] = useState<string>("ALL");
+  const [unutilizedSelectedRegions, setUnutilizedSelectedRegions] = useState<string[]>([]);
+  const [unutilizedSelectedCities, setUnutilizedSelectedCities] = useState<string[]>([]);
+  const [unutilizedSelectedStations, setUnutilizedSelectedStations] = useState<string[]>([]);
+  const [unutilizedSelectedGestaos, setUnutilizedSelectedGestaos] = useState<string[]>([]);
   const [unutilizedCurrentPage, setUnutilizedCurrentPage] = useState(1);
   
   const [isUnutilizedDialogOpen, setIsUnutilizedDialogOpen] = useState(false);
@@ -971,13 +1107,13 @@ Coordenação de Gestão de Frotas - CGF`;
 
   const unutilizedStations = useMemo(() => {
     return unutilizedStationsRaw.filter(x => {
-      if (unutilizedSelectedRegion !== "ALL" && x.regiao !== unutilizedSelectedRegion) return false;
-      if (unutilizedSelectedCity !== "ALL" && x.cidade !== unutilizedSelectedCity) return false;
-      if (unutilizedSelectedStation !== "ALL" && x.bestStationName !== unutilizedSelectedStation) return false;
-      if (unutilizedSelectedGestao !== "ALL" && !x.gestoes.includes(unutilizedSelectedGestao)) return false;
+      if (unutilizedSelectedRegions.length > 0 && !unutilizedSelectedRegions.includes(x.regiao)) return false;
+      if (unutilizedSelectedCities.length > 0 && !unutilizedSelectedCities.includes(x.cidade)) return false;
+      if (unutilizedSelectedStations.length > 0 && !unutilizedSelectedStations.includes(x.bestStationName)) return false;
+      if (unutilizedSelectedGestaos.length > 0 && !x.gestoes.some((g: string) => unutilizedSelectedGestaos.includes(g))) return false;
       return true;
     });
-  }, [unutilizedStationsRaw, unutilizedSelectedRegion, unutilizedSelectedCity, unutilizedSelectedStation, unutilizedSelectedGestao]);
+  }, [unutilizedStationsRaw, unutilizedSelectedRegions, unutilizedSelectedCities, unutilizedSelectedStations, unutilizedSelectedGestaos]);
 
   const unutilizedRegionOptions = useMemo(() => {
     return Array.from(new Set(unutilizedStationsRaw.map(x => x.regiao))).sort();
@@ -1251,75 +1387,59 @@ Companhia Pernambucana de Saneamento - COMPESA`;
           <div className="flex flex-wrap gap-3 items-end bg-slate-50/55 dark:bg-slate-950/20 p-4 rounded-xl border border-slate-100 dark:border-slate-800">
             <div className="w-[180px]">
               <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Filtrar por Região</label>
-              <Select value={unutilizedSelectedRegion} onValueChange={(val) => { setUnutilizedSelectedRegion(val); setUnutilizedCurrentPage(1); }}>
-                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="Todas as Regiões" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todas as Regiões</SelectItem>
-                  {unutilizedRegionOptions.map(r => (
-                    <SelectItem key={r} value={r} className="text-[10px] font-bold uppercase">{r}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectDropdown
+                options={unutilizedRegionOptions}
+                selected={unutilizedSelectedRegions}
+                onChange={(values) => { setUnutilizedSelectedRegions(values); setUnutilizedCurrentPage(1); }}
+                placeholder="Todas as Regiões"
+                searchPlaceholder="Buscar Região..."
+              />
             </div>
 
             <div className="w-[200px]">
               <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Filtrar por Cidade</label>
-              <Select value={unutilizedSelectedCity} onValueChange={(val) => { setUnutilizedSelectedCity(val); setUnutilizedCurrentPage(1); }}>
-                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="Todas as Cidades" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[250px] overflow-y-auto">
-                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todas as Cidades</SelectItem>
-                  {unutilizedCityOptions.map(c => (
-                    <SelectItem key={c} value={c} className="text-[10px] font-bold uppercase">{c}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectDropdown
+                options={unutilizedCityOptions}
+                selected={unutilizedSelectedCities}
+                onChange={(values) => { setUnutilizedSelectedCities(values); setUnutilizedCurrentPage(1); }}
+                placeholder="Todas as Cidades"
+                searchPlaceholder="Buscar Cidade..."
+              />
             </div>
 
             <div className="w-[220px]">
               <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Melhor Preço Posto</label>
-              <Select value={unutilizedSelectedStation} onValueChange={(val) => { setUnutilizedSelectedStation(val); setUnutilizedCurrentPage(1); }}>
-                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="Todos os Postos" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[250px] overflow-y-auto">
-                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todos os Postos</SelectItem>
-                  {unutilizedStationOptions.map(s => (
-                    <SelectItem key={s} value={s} className="text-[10px] font-bold uppercase">{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectDropdown
+                options={unutilizedStationOptions}
+                selected={unutilizedSelectedStations}
+                onChange={(values) => { setUnutilizedSelectedStations(values); setUnutilizedCurrentPage(1); }}
+                placeholder="Todos os Postos"
+                searchPlaceholder="Buscar Posto..."
+              />
             </div>
 
             <div className="w-[220px]">
               <label className="text-[9px] font-black uppercase text-slate-500 block mb-1">Gestão com Desvio</label>
-              <Select value={unutilizedSelectedGestao} onValueChange={(val) => { setUnutilizedSelectedGestao(val); setUnutilizedCurrentPage(1); }}>
-                <SelectTrigger className="h-8 text-[10px] font-bold uppercase border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-                  <SelectValue placeholder="Todas as Gestões" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[250px] overflow-y-auto">
-                  <SelectItem value="ALL" className="text-[10px] font-bold uppercase">Todas as Gestões</SelectItem>
-                  {unutilizedGestaoOptions.map(g => (
-                    <SelectItem key={g} value={g} className="text-[10px] font-bold uppercase">{g}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectDropdown
+                options={unutilizedGestaoOptions}
+                selected={unutilizedSelectedGestaos}
+                onChange={(values) => { setUnutilizedSelectedGestaos(values); setUnutilizedCurrentPage(1); }}
+                placeholder="Todas as Gestões"
+                searchPlaceholder="Buscar Gestão..."
+              />
             </div>
 
             <div className="flex items-center justify-end pb-0.5 ml-auto">
-              {(unutilizedSelectedRegion !== "ALL" || unutilizedSelectedCity !== "ALL" || unutilizedSelectedStation !== "ALL" || unutilizedSelectedGestao !== "ALL") && (
+              {(unutilizedSelectedRegions.length > 0 || unutilizedSelectedCities.length > 0 || unutilizedSelectedStations.length > 0 || unutilizedSelectedGestaos.length > 0) && (
                 <Button 
                   variant="ghost" 
                   size="sm" 
                   className="h-8 text-[9px] font-black uppercase underline hover:bg-transparent text-slate-500"
                   onClick={() => {
-                    setUnutilizedSelectedRegion("ALL");
-                    setUnutilizedSelectedCity("ALL");
-                    setUnutilizedSelectedStation("ALL");
-                    setUnutilizedSelectedGestao("ALL");
+                    setUnutilizedSelectedRegions([]);
+                    setUnutilizedSelectedCities([]);
+                    setUnutilizedSelectedStations([]);
+                    setUnutilizedSelectedGestaos([]);
                     setUnutilizedCurrentPage(1);
                   }}
                 >
