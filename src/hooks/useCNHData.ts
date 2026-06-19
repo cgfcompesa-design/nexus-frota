@@ -49,7 +49,10 @@ export function useCNHData() {
         let diasParaVencer: number | null = null;
 
         // Logic requested by user: 01/01/1000 means "Awaiting CNH Update"
-        if (driver.validadeStr === "01/01/1000") {
+        const isAwaitingUpdate = (driver.validadeStr || "").trim() === "01/01/1000" || 
+                                (vDate && isValid(vDate) && vDate.getFullYear() <= 1000);
+
+        if (isAwaitingUpdate) {
           status = "aguardando";
         } else if (vDate && isValid(vDate)) {
           diasParaVencer = differenceInDays(vDate, now);
