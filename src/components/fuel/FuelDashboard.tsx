@@ -43,6 +43,8 @@ import {
   PieChart,
   Pie,
   Cell,
+  ComposedChart,
+  Scatter,
 } from "recharts";
 import { FuelJustificationsTab } from "./FuelJustificationsTab";
 import { FuelAlertConfigTab } from "./FuelAlertConfigTab";
@@ -360,6 +362,7 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
   const [debouncedSearchPlaca, setDebouncedSearchPlaca] = useState(searchPlaca);
   const [mlDriverSearch, setMlDriverSearch] = useState("");
   const [mlAnomalySearch, setMlAnomalySearch] = useState("");
+  const [selectedRegressionPlaca, setSelectedRegressionPlaca] = useState<string>("");
   const [mlSubTab, setMlSubTab] = useState<"motoristas" | "regressao" | "alertas">("motoristas");
 
   // Pagination states for ML views
@@ -2080,14 +2083,15 @@ Companhia Pernambucana de Saneamento`;
       for (let i = 0; i < sorted.length; i++) {
         const curr = sorted[i];
         const prev = i > 0 ? sorted[i - 1] : null;
-        const alerts: { rule: string; explanation: string; action: string }[] = [];
+        const alerts: { rule: string; explanation: string; action: string; calculation?: string }[] = [];
 
         // Odômetro Regressivo
         if (prev && curr.odometer > 0 && prev.odometer > 0 && curr.odometer <= prev.odometer) {
           alerts.push({
             rule: "Odômetro Regressivo",
             explanation: `Odômetro atual (${curr.odometer} km) menor ou igual ao anterior (${prev.odometer} km)`,
-            action: "Conferir leitura física do odômetro e reajustar digitação manual"
+            action: "Conferir leitura física do odômetro e reajustar digitação manual",
+            calculation: `Cálculo: Odômetro Atual (${curr.odometer} km) <= Odômetro Anterior (${prev.odometer} km). Diferença: ${curr.odometer - prev.odometer} km.`
           });
         }
 
@@ -2098,7 +2102,8 @@ Companhia Pernambucana de Saneamento`;
           alerts.push({
             rule: "Abastecimento Duplo",
             explanation: `Registrados ${sameDayCount} abastecimentos do mesmo veículo no mesmo dia (${dateStr})`,
-            action: "Verificar notas fiscais correspondentes e desconsiderar duplicatas"
+            action: "Verificar notas fiscais correspondentes e desconsiderar duplicatas",
+            calculation: `Cálculo: Abastecimentos no mesmo dia para placa ${placa} = ${sameDayCount}. Abastecimentos permitidos por dia = 1.`
           });
         }
 
@@ -2118,7 +2123,8 @@ Companhia Pernambucana de Saneamento`;
             alerts.push({
               rule: "Excesso de Tanque",
               explanation: `Volume abastecido (${curr.litros.toFixed(1)}L) excede 110% da capacidade nominal (${limit}L)`,
-              action: "Verificar nota fiscal ou investigar possível abastecimento irregular fora do tanque"
+              action: "Verificar nota fiscal ou investigar possível abastecimento irregular fora do tanque",
+              calculation: `Cálculo: Litros abastecidos (${curr.litros.toFixed(1)}L) > 1.1 * Capacidade Nominal (${limit}L) [${(limit * 1.1).toFixed(1)}L]. Diferença: +${(curr.litros - limit).toFixed(1)}L (${((curr.litros / limit - 1) * 100).toFixed(1)}%).`
             });
           }
         }
@@ -2130,7 +2136,8 @@ Companhia Pernambucana de Saneamento`;
             alerts.push({
               rule: "Sub-Consumo Crítico",
               explanation: `Autonomia real de ${curr.km_l.toFixed(2)} Km/L abaixo do limite de desvio (-2 DP: ${minAcceptable.toFixed(2)})`,
-              action: "Investigar padrão de condução do motorista ou possíveis vazamentos"
+              action: "Investigar padrão de condução do motorista ou possíveis vazamentos",
+              calculation: `Cálculo: Autonomia de ${curr.km_l.toFixed(2)} Km/L < Média (${vStats.meanKmL.toFixed(2)} Km/L) - 2 * Desvio Padrão (${vStats.stdDevKmL.toFixed(2)} Km/L). Limite mínimo aceitável: ${minAcceptable.toFixed(2)} Km/L.`
             });
           }
         }
@@ -2142,7 +2149,8 @@ Companhia Pernambucana de Saneamento`;
             alerts.push({
               rule: "Percentil Extremo",
               explanation: `Eficiência de ${curr.km_l.toFixed(2)} Km/L fora do intervalo histórico P5-P95 (limite ${bound})`,
-              action: "Verificar consistência da leitura do odômetro ou quantidade de combustível"
+              action: "Verificar consistência da leitura do odômetro ou quantidade de combustível",
+              calculation: `Cálculo: Autonomia de ${curr.km_l.toFixed(2)} Km/L fora da faixa permitida [P5: ${pPercentiles.p5.toFixed(2)} Km/L, P95: ${pPercentiles.p95.toFixed(2)} Km/L].`
             });
           }
         }
@@ -2161,6 +2169,36 @@ Companhia Pernambucana de Saneamento`;
 
   // 8. Advanced ML Render View
   const renderAdvancedMLMonitoramentoContent = () => {
+    const CustomRegressionTooltip = ({ active, payload }: any) => {
+      if (active && payload && payload.length) {
+        const data = payload[0].payload;
+        return (
+          <div className="bg-slate-950/95 border border-slate-800 p-3 rounded-lg shadow-xl text-xs text-slate-200 font-sans space-y-1.5 backdrop-blur-sm">
+            <p className="font-black text-indigo-400 text-[10px] uppercase tracking-wider">Detalhamento do Abastecimento</p>
+            <p><span className="text-slate-400 font-medium">Data:</span> <span className="font-semibold text-slate-100">{String(data.date).split(' ')[0]}</span></p>
+            <p><span className="text-slate-400 font-medium">Motorista:</span> <span className="font-semibold text-slate-100 uppercase">{data.driver}</span></p>
+            <p><span className="text-slate-400 font-medium">Distância Percorrida:</span> <span className="font-bold text-slate-150">{data.km_percorrido} km</span></p>
+            <div className="border-t border-slate-800/80 my-1 pt-1 space-y-0.5">
+              <p><span className="text-slate-400 font-medium">Litros Abastecidos:</span> <span className="font-bold text-rose-400">{data.litrosActual?.toFixed(1)} L</span></p>
+              <p><span className="text-slate-400 font-medium">Previsão Regressão:</span> <span className="font-bold text-indigo-400">{data.litrosLine?.toFixed(1)} L</span></p>
+              <p>
+                <span className="text-slate-400 font-medium">Diferença (Resíduo):</span>{" "}
+                <span className={`font-black ${data.residual > 0 ? "text-rose-400" : "text-emerald-400"}`}>
+                  {data.residual > 0 ? `+${data.residual.toFixed(1)}` : data.residual.toFixed(1)} L
+                </span>
+              </p>
+            </div>
+            {data.residual > 10 && (
+              <div className="mt-1 px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/20 text-rose-400 text-[9px] font-black uppercase tracking-wider text-center animate-pulse">
+                Ponto Fora da Curva (Anomalia)
+              </div>
+            )}
+          </div>
+        );
+      }
+      return null;
+    };
+
     const filteredDrivers = driverClustering.filter(d => 
       d.driver.toUpperCase().includes(mlDriverSearch.toUpperCase())
     );
@@ -2675,6 +2713,199 @@ Companhia Pernambucana de Saneamento`;
                 </CardContent>
               </Card>
 
+              {/* Gráfico Interativo de Regressão Linear & Resíduos */}
+              <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
+                <CardHeader className="bg-indigo-50/20 dark:bg-indigo-950/10 border-b border-indigo-100/30">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-indigo-500" />
+                      <CardTitle className="text-xs uppercase font-black tracking-wider text-indigo-800 dark:text-indigo-400">
+                        Análise Visual de Dispersão e Reta de Regressão por Veículo
+                      </CardTitle>
+                    </div>
+                  </div>
+                  <CardDescription className="text-[10px] text-slate-500 dark:text-slate-450 mt-1">
+                    Selecione um veículo abaixo para analisar a dispersão dos abastecimentos reais (pontos) comparados à linha de consumo ideal de regressão.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-6">
+                  {regressionModelsArray.length === 0 ? (
+                    <div className="text-center py-8 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      Nenhum veículo com histórico suficiente (≥ 10 abastecimentos) para ajuste de regressão linear.
+                    </div>
+                  ) : (
+                    (() => {
+                      const activePlaca = selectedRegressionPlaca || regressionModelsArray[0]?.[0] || "";
+                      const activeModel = regressionModels.models.get(activePlaca);
+                      
+                      const vehiclePoints = regressionModels.allResiduals
+                        .filter(r => r.placa === activePlaca)
+                        .map(r => ({
+                          km_percorrido: r.km_percorrido,
+                          litrosActual: r.litros,
+                          litrosLine: activeModel ? (activeModel.slope * r.km_percorrido + activeModel.intercept) : 0,
+                          residual: r.residual,
+                          date: r.date,
+                          driver: r.driver,
+                        }))
+                        .sort((a, b) => a.km_percorrido - b.km_percorrido);
+
+                      const topDeviations = [...vehiclePoints]
+                        .filter(pt => pt.residual > 0)
+                        .sort((a, b) => b.residual - a.residual)
+                        .slice(0, 3);
+
+                      return (
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                          {/* Lado esquerdo: controles e estatisticas */}
+                          <div className="lg:col-span-4 space-y-4">
+                            <div className="space-y-1.5">
+                              <label className="text-[9px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-widest block">Selecionar Veículo para Análise</label>
+                              <select
+                                value={activePlaca}
+                                onChange={(e) => setSelectedRegressionPlaca(e.target.value)}
+                                className="w-full h-9 px-3 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-slate-50 dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer text-slate-800 dark:text-slate-200"
+                              >
+                                {regressionModelsArray.map(([placa]) => (
+                                  <option key={placa} value={placa}>{placa}</option>
+                                ))}
+                              </select>
+                            </div>
+
+                            {activeModel && (
+                              <div className="bg-slate-50 dark:bg-slate-950/40 border border-slate-200/50 dark:border-slate-800 p-4 rounded-xl space-y-3">
+                                <div className="flex items-center justify-between border-b border-slate-200/40 dark:border-slate-800 pb-2">
+                                  <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Métricas do Veículo</span>
+                                  <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase border ${activeModel.r2 >= 0.7 ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-amber-50 text-amber-700 border-amber-200"}`}>
+                                    R²: {activeModel.r2.toFixed(3)}
+                                  </span>
+                                </div>
+
+                                <div className="space-y-2 text-xs">
+                                  <div>
+                                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider block">Equação Ajustada</span>
+                                    <p className="font-mono font-black text-slate-800 dark:text-slate-100">
+                                      Litros = {activeModel.slope.toFixed(4)} × Km {activeModel.intercept >= 0 ? `+ ${activeModel.intercept.toFixed(1)}` : `- ${Math.abs(activeModel.intercept).toFixed(1)}`}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider block">Consumo Estimado (L/Km)</span>
+                                    <p className="font-bold text-slate-700 dark:text-slate-300">
+                                      {activeModel.slope.toFixed(4)} L/Km (ou {(activeModel.slope * 100).toFixed(1)} Litros / 100 Km)
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider block">Amostragem</span>
+                                    <p className="font-bold text-slate-700 dark:text-slate-300">
+                                      {vehiclePoints.length} abastecimentos registrados
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+
+                            {topDeviations.length > 0 && (
+                              <div className="space-y-2">
+                                <span className="text-[9px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-widest block">Top 3 Maiores Resíduos Reais</span>
+                                <div className="space-y-1.5">
+                                  {topDeviations.map((pt, idx) => (
+                                    <div key={idx} className="bg-rose-50/20 dark:bg-rose-950/5 border border-rose-100/30 dark:border-rose-950/20 rounded-lg p-2.5 flex items-center justify-between gap-3 text-xs">
+                                      <div className="space-y-0.5">
+                                        <p className="font-semibold text-[10px] text-slate-500 dark:text-slate-400">{String(pt.date).split(' ')[0]} - {pt.km_percorrido} km</p>
+                                        <p className="font-medium text-[9px] text-slate-400 uppercase truncate max-w-[150px]">{pt.driver}</p>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <p className="font-black text-rose-600 dark:text-rose-400">+{pt.residual.toFixed(1)} L</p>
+                                        <p className="text-[8px] font-bold text-rose-400 uppercase">Resíduo</p>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Lado direito: Gráfico Scatter + Line */}
+                          <div className="lg:col-span-8 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-200/40 dark:border-slate-800 p-4 rounded-xl flex flex-col justify-between">
+                            <div className="h-[300px] w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <ComposedChart
+                                  data={vehiclePoints}
+                                  margin={{ top: 10, right: 10, bottom: 10, left: 0 }}
+                                >
+                                  <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800/60" />
+                                  <XAxis
+                                    type="number"
+                                    dataKey="km_percorrido"
+                                    name="Distância"
+                                    unit=" km"
+                                    className="text-[10px] font-bold text-slate-450"
+                                    tickLine={false}
+                                    domain={['auto', 'auto']}
+                                  />
+                                  <YAxis
+                                    type="number"
+                                    dataKey="litrosActual"
+                                    name="Litros"
+                                    unit=" L"
+                                    className="text-[10px] font-bold text-slate-450"
+                                    tickLine={false}
+                                    domain={['auto', 'auto']}
+                                  />
+                                  <Tooltip content={<CustomRegressionTooltip />} />
+                                  <Legend verticalAlign="top" height={36} wrapperStyle={{ fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase' }} />
+                                  
+                                  <Scatter
+                                    name="Consumo Real (L)"
+                                    dataKey="litrosActual"
+                                    fill="#6366f1"
+                                    shape={(props: any) => {
+                                      const { cx, cy, payload } = props;
+                                      const isOutlier = payload && payload.residual > 10;
+                                      return (
+                                        <circle
+                                          cx={cx}
+                                          cy={cy}
+                                          r={isOutlier ? 6 : 4}
+                                          fill={isOutlier ? "#e11d48" : "#6366f1"}
+                                          stroke={isOutlier ? "#fda4af" : "#c7d2fe"}
+                                          strokeWidth={1.5}
+                                          className="cursor-pointer hover:scale-125 transition-all"
+                                        />
+                                      );
+                                    }}
+                                  />
+                                  
+                                  <Line
+                                    name="Linha de Regressão Esperada"
+                                    dataKey="litrosLine"
+                                    stroke="#10b981"
+                                    strokeWidth={2.5}
+                                    dot={false}
+                                    activeDot={false}
+                                  />
+                                </ComposedChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] font-black text-slate-400 uppercase tracking-widest pt-3 border-t border-slate-200/40 dark:border-slate-800 mt-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-indigo-500" /> Abastecimento Histórico
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-rose-600" /> Outlier / Desvio Elevado (&gt; 10L)
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-4 h-0.5 bg-emerald-500 inline-block" /> Linha Estatística Ideal
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Regression equations listing */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -2875,7 +3106,17 @@ Companhia Pernambucana de Saneamento`;
                               </TableCell>
                               <TableCell className="text-xs text-slate-600 dark:text-slate-400 max-w-sm">
                                 {a.alerts.map((al: any, idx: number) => (
-                                  <p key={idx} className="leading-normal">• {al.explanation}</p>
+                                  <span key={idx} className="block">
+                                    <UITooltip>
+                                      <TooltipTrigger asChild>
+                                        <p className="leading-normal cursor-help hover:text-indigo-600 dark:hover:text-indigo-400 select-none">• {al.explanation}</p>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="max-w-xs bg-slate-950 border border-slate-800 p-3 rounded-lg text-xs leading-relaxed text-slate-200 shadow-2xl" side="top">
+                                        <p className="font-bold text-indigo-400 uppercase text-[9px] tracking-wider mb-1">Memória de Cálculo (Placa {a.placa})</p>
+                                        <p className="font-mono text-[10px] leading-normal break-words text-slate-350">{al.calculation || "Fórmula não disponível."}</p>
+                                      </TooltipContent>
+                                    </UITooltip>
+                                  </span>
                                 ))}
                               </TableCell>
                               <TableCell className="text-right text-xs py-2">
