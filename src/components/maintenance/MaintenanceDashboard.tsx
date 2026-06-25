@@ -5,7 +5,7 @@ import { MetricCard } from "../dashboard/MetricCard";
 import { ChartCard } from "../dashboard/ChartCard";
 import { MaintenanceFilterBar } from "./MaintenanceFilterBar";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Wrench, AlertCircle, CheckCircle, Download, Copy, FileText, Clock, Building2, ClipboardList, ShieldAlert, Truck, MessageCircle, Share2, Car, Construction } from "lucide-react";
+import { Wrench, AlertCircle, CheckCircle, Download, Copy, FileText, Clock, Building2, ClipboardList, ShieldAlert, Truck, MessageCircle, Share2, Car, Construction, Maximize2, Minimize2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { VehiclesInWorkshopModal } from "./VehiclesInWorkshopModal";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
   const [selectedStatusControle, setSelectedStatusControle] = useState<string>("all");
   const [selectedCriticidade, setSelectedCriticidade] = useState<string>("all");
   const [showWorkshopModal, setShowWorkshopModal] = useState(false);
+  const [isKanbanFullscreen, setIsKanbanFullscreen] = useState(false);
 
   // Criar mapa de classificação por placa
   const classificacaoMap = useMemo(() => {
@@ -67,6 +68,149 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     });
     return map;
   }, [assets]);
+
+  // Kanban helper function to render columns
+  const renderKanbanColumns = (isFullscreen: boolean) => {
+    const getAssetIcon = (typeStr: string) => {
+      const type = typeStr.toUpperCase();
+      if (type.includes("GUINDASTE")) {
+        return <Construction className="h-4 w-4 text-amber-500 shrink-0" />;
+      }
+      if (type.includes("MUNCK") || type.includes("CAMINHÃO") || type.includes("PIPA") || type.includes("COMBINADO") || type.includes("TRUCK")) {
+        return <Truck className="h-4 w-4 text-indigo-500 shrink-0" />;
+      }
+      if (type.includes("CARRO") || type.includes("PICK-UP") || type.includes("UTILITÁRIO") || type.includes("VAN") || type.includes("FIORINO") || type.includes("SAVEIRO") || type.includes("AUTOMÓVEL")) {
+        return <Car className="h-4 w-4 text-emerald-500 shrink-0" />;
+      }
+      return <Wrench className="h-4 w-4 text-slate-500 shrink-0" />;
+    };
+
+    const operacionaisList = filteredMaintenance.filter(item => {
+      const v = item.__raw || [];
+      const placa = String(v[0] || "");
+      if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return false;
+      const statusOp = v[1]?.toString().toUpperCase() || "";
+      return statusOp.includes("EM OPERAÇÃO");
+    });
+
+    const naoOperacionaisList = filteredMaintenance.filter(item => {
+      const v = item.__raw || [];
+      const placa = String(v[0] || "");
+      if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return false;
+      const statusOp = v[1]?.toString().toUpperCase() || "";
+      return !statusOp.includes("EM OPERAÇÃO");
+    });
+
+    const renderKanbanCard = (item: any, idx: number) => {
+      const v = item.__raw || [];
+      const placa = String(v[0] || "").toUpperCase().trim();
+      const tipo = String(v[9] || "Não especificado").trim();
+      const mCrit = (criticidadeMap.get(placa) || "C").trim().toUpperCase();
+      const local = String(v[3] || "N/A").trim();
+      const prazo = String(v[4] || "N/A").trim();
+      const statusControle = String(v[11] || "N/A").trim();
+      const statusManutencao = String(v[2] || "N/A").trim();
+
+      let criticityColor = "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200/50 dark:border-slate-800";
+      if (mCrit === "A") {
+        criticityColor = "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 border-rose-200/50 dark:border-rose-900/30 font-black";
+      } else if (mCrit === "B") {
+        criticityColor = "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/30 font-bold";
+      }
+
+      return (
+        <div key={idx} className="bg-white dark:bg-slate-900/95 rounded-xl p-3 border border-slate-200/60 dark:border-slate-800/80 shadow-sm hover:shadow-md transition-all group flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="px-2.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden flex items-center h-6 shadow-none">
+                <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
+                {placa}
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${criticityColor}`}>
+                Crit. {mCrit}
+              </span>
+            </div>
+            <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/20 truncate max-w-[120px]">
+              {statusControle}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 bg-slate-50/50 dark:bg-slate-950/40 p-2 rounded-lg border border-slate-105 dark:border-slate-800/30">
+            <div className="p-1 rounded bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 shrink-0">
+              {getAssetIcon(tipo)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[7.5px] font-black uppercase text-slate-400 dark:text-slate-550 tracking-widest">Tipo Ativo</p>
+              <p className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase truncate" title={tipo}>
+                {tipo}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-[9px] font-bold text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/60 pt-2 uppercase">
+            <div>
+              <span className="text-[7.5px] font-black text-slate-400 block tracking-widest">Local</span>
+              <span className="truncate block font-semibold text-slate-700 dark:text-slate-300">{local}</span>
+            </div>
+            <div>
+              <span className="text-[7.5px] font-black text-slate-400 block tracking-widest">Prazo</span>
+              <span className="truncate block font-semibold text-slate-700 dark:text-slate-300">{prazo}</span>
+            </div>
+            <div>
+              <span className="text-[7.5px] font-black text-slate-400 block tracking-widest">Manutenção</span>
+              <span className="truncate block font-black text-rose-500 dark:text-rose-400" title={statusManutencao}>{statusManutencao}</span>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mt-2 ${isFullscreen ? "flex-1 overflow-hidden" : ""}`}>
+        {/* Coluna Em operação */}
+        <div className={`rounded-2xl border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10 dark:bg-emerald-950/5 p-4 flex flex-col ${isFullscreen ? "h-full" : "h-[520px]"}`}>
+          <div className="flex items-center justify-between pb-3 border-b border-emerald-100 dark:border-emerald-950/20 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+              <h3 className="font-black text-xs text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">Em operação</h3>
+            </div>
+            <Badge variant="outline" className="bg-emerald-100/40 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200/40 font-bold text-[10px]">
+              {operacionaisList.length} Ativos
+            </Badge>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto pr-2 space-y-3 min-h-0 custom-scrollbar">
+            {operacionaisList.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum ativo operacional</div>
+            ) : (
+              operacionaisList.map((item, idx) => renderKanbanCard(item, idx))
+            )}
+          </div>
+        </div>
+
+        {/* Coluna Não operacionais */}
+        <div className={`rounded-2xl border border-rose-100 dark:border-rose-950/20 bg-rose-50/10 dark:bg-rose-950/5 p-4 flex flex-col ${isFullscreen ? "h-full" : "h-[520px]"}`}>
+          <div className="flex items-center justify-between pb-3 border-b border-rose-100 dark:border-rose-950/20 mb-4">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
+              <h3 className="font-black text-xs text-rose-800 dark:text-rose-400 uppercase tracking-wider">Não operacionais</h3>
+            </div>
+            <Badge variant="outline" className="bg-rose-100/40 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200/40 font-bold text-[10px]">
+              {naoOperacionaisList.length} Ativos
+            </Badge>
+          </div>
+          
+          <div className="flex-1 overflow-y-auto pr-2 space-y-3 min-h-0 custom-scrollbar">
+            {naoOperacionaisList.length === 0 ? (
+              <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum ativo em manutenção</div>
+            ) : (
+              naoOperacionaisList.map((item, idx) => renderKanbanCard(item, idx))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Extrair valores únicos para filtros
   const directorias = useMemo(() => {
@@ -645,163 +789,59 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
           </div>
 
           <Card className="border-none shadow-sm">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-md uppercase font-black tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                <ClipboardList className="h-5 w-5 text-indigo-500" />
-                Frota Própria - Status Detalhado (Painel Kanban)
-              </CardTitle>
-              <CardDescription className="text-xs text-slate-500 dark:text-slate-400">
-                Visualize a distribuição de disponibilidade da frota de forma ágil e intuitiva.
-              </CardDescription>
+            <CardHeader className="pb-2 flex flex-row items-center justify-between gap-4">
+              <div className="space-y-1">
+                <CardTitle className="text-md uppercase font-black tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                  <ClipboardList className="h-5 w-5 text-indigo-500" />
+                  Frota Própria - Status Detalhado (Painel Kanban)
+                </CardTitle>
+                <CardDescription className="text-xs text-slate-500 dark:text-slate-400">
+                  Visualize a distribuição de disponibilidade da frota de forma ágil e intuitiva.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsKanbanFullscreen(true)}
+                className="h-8 gap-1.5 text-xs font-bold uppercase shrink-0 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800/60"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+                Tela Cheia
+              </Button>
             </CardHeader>
             <CardContent>
-              {(() => {
-                const getAssetIcon = (typeStr: string) => {
-                  const type = typeStr.toUpperCase();
-                  if (type.includes("GUINDASTE")) {
-                    return <Construction className="h-4 w-4 text-amber-500 shrink-0" />;
-                  }
-                  if (type.includes("MUNCK") || type.includes("CAMINHÃO") || type.includes("PIPA") || type.includes("COMBINADO") || type.includes("TRUCK")) {
-                    return <Truck className="h-4 w-4 text-indigo-500 shrink-0" />;
-                  }
-                  if (type.includes("CARRO") || type.includes("PICK-UP") || type.includes("UTILITÁRIO") || type.includes("VAN") || type.includes("FIORINO") || type.includes("SAVEIRO") || type.includes("AUTOMÓVEL")) {
-                    return <Car className="h-4 w-4 text-emerald-500 shrink-0" />;
-                  }
-                  return <Wrench className="h-4 w-4 text-slate-500 shrink-0" />;
-                };
-
-                const operacionaisList = filteredMaintenance.filter(item => {
-                  const v = item.__raw || [];
-                  const placa = String(v[0] || "");
-                  if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return false;
-                  const statusOp = v[1]?.toString().toUpperCase() || "";
-                  return statusOp.includes("EM OPERAÇÃO");
-                });
-
-                const naoOperacionaisList = filteredMaintenance.filter(item => {
-                  const v = item.__raw || [];
-                  const placa = String(v[0] || "");
-                  if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return false;
-                  const statusOp = v[1]?.toString().toUpperCase() || "";
-                  return !statusOp.includes("EM OPERAÇÃO");
-                });
-
-                const renderKanbanCard = (item: any, idx: number) => {
-                  const v = item.__raw || [];
-                  const placa = String(v[0] || "").toUpperCase().trim();
-                  const tipo = String(v[9] || "Não especificado").trim();
-                  const mCrit = (criticidadeMap.get(placa) || "C").trim().toUpperCase();
-                  const local = String(v[3] || "N/A").trim();
-                  const prazo = String(v[4] || "N/A").trim();
-                  const statusControle = String(v[11] || "N/A").trim();
-                  const statusManutencao = String(v[2] || "N/A").trim();
-
-                  let criticityColor = "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200/50 dark:border-slate-800";
-                  if (mCrit === "A") {
-                    criticityColor = "bg-rose-50 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400 border-rose-200/50 dark:border-rose-900/30 font-black";
-                  } else if (mCrit === "B") {
-                    criticityColor = "bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border-amber-200/50 dark:border-amber-900/30 font-bold";
-                  }
-
-                  return (
-                    <div key={idx} className="bg-white dark:bg-slate-900/95 rounded-xl p-3 border border-slate-200/60 dark:border-slate-800/80 shadow-sm hover:shadow-md transition-all group flex flex-col gap-2.5">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className="px-2.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[11px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden flex items-center h-6 shadow-none">
-                            <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
-                            {placa}
-                          </div>
-                          <span className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-wider border ${criticityColor}`}>
-                            Crit. {mCrit}
-                          </span>
-                        </div>
-                        <span className="text-[9px] font-black uppercase text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/20 truncate max-w-[120px]">
-                          {statusControle}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center gap-2 bg-slate-50/50 dark:bg-slate-950/40 p-2 rounded-lg border border-slate-105 dark:border-slate-800/30">
-                        <div className="p-1 rounded bg-white dark:bg-slate-900 shadow-sm border border-slate-100 dark:border-slate-800 shrink-0">
-                          {getAssetIcon(tipo)}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[7.5px] font-black uppercase text-slate-400 dark:text-slate-550 tracking-widest">Tipo Ativo</p>
-                          <p className="text-[10px] font-black text-slate-700 dark:text-slate-200 uppercase truncate" title={tipo}>
-                            {tipo}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-3 gap-2 text-[9px] font-bold text-slate-500 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/60 pt-2 uppercase">
-                        <div>
-                          <span className="text-[7.5px] font-black text-slate-400 block tracking-widest">Local</span>
-                          <span className="truncate block font-semibold text-slate-700 dark:text-slate-300">{local}</span>
-                        </div>
-                        <div>
-                          <span className="text-[7.5px] font-black text-slate-400 block tracking-widest">Prazo</span>
-                          <span className="truncate block font-semibold text-slate-700 dark:text-slate-300">{prazo}</span>
-                        </div>
-                        <div>
-                          <span className="text-[7.5px] font-black text-slate-400 block tracking-widest">Manutenção</span>
-                          <span className="truncate block font-black text-rose-500 dark:text-rose-400" title={statusManutencao}>{statusManutencao}</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                };
-
-                return (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-2">
-                    {/* Coluna Em operação */}
-                    <div className="rounded-2xl border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10 dark:bg-emerald-950/5 p-4 flex flex-col h-[520px]">
-                      <div className="flex items-center justify-between pb-3 border-b border-emerald-100 dark:border-emerald-950/20 mb-4">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                          <h3 className="font-black text-xs text-emerald-800 dark:text-emerald-400 uppercase tracking-wider">Em operação</h3>
-                        </div>
-                        <Badge variant="outline" className="bg-emerald-100/40 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-200/40 font-bold text-[10px]">
-                          {operacionaisList.length} Ativos
-                        </Badge>
-                      </div>
-                      
-                      <ScrollArea className="flex-1 pr-2">
-                        <div className="space-y-3">
-                          {operacionaisList.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum ativo operacional</div>
-                          ) : (
-                            operacionaisList.map((item, idx) => renderKanbanCard(item, idx))
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-
-                    {/* Coluna Não operacionais */}
-                    <div className="rounded-2xl border border-rose-100 dark:border-rose-950/20 bg-rose-50/10 dark:bg-rose-950/5 p-4 flex flex-col h-[520px]">
-                      <div className="flex items-center justify-between pb-3 border-b border-rose-100 dark:border-rose-950/20 mb-4">
-                        <div className="flex items-center gap-2">
-                          <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />
-                          <h3 className="font-black text-xs text-rose-800 dark:text-rose-400 uppercase tracking-wider">Não operacionais</h3>
-                        </div>
-                        <Badge variant="outline" className="bg-rose-100/40 dark:bg-rose-950 text-rose-700 dark:text-rose-300 border-rose-200/40 font-bold text-[10px]">
-                          {naoOperacionaisList.length} Ativos
-                        </Badge>
-                      </div>
-                      
-                      <ScrollArea className="flex-1 pr-2">
-                        <div className="space-y-3">
-                          {naoOperacionaisList.length === 0 ? (
-                            <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum ativo em manutenção</div>
-                          ) : (
-                            naoOperacionaisList.map((item, idx) => renderKanbanCard(item, idx))
-                          )}
-                        </div>
-                      </ScrollArea>
-                    </div>
-                  </div>
-                );
-              })()}
+              {renderKanbanColumns(false)}
             </CardContent>
           </Card>
+
+          {isKanbanFullscreen && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm p-4 md:p-8 flex items-center justify-center animate-in fade-in zoom-in-95 duration-200">
+              <div className="bg-slate-50 dark:bg-slate-950 w-full h-full max-w-7xl max-h-[92vh] rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden shadow-2xl">
+                <div className="p-4 md:p-6 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-sm md:text-base font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <ClipboardList className="h-5 w-5 text-indigo-500" />
+                      Frota Própria - Status Detalhado (Painel Kanban)
+                    </h3>
+                    <p className="text-[10px] md:text-xs text-slate-500 dark:text-slate-400">
+                      Modo Tela Cheia: Visualize a distribuição de disponibilidade da frota com máxima visibilidade.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsKanbanFullscreen(false)}
+                    className="h-9 w-9 p-0 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800"
+                  >
+                    <X className="h-5 w-5 text-slate-500" />
+                  </Button>
+                </div>
+                <div className="p-4 md:p-6 flex-1 min-h-0 bg-slate-50/50 dark:bg-slate-950/20 flex flex-col">
+                  {renderKanbanColumns(true)}
+                </div>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="preventiva" className="space-y-6">

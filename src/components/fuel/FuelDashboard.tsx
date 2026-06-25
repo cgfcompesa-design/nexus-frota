@@ -2788,12 +2788,6 @@ Coordenação de Gestão de Frotas - CGF`;
               Monitoramento
             </TabsTrigger>
             <TabsTrigger 
-              value="analise-desvios" 
-              className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
-            >
-              Monitoramento e Análise de Desvios
-            </TabsTrigger>
-            <TabsTrigger 
               value="prices" 
               className="px-6 data-[state=active]:border-b-2 data-[state=active]:border-indigo-600 data-[state=active]:text-indigo-600 rounded-none bg-transparent shadow-none font-bold text-xs uppercase tracking-widest transition-all h-full"
             >
@@ -2835,11 +2829,74 @@ Coordenação de Gestão de Frotas - CGF`;
         </div>
 
         <TabsContent value="analise" className="space-y-6 mt-0">
-          {renderMonitoramentoContent()}
-        </TabsContent>
+          <Tabs defaultValue="parametros" className="w-full space-y-6">
+            <div className="bg-slate-100/50 dark:bg-slate-900/50 p-1 rounded-xl inline-flex gap-1 border border-slate-200/40 dark:border-slate-800/40">
+              <TabsList className="bg-transparent h-9 p-0 flex gap-1 border-none shadow-none">
+                <TabsTrigger 
+                  value="parametros"
+                  className="px-4 py-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 rounded-lg bg-transparent font-bold text-xs uppercase tracking-wider transition-all h-full shadow-none"
+                >
+                  Análise por Parâmetros
+                </TabsTrigger>
+                <TabsTrigger 
+                  value="ml"
+                  className="px-4 py-1.5 data-[state=active]:bg-white dark:data-[state=active]:bg-slate-950 data-[state=active]:text-indigo-600 dark:data-[state=active]:text-indigo-400 rounded-lg bg-transparent font-bold text-xs uppercase tracking-wider transition-all h-full shadow-none"
+                >
+                  Analytics & Machine Learning
+                </TabsTrigger>
+              </TabsList>
+            </div>
 
-        <TabsContent value="analise-desvios" className="space-y-6 mt-0">
-          {renderAdvancedMLMonitoramentoContent()}
+            <TabsContent value="parametros" className="space-y-6 mt-0">
+              {renderMonitoramentoContent()}
+            </TabsContent>
+
+            <TabsContent value="ml" className="space-y-6 mt-0">
+              <div className="space-y-6">
+                <FuelFilterBar
+                  fuel={fuel} assets={assets} autonomia={autonomia}
+                  selectedFuelTypes={selectedFuelTypes} selectedVehicleModels={selectedVehicleModels} searchPlaca={searchPlaca}
+                  selectedDirectorias={selectedDirectorias} selectedGerencias={selectedGerencias} selectedTipos={selectedTipos}
+                  selectedMonthsYears={selectedMonthsYears}
+                  selectedRegioes={selectedRegioes}
+                  selectedCidades={selectedCidades}
+                  selectedPropriedades={selectedPropriedades}
+                  onPropriedadesChange={setSelectedPropriedades}
+                  selectedTitularidades={selectedTitularidades}
+                  onTitularidadesChange={setSelectedTitularidades}
+                  dateFrom={dateFrom} dateTo={dateTo}
+                  onFuelTypesChange={setSelectedFuelTypes} onVehicleModelsChange={setSelectedVehicleModels} onSearchPlacaChange={setSearchPlaca}
+                  onDirectoriasChange={setSelectedDirectorias} onGerenciasChange={setSelectedGerencias} onTiposChange={setSelectedTipos}
+                  onMonthsYearsChange={setSelectedMonthsYears}
+                  onRegioesChange={setSelectedRegioes}
+                  onCidadesChange={setSelectedCidades}
+                  setDateFrom={setDateFrom} setDateTo={setDateTo}
+                  selectedAlerta={selectedAlerta} onAlertaChange={setSelectedAlerta}
+                  selectedAlertaAutonomia={selectedAlertaAutonomia} onAlertaAutonomiaChange={setSelectedAlertaAutonomia}
+                  selectedAlertaKmHora={selectedAlertaKmHora} onAlertaKmHoraChange={setSelectedAlertaKmHora}
+                  selectedAlertaLitros={selectedAlertaLitros} onAlertaLitrosChange={setSelectedAlertaLitros}
+                  selectedAlertaItem={selectedAlertaItem} onAlertaItemChange={setSelectedAlertaItem}
+                  selectedParecerNexus={selectedParecerNexus} onParecerNexusChange={setSelectedParecerNexus}
+                  selectedTipoControleAutonomia={selectedTipoControleAutonomia} onTipoControleAutonomiaChange={setSelectedTipoControleAutonomia}
+                  selectedAlertaValorLitro={selectedAlertaValorLitro} onAlertaValorLitroChange={setSelectedAlertaValorLitro}
+                  selectedAlertaVale={selectedAlertaVale} onAlertaValeChange={setSelectedAlertaVale}
+                  onClearFilters={handleClearFilters} dataUpdatedAt={dataUpdatedAt}
+                  fuelTypeOptions={fuelTypeOptions}
+                  modelOptions={modelOptions}
+                  diretoriaOptions={diretoriaOptions}
+                  gerenciaOptions={gerenciaOptions}
+                  tipoOptions={tipoOptions}
+                  monthYearOptions={monthYearOptions}
+                  autoControleOptions={autoControleOptions}
+                  regiaoOptions={regiaoOptions}
+                  cidadeOptions={cidadeOptions}
+                  propriedadeOptions={propriedadeOptions}
+                  titularidadeOptions={titularidadeOptions}
+                />
+                {renderAdvancedMLMonitoramentoContent()}
+              </div>
+            </TabsContent>
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="abast-perf" className="space-y-6 mt-0">
