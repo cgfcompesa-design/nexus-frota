@@ -419,6 +419,22 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
   const [selectedTop10Placa, setSelectedTop10Placa] = useState<string | null>(null);
   const [selectedDesvioExplaining, setSelectedDesvioExplaining] = useState<any | null>(null);
   
+  // State for tracking selected anomaly alerts (key is "placa_date_rule")
+  const [selectedAnomalyAlerts, setSelectedAnomalyAlerts] = useState<Record<string, boolean>>({});
+
+  const isAlertSelected = (placa: string, date: any, rule: string) => {
+    const key = `${placa}_${String(date)}_${rule}`;
+    return selectedAnomalyAlerts[key] !== false;
+  };
+
+  const toggleAlert = (placa: string, date: any, rule: string) => {
+    const key = `${placa}_${String(date)}_${rule}`;
+    setSelectedAnomalyAlerts(prev => ({
+      ...prev,
+      [key]: prev[key] === false ? true : false
+    }));
+  };
+  
   // State for advanced analytics details modal (for clicked regression point or driver cluster)
   const [selectedAnalyticsItem, setSelectedAnalyticsItem] = useState<{
     type: 'driver' | 'vehicle_point';
@@ -597,6 +613,67 @@ Companhia Pernambucana de Saneamento`;
     const mailto = `mailto:${encodeURIComponent(toFiltered.join(";"))}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
     window.location.href = mailto;
     toast.success(`E-mail de notificação gerado para ${gerencia}!`);
+  };
+
+  const handleSendConsolidatedAnomalyEmail = (a: any, alertItems: any[]) => {
+    if (alertItems.length === 0) {
+      toast.error("Por favor, selecione pelo menos uma ação recomendada.");
+      return;
+    }
+
+    const asset = assetsByPlaca.get(a.placa);
+    const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || "Gestão Geral";
+    const modelo = asset?.MODELO || asset?.modelo || "Não especificado";
+    const placa = a.placa;
+    const motorista = a.driver || "Não cadastrado";
+    const dataAlerta = String(a.date).split(" ")[0];
+    
+    const emails = getEmailsByGerencia(gerencia);
+    const cc = "gadmonitoramento@compesa.com.br";
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toFiltered = emails.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    
+    const subject = `[CGF Alerta] Solicitação de Justificativa Consolidada - Veículo ${placa} - Gerência ${gerencia}`;
+    
+    // Format all selected alerts/actions
+    const formattedAlerts = alertItems.map((al, idx) => {
+      return `[Alerta #${idx + 1}]
+• Alerta Identificado: ${al.rule}
+• Detalhamento Técnico: ${al.explanation}
+• Recomendação: ${al.action}
+`;
+    }).join("\n");
+
+    const body = `Prezado(a) Gestor(a),
+
+Identificamos desvios de conformidade no Monitoramento de Frotas (CGF - Machine Learning) referente ao veículo abaixo, sob responsabilidade desta Gerência.
+
+Dados do Veículo e Ocorrências:
+• Veículo (Placa): ${placa}
+• Modelo: ${modelo}
+• Motorista: ${motorista}
+• Data de Referência: ${dataAlerta}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DESVIOS IDENTIFICADOS:
+
+${formattedAlerts}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Ação Solicitada:
+Solicitamos, por gentileza, que envie uma justificativa formal para estes desvios identificados e anexe uma FOTO ATUALIZADA DO ODÔMETRO/PAINEL do veículo correspondente.
+
+Pedimos que responda a este e-mail no prazo máximo de 2 (dois) dias úteis com as informações e imagem solicitadas para evitar o bloqueio preventivo do cartão de abastecimento.
+
+Agradecemos a colaboração.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas - CGF
+Companhia Pernambucana de Saneamento`;
+
+    const mailto = `mailto:${encodeURIComponent(toFiltered.join(";"))}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+    toast.success(`E-mail de notificação consolidado gerado para ${gerencia}!`);
   };
 
   const handleExportCSV = () => {
@@ -2218,11 +2295,28 @@ Companhia Pernambucana de Saneamento`;
       d.driver.toUpperCase().includes(mlDriverSearch.toUpperCase())
     );
 
-    const filteredAnomalies = advancedAnomalies.filter(a => 
+    let filteredAnomalies = advancedAnomalies.filter(a => 
       a.placa.toUpperCase().includes(mlAnomalySearch.toUpperCase()) ||
       a.driver.toUpperCase().includes(mlAnomalySearch.toUpperCase()) ||
       a.alerts.some((al: any) => al.rule.toUpperCase().includes(mlAnomalySearch.toUpperCase()))
     );
+
+    if (selectedAlerta && selectedAlerta.length > 0) {
+      filteredAnomalies = filteredAnomalies.filter(a => {
+        return a.alerts.some((al: any) => {
+          return selectedAlerta.some((sel: string) => {
+            const actionText = al.action.toLowerCase();
+            const ruleText = al.rule.toLowerCase();
+            if (sel === "odômetro" && (actionText.includes("odômetro") || ruleText.includes("odômetro"))) return true;
+            if (sel === "duplicatas" && (actionText.includes("duplicat") || ruleText.includes("duplo"))) return true;
+            if (sel === "excesso" && (actionText.includes("tanque") || ruleText.includes("excesso"))) return true;
+            if (sel === "condução" && (actionText.includes("condução") || ruleText.includes("consumo"))) return true;
+            if (sel === "consistência" && (actionText.includes("consistência") || ruleText.includes("percentil"))) return true;
+            return false;
+          });
+        });
+      });
+    }
 
     // Grouping by cluster
     const efficientDrivers = filteredDrivers.filter(d => d.cluster === "eficiente");
@@ -3266,21 +3360,45 @@ Companhia Pernambucana de Saneamento`;
                                 ))}
                               </TableCell>
                               <TableCell className="text-right text-xs py-2">
-                                <div className="flex flex-col items-end gap-2.5 min-w-[150px]">
-                                  {a.alerts.map((al: any, idx: number) => (
-                                    <div key={idx} className="flex flex-col items-end gap-1">
-                                      <p className="font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[10px] tracking-tight">{al.action}</p>
+                                <div className="flex flex-col items-end gap-3 min-w-[220px]">
+                                  <div className="flex flex-col items-end gap-2 w-full">
+                                    {a.alerts.map((al: any, idx: number) => {
+                                      const isSelected = isAlertSelected(a.placa, a.date, al.rule);
+                                      return (
+                                        <div key={idx} className="flex items-center gap-2 justify-end w-full">
+                                          <div className="text-right flex-1">
+                                            <p className={`font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[9px] tracking-tight ${isSelected ? '' : 'line-through opacity-45'}`}>
+                                              {al.action}
+                                            </p>
+                                            <span className="text-[8px] text-muted-foreground block uppercase font-bold tracking-tight">({al.rule})</span>
+                                          </div>
+                                          <input
+                                            type="checkbox"
+                                            checked={isSelected}
+                                            onChange={() => toggleAlert(a.placa, a.date, al.rule)}
+                                            className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                                            title="Selecionar esta ação para o e-mail consolidado"
+                                          />
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+
+                                  {(() => {
+                                    const selectedAlerts = a.alerts.filter((al: any) => isAlertSelected(a.placa, a.date, al.rule));
+                                    return (
                                       <Button
                                         size="sm"
                                         variant="outline"
-                                        onClick={() => handleSendAnomalyEmail(a, al)}
-                                        className="h-6 px-2 text-[8px] font-black uppercase tracking-wider text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 gap-1 mt-0.5"
+                                        disabled={selectedAlerts.length === 0}
+                                        onClick={() => handleSendConsolidatedAnomalyEmail(a, selectedAlerts)}
+                                        className="h-7 px-3 text-[9px] font-black uppercase tracking-wider text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 gap-1.5 mt-1 shadow-sm shrink-0"
                                       >
-                                        <Mail className="h-2.5 w-2.5" />
-                                        Solicitar Justificativa
+                                        <Mail className="h-3 w-3" />
+                                        Solicitar Justificativa ({selectedAlerts.length})
                                       </Button>
-                                    </div>
-                                  ))}
+                                    );
+                                  })()}
                                 </div>
                               </TableCell>
                             </TableRow>

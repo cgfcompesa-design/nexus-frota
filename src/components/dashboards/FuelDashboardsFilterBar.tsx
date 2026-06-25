@@ -324,6 +324,24 @@ export const FuelDashboardsFilterBar = ({
                 </SelectContent>
               </Select>
             </div>
+
+            {onAlertaChange && (
+              <div className="space-y-1 col-span-1 sm:col-span-2">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Ação Recomendada</label>
+                <Select onValueChange={(val: string) => handleMultiSelect(selectedAlerta, onAlertaChange, val)}>
+                  <SelectTrigger className="h-9 text-[10px] bg-primary/5">
+                    <SelectValue placeholder="Filtrar Ação" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="odômetro" className="text-xs">Conferir leitura de odômetro</SelectItem>
+                    <SelectItem value="duplicatas" className="text-xs">Verificar duplicatas</SelectItem>
+                    <SelectItem value="excesso" className="text-xs">Verificar excesso de tanque</SelectItem>
+                    <SelectItem value="condução" className="text-xs">Investigar padrão de condução</SelectItem>
+                    <SelectItem value="consistência" className="text-xs">Verificar consistência do odômetro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -420,6 +438,21 @@ export const FuelDashboardsFilterBar = ({
             <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedParecerNexus, onParecerNexusChange, v)} />
           </Badge>
         ))}
+        {selectedAlerta?.length > 0 && selectedAlerta.map((v: string) => {
+          const labels: Record<string, string> = {
+            odômetro: "Ação: Conferir Odômetro",
+            duplicatas: "Ação: Verificar Duplicatas",
+            excesso: "Ação: Excesso de Tanque",
+            condução: "Ação: Padrão Condução",
+            consistência: "Ação: Consistência Odômetro"
+          };
+          return (
+            <Badge key={v} variant="secondary" className="gap-1 px-3 py-1 bg-amber-100 text-amber-700 hover:bg-amber-200 border-amber-200 font-bold">
+              {labels[v] || v}
+              <X className="h-3 w-3 cursor-pointer" onClick={() => removeFilter(selectedAlerta, onAlertaChange, v)} />
+            </Badge>
+          );
+        })}
         {(dateFrom || dateTo) && (
           <Badge variant="secondary" className="gap-1 px-3 py-1 bg-amber-50 text-amber-700 border-amber-200">
             Período: {dateFrom ? format(dateFrom, "dd/MM") : "?"} até {dateTo ? format(dateTo, "dd/MM") : "?"}
