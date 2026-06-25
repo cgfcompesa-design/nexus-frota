@@ -1115,6 +1115,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
       const brand = String(vehicle.MARCA || vehicle.marca || "N/A").trim();
       const dir = String(vehicle.DIRETORIA || vehicle.diretoria || "N/A").trim();
       const ger = String(vehicle.GERENCIA || vehicle["GERÊNCIA"] || vehicle.gerencia || "N/A").trim();
+      const titularidade = String(vehicle.TITULARIDADE || vehicle.titularidade || "N/A").trim().toUpperCase();
 
       return `
         <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -1135,6 +1136,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
             </span>
           </td>
           <td style="padding: 10px; font-size: 11px;">${model} / ${brand}</td>
+          <td style="padding: 10px; text-align: center; font-size: 11px; font-weight: bold; text-transform: uppercase;">${titularidade}</td>
           <td style="padding: 10px; font-size: 11px;">${dir} (${ger})</td>
         </tr>
       `;
@@ -1205,6 +1207,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                 <th style="padding: 10px; text-align: right;">Odo Restante</th>
                 <th style="padding: 10px; text-align: center;">Status</th>
                 <th>Modelo / Marca</th>
+                <th style="padding: 10px; text-align: center;">Titularidade</th>
                 <th>Uso / Diretoria</th>
               </tr>
             </thead>
@@ -2004,6 +2007,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                       <TableHead className="text-center font-black uppercase text-[10px] w-[100px]">Status</TableHead>
                       <TableHead className="font-black uppercase text-[10px]">Diretoria / Gerência</TableHead>
                       <TableHead className="font-black uppercase text-[10px]">Modelo / Marca</TableHead>
+                      <TableHead className="text-center font-black uppercase text-[10px] w-[110px]">Titularidade</TableHead>
                       <TableHead className="text-center font-black uppercase text-[10px] w-[90px]">Notificar</TableHead>
                       <TableHead className="text-center font-black uppercase text-[10px] w-[80px]">Salvar</TableHead>
                     </TableRow>
@@ -2029,6 +2033,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                       const brand = String(vehicle.MARCA || vehicle.marca || "N/A").trim();
                       const dir = String(vehicle.DIRETORIA || vehicle.diretoria || "N/A").trim();
                       const ger = String(vehicle.GERENCIA || vehicle["GERÊNCIA"] || vehicle.gerencia || "N/A").trim();
+                      const titularidade = String(vehicle.TITULARIDADE || vehicle.titularidade || "N/A").trim().toUpperCase();
 
                       return (
                         <TableRow key={placa} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/50 transition-colors">
@@ -2122,6 +2127,19 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                           <TableCell className="text-xs truncate max-w-[150px]">
                             <p className="font-extrabold text-slate-700 dark:text-slate-300 truncate uppercase leading-tight">{model}</p>
                             <p className="text-[10px] text-slate-400 truncate uppercase mt-0.5">{brand}</p>
+                          </TableCell>
+
+                          {/* Titularidade */}
+                          <TableCell className="text-center font-bold text-xs">
+                            <span className={`px-2 py-0.5 rounded-full font-black text-[9px] uppercase border ${
+                              titularidade === "TITULAR"
+                                ? "bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 border-indigo-200/40"
+                                : titularidade === "RESERVA"
+                                  ? "bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border-amber-200/40"
+                                  : "bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400 border-slate-200/40"
+                            }`}>
+                              {titularidade}
+                            </span>
                           </TableCell>
 
                           {/* Notificar manual action */}
