@@ -4154,13 +4154,13 @@ Companhia Pernambucana de Saneamento`;
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-2">
-              <div className="p-2 border rounded bg-slate-50 text-[10px]">
+              <div className="p-2 border rounded bg-slate-50 dark:bg-slate-900/50 text-[10px]">
                 <span className="block font-bold text-muted-foreground uppercase mb-1">Placa Analisada</span>
-                <span className="font-bold text-slate-900">{selectedDesvioExplaining?.placa}</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{selectedDesvioExplaining?.placa}</span>
               </div>
-              <div className="p-2 border rounded bg-slate-50 text-[10px]">
+              <div className="p-2 border rounded bg-slate-50 dark:bg-slate-900/50 text-[10px]">
                 <span className="block font-bold text-muted-foreground uppercase mb-1">Data Transação</span>
-                <span className="font-bold text-slate-900">{selectedDesvioExplaining?.data}</span>
+                <span className="font-bold text-slate-900 dark:text-slate-100">{selectedDesvioExplaining?.data}</span>
               </div>
             </div>
           </div>
@@ -4172,7 +4172,7 @@ Companhia Pernambucana de Saneamento`;
 
       {/* Modal Detalhado de Analytics & Machine Learning */}
       <Dialog open={!!selectedAnalyticsItem} onOpenChange={() => setSelectedAnalyticsItem(null)}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-850">
+        <DialogContent className="max-w-5xl w-[95vw] lg:w-[85vw] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white dark:bg-slate-950 border border-slate-250 dark:border-slate-850">
           <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -4200,7 +4200,7 @@ Companhia Pernambucana de Saneamento`;
             </div>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 p-6">
+          <div className="flex-1 p-6 overflow-y-auto overflow-x-auto max-h-[75vh] scrollbar-thin">
             <div className="space-y-6">
               {/* Seção 1: Identificação Principal */}
               {selectedAnalyticsItem?.type === 'driver' ? (
@@ -4220,11 +4220,11 @@ Companhia Pernambucana de Saneamento`;
                           <span className="text-base font-black text-slate-800 dark:text-slate-100">{driverStats ? `${driverStats.meanKmL.toFixed(2)} Km/L` : 'N/A'}</span>
                         </div>
                         <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-xl text-center">
-                          <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider mb-0.5">Desvio Padrão (DP)</span>
+                          <span className="text-[9px] font-black uppercase text-slate-450 block tracking-wider mb-0.5">Desvio Padrão (DP)</span>
                           <span className="text-base font-black text-slate-800 dark:text-slate-100">{driverStats ? `±${driverStats.stdDevKmL.toFixed(2)}` : 'N/A'}</span>
                         </div>
                         <div className="p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 rounded-xl text-center">
-                          <span className="text-[9px] font-black uppercase text-slate-400 block tracking-wider mb-0.5">Total Abastecimentos</span>
+                          <span className="text-[9px] font-black uppercase text-slate-450 block tracking-wider mb-0.5">Total Abastecimentos</span>
                           <span className="text-base font-black text-slate-800 dark:text-slate-100">{driverHistory.length}</span>
                         </div>
                       </div>
@@ -4265,7 +4265,7 @@ Companhia Pernambucana de Saneamento`;
                       {/* Histórico completo */}
                       <div className="space-y-2.5">
                         <h4 className="text-[10px] font-black uppercase text-slate-450 tracking-wider block">Histórico de Abastecimentos</h4>
-                        <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-h-[250px] overflow-y-auto scrollbar-thin">
+                        <div className="overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-h-[350px] scrollbar-thin">
                           <Table>
                             <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-10">
                               <TableRow>
@@ -4410,7 +4410,7 @@ Companhia Pernambucana de Saneamento`;
                       {/* Histórico completo do veículo */}
                       <div className="space-y-2.5">
                         <h4 className="text-[10px] font-black uppercase text-slate-450 tracking-wider block">Histórico de Abastecimentos do Ativo ({placa})</h4>
-                        <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-h-[220px] overflow-y-auto scrollbar-thin">
+                        <div className="overflow-x-auto overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-h-[350px] scrollbar-thin">
                           <Table>
                             <TableHeader className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-10">
                               <TableRow>
@@ -4452,7 +4452,7 @@ Companhia Pernambucana de Saneamento`;
                 })()
               )}
             </div>
-          </ScrollArea>
+          </div>
 
           <DialogFooter className="p-6 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0">
             <Button onClick={() => setSelectedAnalyticsItem(null)} className="w-full font-black uppercase text-xs tracking-wider h-10 bg-indigo-600 hover:bg-indigo-700 text-white border-none">
