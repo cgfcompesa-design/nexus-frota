@@ -2,7 +2,7 @@ import { useManagersData } from "@/hooks/useManagersData";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FuelFilterBar } from "./FuelFilterBar";
-import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag, Building2 } from "lucide-react";
+import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag, Building2, Brain, Sparkles, Cpu, CheckCircle, AlertCircle } from "lucide-react";
 import { useAlertaValeData } from "@/hooks/useAlertaValeData";
 import { LoadingState } from "@/components/dashboard/LoadingState";
 import { Button } from "@/components/ui/button";
@@ -358,6 +358,9 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
   const [itemsPerPage, setItemsPerPage] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
   const [debouncedSearchPlaca, setDebouncedSearchPlaca] = useState(searchPlaca);
+  const [mlDriverSearch, setMlDriverSearch] = useState("");
+  const [mlAnomalySearch, setMlAnomalySearch] = useState("");
+  const [mlSubTab, setMlSubTab] = useState<"motoristas" | "regressao" | "alertas">("motoristas");
 
   // Debounce search placa to avoid excessive re-render while typing
   useEffect(() => {
@@ -1470,6 +1473,904 @@ Coordenação de Gestão de Frotas - CGF`;
     return Array.from(map.values()).sort((a, b) => b.total - a.total);
   }, [fuelAnalysis.desvios, assetsByPlaca]);
 
+  // -------------------------------------------------------------------------
+  // ADVANCED MACHINE LEARNING & STATISTICAL ANALYTICS ENGINE
+  // -------------------------------------------------------------------------
+
+  // 1. Data Preprocessing & Cleansing
+  const processedTransactions = useMemo(() => {
+    const vehicleGroups = new Map<string, any[]>();
+    filteredFuel.forEach((f: any) => {
+      const placa = f._placa || "N/A";
+      if (placa === "N/A" || placa.startsWith("MAQ")) return;
+      if (!vehicleGroups.has(placa)) {
+        vehicleGroups.set(placa, []);
+      }
+      vehicleGroups.get(placa)!.push(f);
+    });
+
+    const allProcessed: any[] = [];
+
+    vehicleGroups.forEach((txs, placa) => {
+      // Sort by date / timestamp ascending
+      const sorted = [...txs].sort((a: any, b: any) => {
+        const tA = a._timestamp || new Date(a._date || 0).getTime();
+        const tB = b._timestamp || new Date(b._date || 0).getTime();
+        return tA - tB;
+      });
+
+      for (let i = 0; i < sorted.length; i++) {
+        const curr = sorted[i];
+        const prev = i > 0 ? sorted[i - 1] : null;
+
+        let odometerDiff = 0;
+        if (prev && curr._odometer > 0 && prev._odometer > 0) {
+          odometerDiff = curr._odometer - prev._odometer;
+        }
+
+        const km_percorrido = odometerDiff > 0 ? odometerDiff : (curr._kmRodados || curr._kmHoras || 0);
+        const litros = curr._litros || 0;
+
+        const km_l = litros > 0 ? km_percorrido / litros : 0;
+        const consumo_l_100km = km_percorrido > 0 ? (litros / km_percorrido) * 100 : 0;
+
+        const isInvalid = km_percorrido <= 0 || litros <= 0;
+
+        allProcessed.push({
+          rawTx: curr,
+          placa,
+          driver: curr._driver || curr["NOME MOTORISTA"] || "NÃO IDENTIFICADO",
+          date: curr["DATA TRANSACAO"] || curr._formattedDate || curr._date,
+          odometer: curr._odometer || 0,
+          litros,
+          km_percorrido,
+          km_l,
+          consumo_l_100km,
+          isInvalid,
+          txId: curr._txId || curr["CODIGO TRANSACAO"] || "N/A",
+          cost: curr._total || (litros * (curr._vlLitro || 0)) || 0,
+          vlLitro: curr._vlLitro || 0
+        });
+      }
+    });
+
+    return allProcessed;
+  }, [filteredFuel]);
+
+  // 2. Operational Indicators
+  const operationalIndicators = useMemo(() => {
+    const validTxs = processedTransactions.filter(t => !t.isInvalid);
+
+    // Vehicles
+    const vehicleStatsMap = new Map<string, any>();
+    validTxs.forEach(t => {
+      if (!vehicleStatsMap.has(t.placa)) {
+        vehicleStatsMap.set(t.placa, { placa: t.placa, kms: [], liters: [], kmLs: [], costs: [], txs: [] });
+      }
+      const v = vehicleStatsMap.get(t.placa)!;
+      v.kms.push(t.km_percorrido);
+      v.liters.push(t.litros);
+      v.kmLs.push(t.km_l);
+      v.costs.push(t.cost);
+      v.txs.push(t);
+    });
+
+    const vehiclesStats = Array.from(vehicleStatsMap.values()).map(v => {
+      const totalKm = v.kms.reduce((a: number, b: number) => a + b, 0);
+      const totalLiters = v.liters.reduce((a: number, b: number) => a + b, 0);
+      const totalCost = v.costs.reduce((a: number, b: number) => a + b, 0);
+
+      const kmLs = [...v.kmLs].sort((a, b) => a - b);
+      const count = kmLs.length;
+      const meanKmL = totalLiters > 0 ? totalKm / totalLiters : 0;
+
+      let medianKmL = 0;
+      if (count > 0) {
+        if (count % 2 === 0) {
+          medianKmL = (kmLs[count / 2 - 1] + kmLs[count / 2]) / 2;
+        } else {
+          medianKmL = kmLs[Math.floor(count / 2)];
+        }
+      }
+
+      const variance = count > 1 ? v.kmLs.reduce((acc: number, val: number) => acc + Math.pow(val - meanKmL, 2), 0) / (count - 1) : 0;
+      const stdDevKmL = Math.sqrt(variance);
+
+      return {
+        placa: v.placa,
+        meanKmL,
+        medianKmL,
+        stdDevKmL,
+        totalKm,
+        totalLiters,
+        totalCost,
+        costPerKm: totalKm > 0 ? totalCost / totalKm : 0,
+        costPerLiter: totalLiters > 0 ? totalCost / totalLiters : 0,
+        count,
+        txs: v.txs
+      };
+    });
+
+    // Drivers
+    const driverStatsMap = new Map<string, any>();
+    validTxs.forEach(t => {
+      if (!driverStatsMap.has(t.driver)) {
+        driverStatsMap.set(t.driver, { driver: t.driver, kms: [], liters: [], kmLs: [], costs: [], txs: [] });
+      }
+      const d = driverStatsMap.get(t.driver)!;
+      d.kms.push(t.km_percorrido);
+      d.liters.push(t.litros);
+      d.kmLs.push(t.km_l);
+      d.costs.push(t.cost);
+      d.txs.push(t);
+    });
+
+    const driversStats = Array.from(driverStatsMap.values()).map(d => {
+      const totalKm = d.kms.reduce((a: number, b: number) => a + b, 0);
+      const totalLiters = d.liters.reduce((a: number, b: number) => a + b, 0);
+      const totalCost = d.costs.reduce((a: number, b: number) => a + b, 0);
+
+      const kmLs = [...d.kmLs].sort((a, b) => a - b);
+      const count = kmLs.length;
+      const meanKmL = totalLiters > 0 ? totalKm / totalLiters : 0;
+
+      let medianKmL = 0;
+      if (count > 0) {
+        if (count % 2 === 0) {
+          medianKmL = (kmLs[count / 2 - 1] + kmLs[count / 2]) / 2;
+        } else {
+          medianKmL = kmLs[Math.floor(count / 2)];
+        }
+      }
+
+      const variance = count > 1 ? d.kmLs.reduce((acc: number, val: number) => acc + Math.pow(val - meanKmL, 2), 0) / (count - 1) : 0;
+      const stdDevKmL = Math.sqrt(variance);
+
+      return {
+        driver: d.driver,
+        meanKmL,
+        medianKmL,
+        stdDevKmL,
+        totalKm,
+        totalLiters,
+        totalCost,
+        costPerKm: totalKm > 0 ? totalCost / totalKm : 0,
+        costPerLiter: totalLiters > 0 ? totalCost / totalLiters : 0,
+        count,
+        txs: d.txs
+      };
+    });
+
+    return { vehiclesStats, driversStats };
+  }, [processedTransactions]);
+
+  // 3. Statistical Reference Percentiles
+  const vehiclePercentiles = useMemo(() => {
+    const map = new Map<string, { p5: number; p95: number }>();
+    operationalIndicators.vehiclesStats.forEach(v => {
+      const sortedKmLs = v.txs.map((t: any) => t.km_l).sort((a: number, b: number) => a - b);
+      if (sortedKmLs.length >= 5) {
+        const p5Idx = Math.floor(sortedKmLs.length * 0.05);
+        const p95Idx = Math.floor(sortedKmLs.length * 0.95);
+        map.set(v.placa, { p5: sortedKmLs[p5Idx], p95: sortedKmLs[p95Idx] });
+      } else {
+        map.set(v.placa, { p5: 0.5, p95: 35.0 });
+      }
+    });
+    return map;
+  }, [operationalIndicators]);
+
+  // 4. Same-Day Double Refueling Maps
+  const vehicleDateCounts = useMemo(() => {
+    const map = new Map<string, number>();
+    processedTransactions.forEach(t => {
+      const dateStr = t.date ? String(t.date).split(" ")[0] : "N/A";
+      const key = `${t.placa}_${dateStr}`;
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }, [processedTransactions]);
+
+  // 5. Linear Regression Models (liters vs km_percorrido)
+  const regressionModels = useMemo(() => {
+    const models = new Map<string, { slope: number; intercept: number; r2: number }>();
+    const allResiduals: any[] = [];
+
+    operationalIndicators.vehiclesStats.forEach(v => {
+      if (v.count < 10) return;
+
+      const txs = v.txs;
+      const n = txs.length;
+      let sumX = 0, sumY = 0;
+      
+      txs.forEach((t: any) => {
+        sumX += t.km_percorrido;
+        sumY += t.litros;
+      });
+
+      const meanX = sumX / n;
+      const meanY = sumY / n;
+
+      let num = 0;
+      let den = 0;
+      txs.forEach((t: any) => {
+        const x = t.km_percorrido;
+        const y = t.litros;
+        num += (x - meanX) * (y - meanY);
+        den += (x - meanX) * (x - meanX);
+      });
+
+      const slope = den !== 0 ? num / den : 0;
+      const intercept = meanY - slope * meanX;
+
+      let ssRes = 0;
+      let ssTot = 0;
+      txs.forEach((t: any) => {
+        const x = t.km_percorrido;
+        const y = t.litros;
+        const predY = slope * x + intercept;
+        ssRes += (y - predY) * (y - predY);
+        ssTot += (y - meanY) * (y - meanY);
+      });
+
+      const r2 = ssTot !== 0 ? Math.max(0, 1 - (ssRes / ssTot)) : 0;
+      models.set(v.placa, { slope, intercept, r2 });
+
+      txs.forEach((t: any) => {
+        const predY = slope * t.km_percorrido + intercept;
+        const residual = t.litros - predY;
+        allResiduals.push({
+          ...t,
+          predY,
+          residual,
+          r2,
+          slope,
+          intercept
+        });
+      });
+    });
+
+    const top10PositiveResiduals = [...allResiduals]
+      .filter(r => r.residual > 0)
+      .sort((a, b) => b.residual - a.residual)
+      .slice(0, 10);
+
+    return { models, allResiduals, top10PositiveResiduals };
+  }, [operationalIndicators]);
+
+  // 6. K-Means Driver Clustering (K = 3)
+  const driverClustering = useMemo(() => {
+    const drivers = operationalIndicators.driversStats.filter(d => d.count >= 2);
+    if (drivers.length < 3) {
+      return drivers.map(d => {
+        let cluster: "eficiente" | "intermediário" | "alto consumo" = "intermediário";
+        if (d.meanKmL > 6.5) cluster = "eficiente";
+        else if (d.meanKmL < 4.5) cluster = "alto consumo";
+        return { ...d, cluster, score: d.meanKmL };
+      });
+    }
+
+    const means = drivers.map(d => d.meanKmL);
+    const stds = drivers.map(d => d.stdDevKmL);
+
+    const minMean = Math.min(...means);
+    const maxMean = Math.max(...means);
+    const rangeMean = maxMean - minMean || 1;
+
+    const minStd = Math.min(...stds);
+    const maxStd = Math.max(...stds);
+    const rangeStd = maxStd - minStd || 1;
+
+    const datapoints = drivers.map(d => {
+      const normMean = (d.meanKmL - minMean) / rangeMean;
+      const normStd = (d.stdDevKmL - minStd) / rangeStd;
+      return { driver: d, x: normMean, y: normStd };
+    });
+
+    let centroids = [
+      { x: 0.1, y: 0.5 },
+      { x: 0.5, y: 0.5 },
+      { x: 0.9, y: 0.2 }
+    ];
+
+    let assignments = new Array(datapoints.length).fill(0);
+
+    for (let iter = 0; iter < 10; iter++) {
+      let changed = false;
+      datapoints.forEach((dp, idx) => {
+        let minDist = Infinity;
+        let bestCluster = 0;
+        centroids.forEach((c, cIdx) => {
+          const dist = Math.pow(dp.x - c.x, 2) + Math.pow(dp.y - c.y, 2);
+          if (dist < minDist) {
+            minDist = dist;
+            bestCluster = cIdx;
+          }
+        });
+        if (assignments[idx] !== bestCluster) {
+          assignments[idx] = bestCluster;
+          changed = true;
+        }
+      });
+
+      if (!changed) break;
+
+      const counts = [0, 0, 0];
+      const sumsX = [0, 0, 0];
+      const sumsY = [0, 0, 0];
+
+      datapoints.forEach((dp, idx) => {
+        const cIdx = assignments[idx];
+        counts[cIdx]++;
+        sumsX[cIdx] += dp.x;
+        sumsY[cIdx] += dp.y;
+      });
+
+      centroids = centroids.map((c, cIdx) => {
+        if (counts[cIdx] === 0) return c;
+        return { x: sumsX[cIdx] / counts[cIdx], y: sumsY[cIdx] / counts[cIdx] };
+      });
+    }
+
+    const clusterAverages = [0, 1, 2].map(cIdx => {
+      const items = datapoints.filter((_, idx) => assignments[idx] === cIdx);
+      if (items.length === 0) return 0;
+      return items.reduce((acc, val) => acc + val.driver.meanKmL, 0) / items.length;
+    });
+
+    const sortedClusterIndices = [0, 1, 2].sort((a, b) => clusterAverages[a] - clusterAverages[b]);
+    const labelMap = new Map<number, "eficiente" | "intermediário" | "alto consumo">();
+    labelMap.set(sortedClusterIndices[0], "alto consumo");
+    labelMap.set(sortedClusterIndices[1], "intermediário");
+    labelMap.set(sortedClusterIndices[2], "eficiente");
+
+    return datapoints.map((dp, idx) => {
+      const clusterLabel = labelMap.get(assignments[idx]) || "intermediário";
+      return {
+        ...dp.driver,
+        cluster: clusterLabel,
+        score: dp.driver.meanKmL
+      };
+    });
+  }, [operationalIndicators]);
+
+  // 7. Advanced Anomaly Detection (Multiclass)
+  const advancedAnomalies = useMemo(() => {
+    const anomalies: any[] = [];
+    const sortedByVehicle = new Map<string, any[]>();
+    processedTransactions.forEach(t => {
+      if (!sortedByVehicle.has(t.placa)) {
+        sortedByVehicle.set(t.placa, []);
+      }
+      sortedByVehicle.get(t.placa)!.push(t);
+    });
+
+    sortedByVehicle.forEach((txs, placa) => {
+      const sorted = [...txs].sort((a, b) => {
+        const tA = a.rawTx._timestamp || new Date(a.date || 0).getTime();
+        const tB = b.rawTx._timestamp || new Date(b.date || 0).getTime();
+        return tA - tB;
+      });
+
+      const vStats = operationalIndicators.vehiclesStats.find(v => v.placa === placa);
+      const pPercentiles = vehiclePercentiles.get(placa);
+
+      for (let i = 0; i < sorted.length; i++) {
+        const curr = sorted[i];
+        const prev = i > 0 ? sorted[i - 1] : null;
+        const alerts: { rule: string; explanation: string; action: string }[] = [];
+
+        // Odômetro Regressivo
+        if (prev && curr.odometer > 0 && prev.odometer > 0 && curr.odometer <= prev.odometer) {
+          alerts.push({
+            rule: "Odômetro Regressivo",
+            explanation: `Odômetro atual (${curr.odometer} km) menor ou igual ao anterior (${prev.odometer} km)`,
+            action: "Conferir leitura física do odômetro e reajustar digitação manual"
+          });
+        }
+
+        // Abastecimento Duplo
+        const dateStr = curr.date ? String(curr.date).split(" ")[0] : "N/A";
+        const sameDayCount = vehicleDateCounts.get(`${placa}_${dateStr}`) || 0;
+        if (sameDayCount > 1) {
+          alerts.push({
+            rule: "Abastecimento Duplo",
+            explanation: `Registrados ${sameDayCount} abastecimentos do mesmo veículo no mesmo dia (${dateStr})`,
+            action: "Verificar notas fiscais correspondentes e desconsiderar duplicatas"
+          });
+        }
+
+        // Excesso de Tanque (>110% capacidade)
+        const asset = assetsByPlaca.get(placa);
+        if (asset) {
+          const assetRaw = (asset as any).__raw || [];
+          const fuelPadraoAtivo = standardizeFuelType(assetRaw[11]);
+          const fuelSecAtivo = standardizeFuelType(assetRaw[32]);
+          const fuelType = curr.rawTx._fuelType;
+          
+          let limit = 0;
+          if (fuelType === fuelPadraoAtivo) limit = parseBrazilianNumber(assetRaw[30]);
+          else if (fuelType === fuelSecAtivo) limit = parseBrazilianNumber(assetRaw[34]);
+
+          if (limit > 0 && curr.litros > 1.1 * limit) {
+            alerts.push({
+              rule: "Excesso de Tanque",
+              explanation: `Volume abastecido (${curr.litros.toFixed(1)}L) excede 110% da capacidade nominal (${limit}L)`,
+              action: "Verificar nota fiscal ou investigar possível abastecimento irregular fora do tanque"
+            });
+          }
+        }
+
+        // Regra Estatística de Autonomia (km/l < média - 2*desvio padrão)
+        if (vStats && vStats.count >= 5 && vStats.stdDevKmL > 0 && curr.km_l > 0) {
+          const minAcceptable = vStats.meanKmL - 2 * vStats.stdDevKmL;
+          if (curr.km_l < minAcceptable) {
+            alerts.push({
+              rule: "Sub-Consumo Crítico",
+              explanation: `Autonomia real de ${curr.km_l.toFixed(2)} Km/L abaixo do limite de desvio (-2 DP: ${minAcceptable.toFixed(2)})`,
+              action: "Investigar padrão de condução do motorista ou possíveis vazamentos"
+            });
+          }
+        }
+
+        // Fora do Percentil P5 - P95
+        if (pPercentiles && pPercentiles.p5 > 0 && curr.km_l > 0) {
+          if (curr.km_l < pPercentiles.p5 || curr.km_l > pPercentiles.p95) {
+            const bound = curr.km_l < pPercentiles.p5 ? `P5 (${pPercentiles.p5.toFixed(2)})` : `P95 (${pPercentiles.p95.toFixed(2)})`;
+            alerts.push({
+              rule: "Percentil Extremo",
+              explanation: `Eficiência de ${curr.km_l.toFixed(2)} Km/L fora do intervalo histórico P5-P95 (limite ${bound})`,
+              action: "Verificar consistência da leitura do odômetro ou quantidade de combustível"
+            });
+          }
+        }
+
+        if (alerts.length > 0) {
+          anomalies.push({
+            ...curr,
+            alerts
+          });
+        }
+      }
+    });
+
+    return anomalies.sort((a, b) => b.alerts.length - a.alerts.length);
+  }, [processedTransactions, operationalIndicators, vehiclePercentiles, vehicleDateCounts, assetsByPlaca]);
+
+  // 8. Advanced ML Render View
+  const renderAdvancedMLMonitoramentoContent = () => {
+    const filteredDrivers = driverClustering.filter(d => 
+      d.driver.toUpperCase().includes(mlDriverSearch.toUpperCase())
+    );
+
+    const filteredAnomalies = advancedAnomalies.filter(a => 
+      a.placa.toUpperCase().includes(mlAnomalySearch.toUpperCase()) ||
+      a.driver.toUpperCase().includes(mlAnomalySearch.toUpperCase()) ||
+      a.alerts.some((al: any) => al.rule.toUpperCase().includes(mlAnomalySearch.toUpperCase()))
+    );
+
+    return (
+      <div id="ml-advanced-panel" className="space-y-6">
+        {/* Banner de apresentação */}
+        <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 border border-indigo-800/40 shadow-xl relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-8 opacity-10">
+            <Cpu className="h-40 w-40 text-indigo-400 animate-pulse" />
+          </div>
+          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-indigo-400" />
+                <Badge variant="outline" className="border-indigo-400/50 text-indigo-300 font-bold uppercase text-[9px] tracking-widest bg-indigo-500/10">
+                  Analytics & Machine Learning
+                </Badge>
+              </div>
+              <h2 className="text-xl font-black uppercase tracking-tight text-white">
+                Monitoramento e Análise de Desvios Avançado
+              </h2>
+              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                Utilize algoritmos estatísticos e computacionais avançados de regressão linear integrada e agrupamento <span className="font-bold text-indigo-300">K-Means (K=3)</span> para auditoria automatizada e detecção inteligente de faturamento fantasma ou anomalias operacionais.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* KPIs Grid */}
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard
+            title="Ajustes de Regressão"
+            value={`${regressionModels.models.size}`}
+            icon={<TrendingUp className="h-4 w-4 text-indigo-400" />}
+            description="Veículos com ≥ 10 abastecimentos"
+          />
+          <MetricCard
+            title="Conformidade Operacional"
+            value={`${(100 - (advancedAnomalies.length / (processedTransactions.length || 1) * 100)).toFixed(1)}%`}
+            icon={<CheckCircle className="h-4 w-4 text-emerald-400" />}
+            description="Livre de anomalias operacionais"
+          />
+          <MetricCard
+            title="Alertas Multicamada"
+            value={`${advancedAnomalies.length}`}
+            icon={<AlertCircle className="h-4 w-4 text-rose-400" />}
+            description={`De ${processedTransactions.filter(t => !t.isInvalid).length} registros válidos`}
+          />
+          <MetricCard
+            title="Eficientes / Alto Consumo"
+            value={`${driverClustering.filter(d => d.cluster === "eficiente").length} / ${driverClustering.filter(d => d.cluster === "alto consumo").length}`}
+            icon={<TrendingUp className="h-4 w-4 text-amber-400" />}
+            description="Motoristas segmentados via K-Means"
+          />
+        </div>
+
+        {/* Sub-tab navigation */}
+        <div className="flex items-center border-b border-slate-200 dark:border-slate-800 pb-1 gap-2">
+          <Button
+            variant={mlSubTab === "motoristas" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setMlSubTab("motoristas")}
+            className="font-bold text-xs uppercase tracking-wider"
+          >
+            <Brain className="mr-1.5 h-3.5 w-3.5" />
+            1. Clustering de Motoristas (K-Means)
+          </Button>
+          <Button
+            variant={mlSubTab === "regressao" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setMlSubTab("regressao")}
+            className="font-bold text-xs uppercase tracking-wider"
+          >
+            <LineChart className="mr-1.5 h-3.5 w-3.5" />
+            2. Modelos de Regressão & Resíduos
+          </Button>
+          <Button
+            variant={mlSubTab === "alertas" ? "default" : "ghost"}
+            size="sm"
+            onClick={() => setMlSubTab("alertas")}
+            className="font-bold text-xs uppercase tracking-wider"
+          >
+            <AlertCircle className="mr-1.5 h-3.5 w-3.5" />
+            3. Alertas Avançados ({filteredAnomalies.length})
+          </Button>
+        </div>
+
+        {/* Sub-tab content */}
+        {mlSubTab === "motoristas" && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                  Segmentação Estatística de Motoristas
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-450 mt-1 max-w-2xl">
+                  Agrupamento automático de motoristas utilizando as variáveis de <span className="font-semibold text-indigo-600 dark:text-indigo-400">Eficiência Média (Km/L)</span> e <span className="font-semibold text-indigo-600 dark:text-indigo-400">Variabilidade Operacional (Desvio Padrão)</span>. O algoritmo classifica-os em três faixas de comportamento.
+                </p>
+              </div>
+              <div className="relative w-full md:w-72 shrink-0">
+                <input
+                  type="text"
+                  placeholder="Filtrar motorista..."
+                  value={mlDriverSearch}
+                  onChange={(e) => setMlDriverSearch(e.target.value)}
+                  className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-white dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Clusters columns */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Cluster Eficiente */}
+              <div className="border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/5 dark:bg-emerald-950/5 rounded-2xl p-4 flex flex-col h-[480px]">
+                <div className="flex items-center justify-between pb-3 border-b border-emerald-100/40 dark:border-emerald-950/20 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    <h4 className="font-black text-xs uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
+                      Eficiente
+                    </h4>
+                  </div>
+                  <Badge variant="outline" className="bg-emerald-100/35 border-emerald-200/40 text-emerald-700 dark:text-emerald-400 font-bold text-[9px] uppercase">
+                    {filteredDrivers.filter(d => d.cluster === "eficiente").length} Motoristas
+                  </Badge>
+                </div>
+                <ScrollArea className="flex-1 pr-2">
+                  <div className="space-y-2.5">
+                    {filteredDrivers.filter(d => d.cluster === "eficiente").length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
+                    ) : (
+                      filteredDrivers.filter(d => d.cluster === "eficiente").map((d, idx) => (
+                        <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow transition-all">
+                          <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate">{d.driver}</p>
+                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-500">
+                            <div>
+                              <span>Média Autonomia</span>
+                              <span className="block font-black text-emerald-600 dark:text-emerald-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
+                            </div>
+                            <div>
+                              <span>Variabilidade (DP)</span>
+                              <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Cluster Intermediário */}
+              <div className="border border-amber-100 dark:border-amber-950/20 bg-amber-50/5 dark:bg-amber-950/5 rounded-2xl p-4 flex flex-col h-[480px]">
+                <div className="flex items-center justify-between pb-3 border-b border-amber-100/40 dark:border-amber-950/20 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+                    <h4 className="font-black text-xs uppercase tracking-wider text-amber-800 dark:text-amber-400">
+                      Intermediário
+                    </h4>
+                  </div>
+                  <Badge variant="outline" className="bg-amber-100/35 border-amber-200/40 text-amber-700 dark:text-amber-400 font-bold text-[9px] uppercase">
+                    {filteredDrivers.filter(d => d.cluster === "intermediário").length} Motoristas
+                  </Badge>
+                </div>
+                <ScrollArea className="flex-1 pr-2">
+                  <div className="space-y-2.5">
+                    {filteredDrivers.filter(d => d.cluster === "intermediário").length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
+                    ) : (
+                      filteredDrivers.filter(d => d.cluster === "intermediário").map((d, idx) => (
+                        <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow transition-all">
+                          <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate">{d.driver}</p>
+                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-500">
+                            <div>
+                              <span>Média Autonomia</span>
+                              <span className="block font-black text-amber-600 dark:text-amber-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
+                            </div>
+                            <div>
+                              <span>Variabilidade (DP)</span>
+                              <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+
+              {/* Cluster Alto Consumo */}
+              <div className="border border-rose-100 dark:border-rose-950/20 bg-rose-50/5 dark:bg-rose-950/5 rounded-2xl p-4 flex flex-col h-[480px]">
+                <div className="flex items-center justify-between pb-3 border-b border-rose-100/40 dark:border-rose-950/20 mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
+                    <h4 className="font-black text-xs uppercase tracking-wider text-rose-800 dark:text-rose-400">
+                      Alto Consumo
+                    </h4>
+                  </div>
+                  <Badge variant="outline" className="bg-rose-100/35 border-rose-200/40 text-rose-700 dark:text-rose-400 font-bold text-[9px] uppercase">
+                    {filteredDrivers.filter(d => d.cluster === "alto consumo").length} Motoristas
+                  </Badge>
+                </div>
+                <ScrollArea className="flex-1 pr-2">
+                  <div className="space-y-2.5">
+                    {filteredDrivers.filter(d => d.cluster === "alto consumo").length === 0 ? (
+                      <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
+                    ) : (
+                      filteredDrivers.filter(d => d.cluster === "alto consumo").map((d, idx) => (
+                        <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow transition-all relative overflow-hidden">
+                          <span className="absolute top-0 right-0 h-full w-1 bg-rose-500" />
+                          <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate pr-2">{d.driver}</p>
+                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-500">
+                            <div>
+                              <span>Média Autonomia</span>
+                              <span className="block font-black text-rose-600 dark:text-rose-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
+                            </div>
+                            <div>
+                              <span>Variabilidade (DP)</span>
+                              <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mlSubTab === "regressao" && (
+          <div className="space-y-6">
+            {/* Top 10 Positive Residuals Card */}
+            <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
+              <CardHeader className="bg-rose-50/20 dark:bg-rose-950/10 border-b border-rose-100/30">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-500" />
+                  <CardTitle className="text-xs uppercase font-black tracking-wider text-rose-800 dark:text-rose-400">
+                    Sinalização de Top 10 Maiores Resíduos Positivos (Superabastecimento / Erro)
+                  </CardTitle>
+                </div>
+                <CardDescription className="text-[10px] text-slate-500 dark:text-slate-400">
+                  Transações onde a quantidade de litros reais consumida superou significativamente a previsão matemática baseada no rendimento ideal e distância percorrida do veículo.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-[10px] uppercase font-black text-center">Placa</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black">Data</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black">Motorista</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black text-center">KM Percorrido</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black text-center">Litros Reais</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black text-center">Previsto (Regressão)</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black text-center text-rose-600">Resíduo (Excesso)</TableHead>
+                      <TableHead className="text-[10px] uppercase font-black text-right">Ação Recomendada</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {regressionModels.top10PositiveResiduals.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-12 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                          Nenhum veículo com registros suficientes (≥ 10 abastecimentos) para ajuste de resíduos.
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      regressionModels.top10PositiveResiduals.map((r, idx) => (
+                        <TableRow key={idx} className="hover:bg-rose-50/5 dark:hover:bg-rose-950/5">
+                          <TableCell className="text-center">
+                            <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
+                              <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
+                              {r.placa}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{String(r.date).split(" ")[0]}</TableCell>
+                          <TableCell className="text-xs font-semibold uppercase truncate max-w-[140px]" title={r.driver}>{r.driver}</TableCell>
+                          <TableCell className="text-center text-xs font-medium">{r.km_percorrido} km</TableCell>
+                          <TableCell className="text-center text-xs font-semibold">{r.litros.toFixed(1)} L</TableCell>
+                          <TableCell className="text-center text-xs text-slate-400 font-medium">{(r.predY).toFixed(1)} L</TableCell>
+                          <TableCell className="text-center text-xs font-black text-rose-600 dark:text-rose-400">+{r.residual.toFixed(1)} L</TableCell>
+                          <TableCell className="text-right whitespace-nowrap">
+                            <Badge variant="outline" className="text-[8px] font-black bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-900/30 uppercase">
+                              Verificar Nota Fiscal
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            {/* Regression equations listing */}
+            <div className="space-y-3">
+              <h4 className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                Ajuste Coeficientes Consumo Médio (L/KM) por Veículo
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Array.from(regressionModels.models.entries()).map(([placa, model], idx) => {
+                  const reliable = model.r2 >= 0.70;
+                  return (
+                    <div key={idx} className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/50 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-3">
+                      <div className="flex items-center justify-between">
+                        <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
+                          <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
+                          {placa}
+                        </div>
+                        <Badge variant={reliable ? "success" : "outline"} className="text-[8.5px] uppercase font-black">
+                          R²: {model.r2.toFixed(2)}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Equação de Regressão</span>
+                        <p className="text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">
+                          Litros = {model.slope.toFixed(3)} × Km + {model.intercept.toFixed(1)}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[9px] font-bold uppercase text-slate-450 border-t border-slate-100 dark:border-slate-800 pt-2">
+                        <div>
+                          <span>Consumo L/Km</span>
+                          <span className="block text-slate-850 dark:text-slate-100 text-[10px] font-black mt-0.5">{model.slope.toFixed(3)} L/Km</span>
+                        </div>
+                        <div>
+                          <span>Amostras</span>
+                          <span className="block text-slate-850 dark:text-slate-100 text-[10px] font-black mt-0.5">{operationalIndicators.vehiclesStats.find(v => v.placa === placa)?.count} pts</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {mlSubTab === "alertas" && (
+          <div className="space-y-4">
+            <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                  Dossiê Completo de Anomalias (Detecção Multicamada)
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-450 mt-1 max-w-2xl">
+                  Auditoria de transações cruzando regressões de consumo com regras de conformidade operacional rígidas.
+                </p>
+              </div>
+              <div className="relative w-full md:w-72 shrink-0">
+                <input
+                  type="text"
+                  placeholder="Buscar por placa, condutor ou alerta..."
+                  value={mlAnomalySearch}
+                  onChange={(e) => setMlAnomalySearch(e.target.value)}
+                  className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-white dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+
+            {/* Anomalies Table */}
+            <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
+              <CardContent className="p-0">
+                <ScrollArea className="h-[500px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-[10px] uppercase font-black text-center">Placa</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black">Data</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black">Motorista</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black">Métrica Alerta</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black">Explicação Técnica</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-right">Ação Recomendada</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredAnomalies.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-12 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Nenhuma anomalia encontrada com os termos buscados.
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredAnomalies.map((a, i) => (
+                          <TableRow key={i} className="hover:bg-slate-50/5 dark:hover:bg-slate-900/5">
+                            <TableCell className="text-center">
+                              <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
+                                <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
+                                {a.placa}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-500 dark:text-slate-450 whitespace-nowrap">{String(a.date).split(" ")[0]}</TableCell>
+                            <TableCell className="text-xs font-semibold uppercase truncate max-w-[120px]" title={a.driver}>{a.driver}</TableCell>
+                            <TableCell className="space-y-1 py-2">
+                              {a.alerts.map((al: any, idx: number) => (
+                                <Badge key={idx} variant="destructive" className="text-[8px] font-black uppercase tracking-wider block w-fit">
+                                  {al.rule}
+                                </Badge>
+                              ))}
+                            </TableCell>
+                            <TableCell className="text-xs text-slate-600 dark:text-slate-400 max-w-sm">
+                              {a.alerts.map((al: any, idx: number) => (
+                                <p key={idx} className="leading-normal">• {al.explanation}</p>
+                              ))}
+                            </TableCell>
+                            <TableCell className="text-right text-xs py-2">
+                              {a.alerts.map((al: any, idx: number) => (
+                                <p key={idx} className="font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[10px] tracking-tight">{al.action}</p>
+                              ))}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const [activeTab, setActiveTab] = useState(initialTab || (desviosOnly ? "analise" : "analise"));
 
   // Sync internal state if needed, but Tabs handles its own.
@@ -1938,7 +2839,7 @@ Coordenação de Gestão de Frotas - CGF`;
         </TabsContent>
 
         <TabsContent value="analise-desvios" className="space-y-6 mt-0">
-          {renderMonitoramentoContent()}
+          {renderAdvancedMLMonitoramentoContent()}
         </TabsContent>
 
         <TabsContent value="abast-perf" className="space-y-6 mt-0">
