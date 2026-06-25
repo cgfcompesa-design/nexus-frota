@@ -388,7 +388,7 @@ export async function fetchFuelData(): Promise<any[]> {
     
     if (!obj._total) obj._total = parseNum(row[24]);
     if (!obj._odometer) obj._odometer = parseNum(row[27]);
-    if (!obj._kmRodados) obj._kmRodados = row[39] ? parseNum(row[39]) : 0;
+    if (!obj._kmRodados) obj._kmRodados = row[17] ? parseNum(row[17]) : (row[39] ? parseNum(row[39]) : 0);
     if (!obj._monthYear) obj._monthYear = row[41];
     if (!obj._autReal) obj._autReal = parseNum(row[42]); // Column AQ index 42
     
