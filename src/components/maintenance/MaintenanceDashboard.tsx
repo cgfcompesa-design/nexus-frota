@@ -166,9 +166,9 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     };
 
     return (
-      <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mt-2 ${isFullscreen ? "flex-1 overflow-hidden" : ""}`}>
+      <div className={`grid grid-cols-1 md:grid-cols-2 gap-6 mt-2 ${isFullscreen ? "flex-1 h-full min-h-0 overflow-hidden" : ""}`}>
         {/* Coluna Em operação */}
-        <div className={`rounded-2xl border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10 dark:bg-emerald-950/5 p-4 flex flex-col ${isFullscreen ? "h-full" : "h-[520px]"}`}>
+        <div className={`rounded-2xl border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/10 dark:bg-emerald-950/5 p-4 flex flex-col ${isFullscreen ? "h-full min-h-0 overflow-hidden" : "h-[520px]"}`}>
           <div className="flex items-center justify-between pb-3 border-b border-emerald-100 dark:border-emerald-950/20 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -189,7 +189,7 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
         </div>
 
         {/* Coluna Não operacionais */}
-        <div className={`rounded-2xl border border-rose-100 dark:border-rose-950/20 bg-rose-50/10 dark:bg-rose-950/5 p-4 flex flex-col ${isFullscreen ? "h-full" : "h-[520px]"}`}>
+        <div className={`rounded-2xl border border-rose-100 dark:border-rose-950/20 bg-rose-50/10 dark:bg-rose-950/5 p-4 flex flex-col ${isFullscreen ? "h-full min-h-0 overflow-hidden" : "h-[520px]"}`}>
           <div className="flex items-center justify-between pb-3 border-b border-rose-100 dark:border-rose-950/20 mb-4">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />

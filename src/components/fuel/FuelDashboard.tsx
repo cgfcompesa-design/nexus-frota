@@ -544,6 +544,210 @@ Coordenação de Gestão de Frotas - CGF`;
     toast.success("E-mail gerado com sucesso para " + gerencia);
   };
 
+  const handleSendAnomalyEmail = (a: any, alertItem: any) => {
+    const asset = assetsByPlaca.get(a.placa);
+    const gerencia = asset?.GERENCIA || asset?.["GERÊNCIA"] || "Gestão Geral";
+    const modelo = asset?.MODELO || asset?.modelo || "Não especificado";
+    const placa = a.placa;
+    const motorista = a.driver || "Não cadastrado";
+    const dataAlerta = String(a.date).split(" ")[0];
+    
+    const emails = getEmailsByGerencia(gerencia);
+    const cc = "gadmonitoramento@compesa.com.br";
+    const ccList = cc.split(";").map(e => e.trim().toLowerCase());
+    const toFiltered = emails.filter(e => !ccList.includes(e.trim().toLowerCase()));
+    
+    const subject = `[CGF Alerta] Solicitação de Justificativa - Veículo ${placa} - Gerência ${gerencia}`;
+    
+    const body = `Prezado(a) Gestor(a),
+
+Identificamos um alerta avançado no Monitoramento de Frotas (CGF - Machine Learning) referente ao veículo abaixo, sob responsabilidade desta Gerência.
+
+Dados do Veículo e da Ocorrência:
+• Veículo (Placa): ${placa}
+• Modelo: ${modelo}
+• Motorista: ${motorista}
+• Data da Ocorrência: ${dataAlerta}
+• Alerta Identificado: ${alertItem.rule}
+• Detalhamento Técnico: ${alertItem.explanation}
+
+Ação Solicitada:
+Solicitamos, por gentileza, que envie uma justificativa formal para este desvio e anexe uma FOTO ATUALIZADA DO ODÔMETRO/PAINEL do veículo correspondente.
+
+Pedimos que responda a este e-mail no prazo máximo de 2 (dois) dias úteis com as informações e imagem solicitadas para evitar o bloqueio preventivo do cartão de abastecimento.
+
+Agradecemos a colaboração.
+
+Atenciosamente,
+Coordenação de Gestão de Frotas - CGF
+Companhia Pernambucana de Saneamento`;
+
+    const mailto = `mailto:${encodeURIComponent(toFiltered.join(";"))}?cc=${encodeURIComponent(cc)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+    toast.success(`E-mail de notificação gerado para ${gerencia}!`);
+  };
+
+  const handleExportCSV = () => {
+    let csvContent = "\uFEFF"; // UTF-8 BOM
+    
+    // --- CLUSTERING SECTION ---
+    csvContent += "--- CLUSTERING DE MOTORISTAS (K-MEANS) ---\n";
+    csvContent += "Motorista;Média de Autonomia (Km/L);Variabilidade (Desvio Padrão);Perfil Classificado\n";
+    
+    driverClustering.forEach(d => {
+      csvContent += `"${d.driver.replace(/"/g, '""')}";${d.meanKmL.toFixed(2).replace('.', ',')};${d.stdDevKmL.toFixed(2).replace('.', ',')};"${d.cluster.toUpperCase()}"\n`;
+    });
+    
+    csvContent += "\n\n";
+    
+    // --- REGRESSION SECTION ---
+    csvContent += "--- MODELOS DE REGRESSÃO POR VEÍCULO ---\n";
+    csvContent += "Placa;Consumo Estimado (L/Km);Ajuste Fixo (L);R² (Coeficiente de Determinação)\n";
+    
+    Array.from(regressionModels.models.entries()).forEach(([placa, model]) => {
+      csvContent += `"${placa}";${model.slope.toFixed(4).replace('.', ',')};${model.intercept.toFixed(2).replace('.', ',')};${model.r2.toFixed(4).replace('.', ',')}\n`;
+    });
+    
+    csvContent += "\n\n";
+    csvContent += "--- TOP 10 MAIORES RESÍDUOS POSITIVOS (RECOMPENSA/AVALIAÇÃO DE EXCESSO) ---\n";
+    csvContent += "Placa;Data;Motorista;KM Percorrido;Litros Reais;Previsto (Regressão);Resíduo (Excesso em Litros)\n";
+    
+    regressionModels.top10PositiveResiduals.forEach(r => {
+      csvContent += `"${r.placa}";"${String(r.date).split(' ')[0]}";"${r.driver.replace(/"/g, '""')}";${r.km_percorrido};${r.litros.toFixed(1).replace('.', ',')};${r.predY.toFixed(1).replace('.', ',')};${r.residual.toFixed(1).replace('.', ',')}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Analise_Avancada_ML_CGF_${new Date().toLocaleDateString('pt-BR').replace(/\//g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("CSV exportado com sucesso!");
+  };
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    const now = new Date();
+    const formattedDate = now.toLocaleString('pt-BR');
+
+    // Title Page/Header
+    doc.setFontSize(16);
+    doc.setTextColor(30, 64, 175);
+    doc.text("Relatório Analytics & Machine Learning - CGF", 14, 20);
+    
+    doc.setFontSize(9);
+    doc.setTextColor(100);
+    doc.text(`Gerado em: ${formattedDate}`, 14, 27);
+    doc.text(`Análise: Agrupamento K-Means de Motoristas & Modelos de Regressão Linear de Consumo`, 14, 32);
+
+    // Section 1: Clustering
+    doc.setFontSize(12);
+    doc.setTextColor(30, 64, 175);
+    doc.text("1. Segmentação de Motoristas via K-Means (K=3)", 14, 42);
+    
+    doc.setFontSize(8.5);
+    doc.setTextColor(80);
+    doc.text("Identificação de perfis operacionais com base no Km/L médio e variabilidade operacional (desvio padrão).", 14, 47);
+
+    const clusterRows = driverClustering.map(d => [
+      d.driver.toUpperCase(),
+      `${d.meanKmL.toFixed(2)} Km/L`,
+      `±${d.stdDevKmL.toFixed(2)}`,
+      d.cluster.toUpperCase()
+    ]);
+
+    autoTable(doc, {
+      startY: 51,
+      head: [["Motorista", "Média Autonomia (Km/L)", "Variabilidade (Desvio Padrão)", "Perfil"]],
+      body: clusterRows,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 40, halign: 'center' },
+        2: { cellWidth: 45, halign: 'center' },
+        3: { cellWidth: 35, halign: 'center' }
+      }
+    });
+
+    // Add Page for Regressions
+    doc.addPage();
+    
+    doc.setFontSize(14);
+    doc.setTextColor(30, 64, 175);
+    doc.text("2. Modelos de Regressão Linear por Veículo", 14, 20);
+    
+    doc.setFontSize(8.5);
+    doc.setTextColor(80);
+    doc.text("Modelagem estatística do consumo real em função da distância percorrida para veículos com histórico suficiente.", 14, 25);
+
+    const regressionRows = Array.from(regressionModels.models.entries()).map(([placa, model]) => [
+      placa,
+      `Litros = ${model.slope.toFixed(4)} × Km + ${model.intercept.toFixed(1)}`,
+      `${model.slope.toFixed(4)} L/Km`,
+      `R² = ${model.r2.toFixed(2)}`
+    ]);
+
+    autoTable(doc, {
+      startY: 29,
+      head: [["Placa", "Equação do Modelo", "Consumo Estimado (L/Km)", "Coef. Determinação (R²)"]],
+      body: regressionRows,
+      theme: 'grid',
+      headStyles: { fillColor: [79, 70, 229], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 30, halign: 'center' },
+        1: { cellWidth: 'auto' },
+        2: { cellWidth: 45, halign: 'center' },
+        3: { cellWidth: 40, halign: 'center' }
+      }
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 12;
+
+    doc.setFontSize(12);
+    doc.setTextColor(225, 29, 72); // Rose
+    doc.text("3. Top Maiores Resíduos Positivos Detectados (Alertas de Excesso)", 14, finalY);
+    
+    doc.setFontSize(8.5);
+    doc.setTextColor(80);
+    doc.text("Abastecimentos reais com consumo de litros significativamente superior ao estimado pela regressão linear.", 14, finalY + 5);
+
+    const residualRows = regressionModels.top10PositiveResiduals.map(r => [
+      r.placa,
+      String(r.date).split(' ')[0],
+      r.driver.toUpperCase(),
+      `${r.km_percorrido} km`,
+      `${r.litros.toFixed(1)} L`,
+      `${r.predY.toFixed(1)} L`,
+      `+${r.residual.toFixed(1)} L`
+    ]);
+
+    autoTable(doc, {
+      startY: finalY + 9,
+      head: [["Placa", "Data", "Motorista", "KM Rodado", "Litros Reais", "Previsto (Modelo)", "Resíduo (Excesso)"]],
+      body: residualRows,
+      theme: 'grid',
+      headStyles: { fillColor: [225, 29, 72], textColor: 255, fontSize: 8, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7.5 },
+      columnStyles: {
+        0: { cellWidth: 20, halign: 'center' },
+        1: { cellWidth: 22, halign: 'center' },
+        2: { cellWidth: 'auto' },
+        3: { cellWidth: 22, halign: 'center' },
+        4: { cellWidth: 22, halign: 'center' },
+        5: { cellWidth: 25, halign: 'center' },
+        6: { cellWidth: 25, halign: 'center' }
+      }
+    });
+
+    doc.save(`Relatorio_CGF_Analytics_ML_${formattedDate.replace(/[/:\s]/g, '_')}.pdf`);
+    toast.success("Relatório PDF gerado com sucesso!");
+  };
+
   const notifiedDeviationsRef = useRef<Set<string>>(new Set());
 
   // Criar mapa de correlação Placa -> Asset
@@ -2003,8 +2207,8 @@ Coordenação de Gestão de Frotas - CGF`;
             <div className="absolute top-0 right-0 p-8 opacity-10">
               <Cpu className="h-40 w-40 text-indigo-400 animate-pulse" />
             </div>
-            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="space-y-2">
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 w-full">
+              <div className="space-y-2 flex-1">
                 <div className="flex items-center gap-2">
                   <Brain className="h-5 w-5 text-indigo-400" />
                   <Badge variant="outline" className="border-indigo-400/50 text-indigo-300 font-bold uppercase text-[9px] tracking-widest bg-indigo-500/10">
@@ -2017,6 +2221,22 @@ Coordenação de Gestão de Frotas - CGF`;
                 <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
                   Utilize algoritmos estatísticos e computacionais avançados de regressão linear integrada e agrupamento <span className="font-bold text-indigo-300">K-Means (K=3)</span> para auditoria automatizada e detecção inteligente de faturamento fantasma ou anomalias operacionais.
                 </p>
+              </div>
+              <div className="flex flex-row md:flex-col gap-2 shrink-0 w-full md:w-auto">
+                <Button
+                  onClick={handleExportCSV}
+                  className="flex-1 md:flex-none h-9 px-4 text-[10px] uppercase font-black tracking-wider bg-indigo-600 hover:bg-indigo-700 text-white border-none gap-1.5 shadow-md"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Exportar CSV
+                </Button>
+                <Button
+                  onClick={handleExportPDF}
+                  className="flex-1 md:flex-none h-9 px-4 text-[10px] uppercase font-black tracking-wider bg-slate-850 hover:bg-slate-800 text-white border border-slate-700/60 gap-1.5 shadow-md"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  Exportar PDF
+                </Button>
               </div>
             </div>
           </div>
@@ -2658,10 +2878,23 @@ Coordenação de Gestão de Frotas - CGF`;
                                   <p key={idx} className="leading-normal">• {al.explanation}</p>
                                 ))}
                               </TableCell>
-                              <TableCell className="text-right text-xs py-2 whitespace-nowrap">
-                                {a.alerts.map((al: any, idx: number) => (
-                                  <p key={idx} className="font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[10px] tracking-tight">{al.action}</p>
-                                ))}
+                              <TableCell className="text-right text-xs py-2">
+                                <div className="flex flex-col items-end gap-2.5 min-w-[150px]">
+                                  {a.alerts.map((al: any, idx: number) => (
+                                    <div key={idx} className="flex flex-col items-end gap-1">
+                                      <p className="font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[10px] tracking-tight">{al.action}</p>
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleSendAnomalyEmail(a, al)}
+                                        className="h-6 px-2 text-[8px] font-black uppercase tracking-wider text-rose-600 hover:text-rose-700 dark:text-rose-400 dark:hover:text-rose-300 border-rose-200 dark:border-rose-900/40 hover:bg-rose-50 dark:hover:bg-rose-950/20 gap-1 mt-0.5"
+                                      >
+                                        <Mail className="h-2.5 w-2.5" />
+                                        Solicitar Justificativa
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))
