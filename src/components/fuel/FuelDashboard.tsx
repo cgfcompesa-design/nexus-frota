@@ -2,7 +2,7 @@ import { useManagersData } from "@/hooks/useManagersData";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { ChartCard } from "@/components/dashboard/ChartCard";
 import { FuelFilterBar } from "./FuelFilterBar";
-import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag, Building2, Brain, Sparkles, Cpu, CheckCircle, AlertCircle } from "lucide-react";
+import { Fuel, DollarSign, Droplets, Download, Activity, ChevronDown, ChevronUp, Info, FileText, Mail, Send, AlertTriangle, Hash, TrendingUp, Layers, Calendar, Share2, MapPin, Tag, Building2, Brain, Sparkles, Cpu, CheckCircle, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { useAlertaValeData } from "@/hooks/useAlertaValeData";
 import { LoadingState } from "@/components/dashboard/LoadingState";
 import { Button } from "@/components/ui/button";
@@ -361,6 +361,24 @@ export const FuelDashboard = ({ fuel, assets, autonomia, autonomiaPadrao, mainte
   const [mlDriverSearch, setMlDriverSearch] = useState("");
   const [mlAnomalySearch, setMlAnomalySearch] = useState("");
   const [mlSubTab, setMlSubTab] = useState<"motoristas" | "regressao" | "alertas">("motoristas");
+
+  // Pagination states for ML views
+  const [mlEfficientPage, setMlEfficientPage] = useState(1);
+  const [mlIntermediatePage, setMlIntermediatePage] = useState(1);
+  const [mlHighPage, setMlHighPage] = useState(1);
+  const [mlRegressionPage, setMlRegressionPage] = useState(1);
+  const [mlAnomaliesPage, setMlAnomaliesPage] = useState(1);
+
+  // Reset ML pages when search criteria change
+  useEffect(() => {
+    setMlEfficientPage(1);
+    setMlIntermediatePage(1);
+    setMlHighPage(1);
+  }, [mlDriverSearch]);
+
+  useEffect(() => {
+    setMlAnomaliesPage(1);
+  }, [mlAnomalySearch]);
 
   // Debounce search placa to avoid excessive re-render while typing
   useEffect(() => {
@@ -1949,425 +1967,741 @@ Coordenação de Gestão de Frotas - CGF`;
       a.alerts.some((al: any) => al.rule.toUpperCase().includes(mlAnomalySearch.toUpperCase()))
     );
 
+    // Grouping by cluster
+    const efficientDrivers = filteredDrivers.filter(d => d.cluster === "eficiente");
+    const intermediateDrivers = filteredDrivers.filter(d => d.cluster === "intermediário");
+    const highDrivers = filteredDrivers.filter(d => d.cluster === "alto consumo");
+
+    const DRIVERS_PER_PAGE = 5;
+
+    // Slices for K-Means columns
+    const efficientTotalPages = Math.ceil(efficientDrivers.length / DRIVERS_PER_PAGE) || 1;
+    const currentEfficientDrivers = efficientDrivers.slice((mlEfficientPage - 1) * DRIVERS_PER_PAGE, mlEfficientPage * DRIVERS_PER_PAGE);
+
+    const intermediateTotalPages = Math.ceil(intermediateDrivers.length / DRIVERS_PER_PAGE) || 1;
+    const currentIntermediateDrivers = intermediateDrivers.slice((mlIntermediatePage - 1) * DRIVERS_PER_PAGE, mlIntermediatePage * DRIVERS_PER_PAGE);
+
+    const highTotalPages = Math.ceil(highDrivers.length / DRIVERS_PER_PAGE) || 1;
+    const currentHighDrivers = highDrivers.slice((mlHighPage - 1) * DRIVERS_PER_PAGE, mlHighPage * DRIVERS_PER_PAGE);
+
+    // Regression models paginated
+    const regressionModelsArray = Array.from(regressionModels.models.entries());
+    const REGRESSION_PER_PAGE = 8;
+    const regressionTotalPages = Math.ceil(regressionModelsArray.length / REGRESSION_PER_PAGE) || 1;
+    const currentRegressionModels = regressionModelsArray.slice((mlRegressionPage - 1) * REGRESSION_PER_PAGE, mlRegressionPage * REGRESSION_PER_PAGE);
+
+    // Anomalies paginated
+    const ANOMALIES_PER_PAGE = 10;
+    const anomaliesTotalPages = Math.ceil(filteredAnomalies.length / ANOMALIES_PER_PAGE) || 1;
+    const currentAnomalies = filteredAnomalies.slice((mlAnomaliesPage - 1) * ANOMALIES_PER_PAGE, mlAnomaliesPage * ANOMALIES_PER_PAGE);
+
     return (
-      <div id="ml-advanced-panel" className="space-y-6">
-        {/* Banner de apresentação */}
-        <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 border border-indigo-800/40 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-8 opacity-10">
-            <Cpu className="h-40 w-40 text-indigo-400 animate-pulse" />
-          </div>
-          <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Brain className="h-5 w-5 text-indigo-400" />
-                <Badge variant="outline" className="border-indigo-400/50 text-indigo-300 font-bold uppercase text-[9px] tracking-widest bg-indigo-500/10">
-                  Analytics & Machine Learning
-                </Badge>
-              </div>
-              <h2 className="text-xl font-black uppercase tracking-tight text-white">
-                Monitoramento e Análise de Desvios Avançado
-              </h2>
-              <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-                Utilize algoritmos estatísticos e computacionais avançados de regressão linear integrada e agrupamento <span className="font-bold text-indigo-300">K-Means (K=3)</span> para auditoria automatizada e detecção inteligente de faturamento fantasma ou anomalias operacionais.
-              </p>
+      <TooltipProvider>
+        <div id="ml-advanced-panel" className="space-y-6">
+          {/* Banner de apresentação */}
+          <div className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 border border-indigo-800/40 shadow-xl relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-10">
+              <Cpu className="h-40 w-40 text-indigo-400 animate-pulse" />
             </div>
-          </div>
-        </div>
-
-        {/* KPIs Grid */}
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard
-            title="Ajustes de Regressão"
-            value={`${regressionModels.models.size}`}
-            icon={<TrendingUp className="h-4 w-4 text-indigo-400" />}
-            description="Veículos com ≥ 10 abastecimentos"
-          />
-          <MetricCard
-            title="Conformidade Operacional"
-            value={`${(100 - (advancedAnomalies.length / (processedTransactions.length || 1) * 100)).toFixed(1)}%`}
-            icon={<CheckCircle className="h-4 w-4 text-emerald-400" />}
-            description="Livre de anomalias operacionais"
-          />
-          <MetricCard
-            title="Alertas Multicamada"
-            value={`${advancedAnomalies.length}`}
-            icon={<AlertCircle className="h-4 w-4 text-rose-400" />}
-            description={`De ${processedTransactions.filter(t => !t.isInvalid).length} registros válidos`}
-          />
-          <MetricCard
-            title="Eficientes / Alto Consumo"
-            value={`${driverClustering.filter(d => d.cluster === "eficiente").length} / ${driverClustering.filter(d => d.cluster === "alto consumo").length}`}
-            icon={<TrendingUp className="h-4 w-4 text-amber-400" />}
-            description="Motoristas segmentados via K-Means"
-          />
-        </div>
-
-        {/* Sub-tab navigation */}
-        <div className="flex items-center border-b border-slate-200 dark:border-slate-800 pb-1 gap-2">
-          <Button
-            variant={mlSubTab === "motoristas" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setMlSubTab("motoristas")}
-            className="font-bold text-xs uppercase tracking-wider"
-          >
-            <Brain className="mr-1.5 h-3.5 w-3.5" />
-            1. Clustering de Motoristas (K-Means)
-          </Button>
-          <Button
-            variant={mlSubTab === "regressao" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setMlSubTab("regressao")}
-            className="font-bold text-xs uppercase tracking-wider"
-          >
-            <LineChart className="mr-1.5 h-3.5 w-3.5" />
-            2. Modelos de Regressão & Resíduos
-          </Button>
-          <Button
-            variant={mlSubTab === "alertas" ? "default" : "ghost"}
-            size="sm"
-            onClick={() => setMlSubTab("alertas")}
-            className="font-bold text-xs uppercase tracking-wider"
-          >
-            <AlertCircle className="mr-1.5 h-3.5 w-3.5" />
-            3. Alertas Avançados ({filteredAnomalies.length})
-          </Button>
-        </div>
-
-        {/* Sub-tab content */}
-        {mlSubTab === "motoristas" && (
-          <div className="space-y-4">
-            <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                  Segmentação Estatística de Motoristas
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-450 mt-1 max-w-2xl">
-                  Agrupamento automático de motoristas utilizando as variáveis de <span className="font-semibold text-indigo-600 dark:text-indigo-400">Eficiência Média (Km/L)</span> e <span className="font-semibold text-indigo-600 dark:text-indigo-400">Variabilidade Operacional (Desvio Padrão)</span>. O algoritmo classifica-os em três faixas de comportamento.
-                </p>
-              </div>
-              <div className="relative w-full md:w-72 shrink-0">
-                <input
-                  type="text"
-                  placeholder="Filtrar motorista..."
-                  value={mlDriverSearch}
-                  onChange={(e) => setMlDriverSearch(e.target.value)}
-                  className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-white dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-              </div>
-            </div>
-
-            {/* Clusters columns */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Cluster Eficiente */}
-              <div className="border border-emerald-100 dark:border-emerald-950/20 bg-emerald-50/5 dark:bg-emerald-950/5 rounded-2xl p-4 flex flex-col h-[480px]">
-                <div className="flex items-center justify-between pb-3 border-b border-emerald-100/40 dark:border-emerald-950/20 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
-                    <h4 className="font-black text-xs uppercase tracking-wider text-emerald-800 dark:text-emerald-400">
-                      Eficiente
-                    </h4>
-                  </div>
-                  <Badge variant="outline" className="bg-emerald-100/35 border-emerald-200/40 text-emerald-700 dark:text-emerald-400 font-bold text-[9px] uppercase">
-                    {filteredDrivers.filter(d => d.cluster === "eficiente").length} Motoristas
-                  </Badge>
-                </div>
-                <ScrollArea className="flex-1 pr-2">
-                  <div className="space-y-2.5">
-                    {filteredDrivers.filter(d => d.cluster === "eficiente").length === 0 ? (
-                      <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
-                    ) : (
-                      filteredDrivers.filter(d => d.cluster === "eficiente").map((d, idx) => (
-                        <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow transition-all">
-                          <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate">{d.driver}</p>
-                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-500">
-                            <div>
-                              <span>Média Autonomia</span>
-                              <span className="block font-black text-emerald-600 dark:text-emerald-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
-                            </div>
-                            <div>
-                              <span>Variabilidade (DP)</span>
-                              <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-
-              {/* Cluster Intermediário */}
-              <div className="border border-amber-100 dark:border-amber-950/20 bg-amber-50/5 dark:bg-amber-950/5 rounded-2xl p-4 flex flex-col h-[480px]">
-                <div className="flex items-center justify-between pb-3 border-b border-amber-100/40 dark:border-amber-950/20 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
-                    <h4 className="font-black text-xs uppercase tracking-wider text-amber-800 dark:text-amber-400">
-                      Intermediário
-                    </h4>
-                  </div>
-                  <Badge variant="outline" className="bg-amber-100/35 border-amber-200/40 text-amber-700 dark:text-amber-400 font-bold text-[9px] uppercase">
-                    {filteredDrivers.filter(d => d.cluster === "intermediário").length} Motoristas
-                  </Badge>
-                </div>
-                <ScrollArea className="flex-1 pr-2">
-                  <div className="space-y-2.5">
-                    {filteredDrivers.filter(d => d.cluster === "intermediário").length === 0 ? (
-                      <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
-                    ) : (
-                      filteredDrivers.filter(d => d.cluster === "intermediário").map((d, idx) => (
-                        <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow transition-all">
-                          <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate">{d.driver}</p>
-                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-500">
-                            <div>
-                              <span>Média Autonomia</span>
-                              <span className="block font-black text-amber-600 dark:text-amber-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
-                            </div>
-                            <div>
-                              <span>Variabilidade (DP)</span>
-                              <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-
-              {/* Cluster Alto Consumo */}
-              <div className="border border-rose-100 dark:border-rose-950/20 bg-rose-50/5 dark:bg-rose-950/5 rounded-2xl p-4 flex flex-col h-[480px]">
-                <div className="flex items-center justify-between pb-3 border-b border-rose-100/40 dark:border-rose-950/20 mb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
-                    <h4 className="font-black text-xs uppercase tracking-wider text-rose-800 dark:text-rose-400">
-                      Alto Consumo
-                    </h4>
-                  </div>
-                  <Badge variant="outline" className="bg-rose-100/35 border-rose-200/40 text-rose-700 dark:text-rose-400 font-bold text-[9px] uppercase">
-                    {filteredDrivers.filter(d => d.cluster === "alto consumo").length} Motoristas
-                  </Badge>
-                </div>
-                <ScrollArea className="flex-1 pr-2">
-                  <div className="space-y-2.5">
-                    {filteredDrivers.filter(d => d.cluster === "alto consumo").length === 0 ? (
-                      <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
-                    ) : (
-                      filteredDrivers.filter(d => d.cluster === "alto consumo").map((d, idx) => (
-                        <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow transition-all relative overflow-hidden">
-                          <span className="absolute top-0 right-0 h-full w-1 bg-rose-500" />
-                          <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate pr-2">{d.driver}</p>
-                          <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-500">
-                            <div>
-                              <span>Média Autonomia</span>
-                              <span className="block font-black text-rose-600 dark:text-rose-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
-                            </div>
-                            <div>
-                              <span>Variabilidade (DP)</span>
-                              <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </ScrollArea>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {mlSubTab === "regressao" && (
-          <div className="space-y-6">
-            {/* Top 10 Positive Residuals Card */}
-            <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
-              <CardHeader className="bg-rose-50/20 dark:bg-rose-950/10 border-b border-rose-100/30">
+            <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-rose-500" />
-                  <CardTitle className="text-xs uppercase font-black tracking-wider text-rose-800 dark:text-rose-400">
-                    Sinalização de Top 10 Maiores Resíduos Positivos (Superabastecimento / Erro)
-                  </CardTitle>
+                  <Brain className="h-5 w-5 text-indigo-400" />
+                  <Badge variant="outline" className="border-indigo-400/50 text-indigo-300 font-bold uppercase text-[9px] tracking-widest bg-indigo-500/10">
+                    Analytics & Machine Learning
+                  </Badge>
                 </div>
-                <CardDescription className="text-[10px] text-slate-500 dark:text-slate-400">
-                  Transações onde a quantidade de litros reais consumida superou significativamente a previsão matemática baseada no rendimento ideal e distância percorrida do veículo.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="text-[10px] uppercase font-black text-center">Placa</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black">Data</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black">Motorista</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black text-center">KM Percorrido</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black text-center">Litros Reais</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black text-center">Previsto (Regressão)</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black text-center text-rose-600">Resíduo (Excesso)</TableHead>
-                      <TableHead className="text-[10px] uppercase font-black text-right">Ação Recomendada</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {regressionModels.top10PositiveResiduals.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={8} className="text-center py-12 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                          Nenhum veículo com registros suficientes (≥ 10 abastecimentos) para ajuste de resíduos.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      regressionModels.top10PositiveResiduals.map((r, idx) => (
-                        <TableRow key={idx} className="hover:bg-rose-50/5 dark:hover:bg-rose-950/5">
-                          <TableCell className="text-center">
-                            <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
-                              <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
-                              {r.placa}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{String(r.date).split(" ")[0]}</TableCell>
-                          <TableCell className="text-xs font-semibold uppercase truncate max-w-[140px]" title={r.driver}>{r.driver}</TableCell>
-                          <TableCell className="text-center text-xs font-medium">{r.km_percorrido} km</TableCell>
-                          <TableCell className="text-center text-xs font-semibold">{r.litros.toFixed(1)} L</TableCell>
-                          <TableCell className="text-center text-xs text-slate-400 font-medium">{(r.predY).toFixed(1)} L</TableCell>
-                          <TableCell className="text-center text-xs font-black text-rose-600 dark:text-rose-400">+{r.residual.toFixed(1)} L</TableCell>
-                          <TableCell className="text-right whitespace-nowrap">
-                            <Badge variant="outline" className="text-[8px] font-black bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-900/30 uppercase">
-                              Verificar Nota Fiscal
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            {/* Regression equations listing */}
-            <div className="space-y-3">
-              <h4 className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Ajuste Coeficientes Consumo Médio (L/KM) por Veículo
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {Array.from(regressionModels.models.entries()).map(([placa, model], idx) => {
-                  const reliable = model.r2 >= 0.70;
-                  return (
-                    <div key={idx} className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/50 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-3">
-                      <div className="flex items-center justify-between">
-                        <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
-                          <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
-                          {placa}
-                        </div>
-                        <Badge variant={reliable ? "success" : "outline"} className="text-[8.5px] uppercase font-black">
-                          R²: {model.r2.toFixed(2)}
-                        </Badge>
-                      </div>
-
-                      <div className="space-y-1.5 pt-1">
-                        <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Equação de Regressão</span>
-                        <p className="text-xs font-mono font-black text-indigo-600 dark:text-indigo-400">
-                          Litros = {model.slope.toFixed(3)} × Km + {model.intercept.toFixed(1)}
-                        </p>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-2 text-[9px] font-bold uppercase text-slate-450 border-t border-slate-100 dark:border-slate-800 pt-2">
-                        <div>
-                          <span>Consumo L/Km</span>
-                          <span className="block text-slate-850 dark:text-slate-100 text-[10px] font-black mt-0.5">{model.slope.toFixed(3)} L/Km</span>
-                        </div>
-                        <div>
-                          <span>Amostras</span>
-                          <span className="block text-slate-850 dark:text-slate-100 text-[10px] font-black mt-0.5">{operationalIndicators.vehiclesStats.find(v => v.placa === placa)?.count} pts</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+                <h2 className="text-xl font-black uppercase tracking-tight text-white">
+                  Monitoramento e Análise de Desvios Avançado
+                </h2>
+                <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                  Utilize algoritmos estatísticos e computacionais avançados de regressão linear integrada e agrupamento <span className="font-bold text-indigo-300">K-Means (K=3)</span> para auditoria automatizada e detecção inteligente de faturamento fantasma ou anomalias operacionais.
+                </p>
               </div>
             </div>
           </div>
-        )}
 
-        {mlSubTab === "alertas" && (
-          <div className="space-y-4">
-            <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                  Dossiê Completo de Anomalias (Detecção Multicamada)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-450 mt-1 max-w-2xl">
-                  Auditoria de transações cruzando regressões de consumo com regras de conformidade operacional rígidas.
-                </p>
+          {/* KPIs Grid */}
+          <div className="grid gap-3 md:grid-cols-4">
+            <MetricCard
+              title="Ajustes de Regressão"
+              value={`${regressionModels.models.size}`}
+              icon={<TrendingUp className="h-4 w-4 text-indigo-400" />}
+              description="Veículos com ≥ 10 abastecimentos"
+            />
+            <MetricCard
+              title="Conformidade Operacional"
+              value={`${(100 - (advancedAnomalies.length / (processedTransactions.length || 1) * 100)).toFixed(1)}%`}
+              icon={<CheckCircle className="h-4 w-4 text-emerald-400" />}
+              description="Livre de anomalias operacionais"
+            />
+            <MetricCard
+              title="Alertas Multicamada"
+              value={`${advancedAnomalies.length}`}
+              icon={<AlertCircle className="h-4 w-4 text-rose-400" />}
+              description={`De ${processedTransactions.filter(t => !t.isInvalid).length} registros válidos`}
+            />
+            <MetricCard
+              title="Eficientes / Alto Consumo"
+              value={`${driverClustering.filter(d => d.cluster === "eficiente").length} / ${driverClustering.filter(d => d.cluster === "alto consumo").length}`}
+              icon={<TrendingUp className="h-4 w-4 text-amber-400" />}
+              description="Motoristas segmentados via K-Means"
+            />
+          </div>
+
+          {/* Sub-tab navigation */}
+          <div className="flex items-center border-b border-slate-200 dark:border-slate-800 pb-1 gap-2 overflow-x-auto scrollbar-none">
+            <Button
+              variant={mlSubTab === "motoristas" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setMlSubTab("motoristas")}
+              className="font-bold text-xs uppercase tracking-wider shrink-0"
+            >
+              <Brain className="mr-1.5 h-3.5 w-3.5" />
+              1. Clustering de Motoristas (K-Means)
+            </Button>
+            <Button
+              variant={mlSubTab === "regressao" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setMlSubTab("regressao")}
+              className="font-bold text-xs uppercase tracking-wider shrink-0"
+            >
+              <TrendingUp className="mr-1.5 h-3.5 w-3.5" />
+              2. Modelos de Regressão & Resíduos
+            </Button>
+            <Button
+              variant={mlSubTab === "alertas" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setMlSubTab("alertas")}
+              className="font-bold text-xs uppercase tracking-wider shrink-0"
+            >
+              <AlertCircle className="mr-1.5 h-3.5 w-3.5" />
+              3. Alertas Avançados ({filteredAnomalies.length})
+            </Button>
+          </div>
+
+          {/* Sub-tab content */}
+          {mlSubTab === "motoristas" && (
+            <div className="space-y-4 animate-in fade-in-50 duration-200">
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                      Segmentação Estatística de Motoristas
+                    </h3>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0 text-slate-400 hover:text-indigo-500 rounded-full shrink-0">
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-md bg-slate-950 border border-slate-800 text-slate-200 p-4 rounded-xl shadow-2xl space-y-2 text-xs" side="bottom">
+                        <p className="font-black text-indigo-400 text-[11px] uppercase tracking-wider">Como funciona o K-Means (K=3)?</p>
+                        <p className="leading-relaxed">
+                          O algoritmo K-Means é um método de agrupamento não supervisionado que particiona os motoristas em 3 perfis operacionais com base em suas variáveis de condução:
+                        </p>
+                        <p className="leading-relaxed">
+                          • <strong>Média da Autonomia (Km/L):</strong> Mede o rendimento médio do combustível por quilômetro rodado.
+                        </p>
+                        <p className="leading-relaxed">
+                          • <strong>Variabilidade Operacional (Desvio Padrão - DP):</strong> Representa a oscilação do condutor. Um DP baixo indica estabilidade e manutenção de velocidades constantes. Um DP elevado indica acelerações ou frenagens abruptas, rotas mistas agressivas ou possíveis inconsistências nos dados de abastecimento.
+                        </p>
+                        <p className="leading-relaxed text-slate-400 italic">
+                          O algoritmo minimiza as distâncias euclidianas dos motoristas aos centroides representativos de cada faixa operacional.
+                        </p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-450 max-w-2xl">
+                    Agrupamento de motoristas através das métricas de <span className="font-semibold text-indigo-600 dark:text-indigo-400">Eficiência Média</span> e <span className="font-semibold text-indigo-600 dark:text-indigo-400">Desvio Padrão Histórico</span>.
+                  </p>
+                </div>
+                <div className="relative w-full md:w-72 shrink-0">
+                  <input
+                    type="text"
+                    placeholder="Filtrar motorista..."
+                    value={mlDriverSearch}
+                    onChange={(e) => setMlDriverSearch(e.target.value)}
+                    className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-white dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
               </div>
-              <div className="relative w-full md:w-72 shrink-0">
-                <input
-                  type="text"
-                  placeholder="Buscar por placa, condutor ou alerta..."
-                  value={mlAnomalySearch}
-                  onChange={(e) => setMlAnomalySearch(e.target.value)}
-                  className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-white dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
+
+              {/* Clusters columns */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Cluster Eficiente */}
+                <div className="border border-emerald-150 dark:border-emerald-950/40 bg-emerald-50/5 dark:bg-emerald-950/5 rounded-2xl p-4 flex flex-col h-[520px] shadow-sm">
+                  <div className="flex items-center justify-between pb-3 border-b border-emerald-100/40 dark:border-emerald-950/20 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <h4 className="font-black text-xs uppercase tracking-wider text-emerald-800 dark:text-emerald-400 flex items-center gap-1.5">
+                        Eficiente
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-pointer text-emerald-600 dark:text-emerald-400"><Info className="h-3.5 w-3.5" /></span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs bg-slate-950 border border-slate-800 p-3 rounded-lg text-[11px] leading-relaxed" side="top">
+                            <p className="font-bold text-emerald-400">Perfil Eficiente</p>
+                            Condutores com média de rendimento superior e alta estabilidade de condução (baixo desvio padrão). Recomendado para reconhecimento e compartilhamento de boas práticas.
+                          </TooltipContent>
+                        </UITooltip>
+                      </h4>
+                    </div>
+                    <Badge variant="outline" className="bg-emerald-100/35 border-emerald-200/40 text-emerald-700 dark:text-emerald-400 font-bold text-[9px] uppercase">
+                      {efficientDrivers.length} Motoristas
+                    </Badge>
+                  </div>
+                  
+                  <ScrollArea className="flex-1 pr-1">
+                    <div className="space-y-2.5">
+                      {currentEfficientDrivers.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
+                      ) : (
+                        currentEfficientDrivers.map((d, idx) => (
+                          <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-800 transition-all">
+                            <div className="flex justify-between items-start gap-2">
+                              <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate flex-1">{d.driver}</p>
+                              <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 text-[8px] uppercase font-black py-0 px-1.5 shrink-0">EF</Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-550">
+                              <div>
+                                <span>Média Autonomia</span>
+                                <span className="block font-black text-emerald-600 dark:text-emerald-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
+                              </div>
+                              <div>
+                                <span>Variabilidade (DP)</span>
+                                <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  {/* Pagination Controls */}
+                  {efficientTotalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlEfficientPage === 1}
+                        onClick={() => setMlEfficientPage(prev => Math.max(1, prev - 1))}
+                        className="h-7 px-2 text-[10px] font-bold gap-1 uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <ChevronLeft className="h-3 w-3" /> Ant
+                      </Button>
+                      <span className="text-[9px] font-black text-slate-500 uppercase">
+                        Pág {mlEfficientPage} de {efficientTotalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlEfficientPage >= efficientTotalPages}
+                        onClick={() => setMlEfficientPage(prev => Math.min(efficientTotalPages, prev + 1))}
+                        className="h-7 px-2 text-[10px] font-bold gap-1 uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Próx <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cluster Intermediário */}
+                <div className="border border-amber-150 dark:border-amber-950/40 bg-amber-50/5 dark:bg-amber-950/5 rounded-2xl p-4 flex flex-col h-[520px] shadow-sm">
+                  <div className="flex items-center justify-between pb-3 border-b border-amber-100/40 dark:border-amber-950/20 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-amber-500 animate-pulse" />
+                      <h4 className="font-black text-xs uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                        Intermediário
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-pointer text-amber-600 dark:text-amber-400"><Info className="h-3.5 w-3.5" /></span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs bg-slate-950 border border-slate-800 p-3 rounded-lg text-[11px] leading-relaxed" side="top">
+                            <p className="font-bold text-amber-400">Perfil Intermediário</p>
+                            Condutores operando na média esperada da frota, com variações normais de trajeto e carga. Desempenho dentro da conformidade padrão.
+                          </TooltipContent>
+                        </UITooltip>
+                      </h4>
+                    </div>
+                    <Badge variant="outline" className="bg-amber-100/35 border-amber-200/40 text-amber-700 dark:text-amber-400 font-bold text-[9px] uppercase">
+                      {intermediateDrivers.length} Motoristas
+                    </Badge>
+                  </div>
+                  
+                  <ScrollArea className="flex-1 pr-1">
+                    <div className="space-y-2.5">
+                      {currentIntermediateDrivers.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
+                      ) : (
+                        currentIntermediateDrivers.map((d, idx) => (
+                          <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-amber-300 dark:hover:border-amber-800 transition-all">
+                            <div className="flex justify-between items-start gap-2">
+                              <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate flex-1">{d.driver}</p>
+                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[8px] uppercase font-black py-0 px-1.5 shrink-0">INT</Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-550">
+                              <div>
+                                <span>Média Autonomia</span>
+                                <span className="block font-black text-amber-600 dark:text-amber-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
+                              </div>
+                              <div>
+                                <span>Variabilidade (DP)</span>
+                                <span className="block font-black text-slate-700 dark:text-slate-300 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  {/* Pagination Controls */}
+                  {intermediateTotalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlIntermediatePage === 1}
+                        onClick={() => setMlIntermediatePage(prev => Math.max(1, prev - 1))}
+                        className="h-7 px-2 text-[10px] font-bold gap-1 uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <ChevronLeft className="h-3 w-3" /> Ant
+                      </Button>
+                      <span className="text-[9px] font-black text-slate-500 uppercase">
+                        Pág {mlIntermediatePage} de {intermediateTotalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlIntermediatePage >= intermediateTotalPages}
+                        onClick={() => setMlIntermediatePage(prev => Math.min(intermediateTotalPages, prev + 1))}
+                        className="h-7 px-2 text-[10px] font-bold gap-1 uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Próx <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Cluster Alto Consumo */}
+                <div className="border border-rose-150 dark:border-rose-950/40 bg-rose-50/5 dark:bg-rose-950/5 rounded-2xl p-4 flex flex-col h-[520px] shadow-sm">
+                  <div className="flex items-center justify-between pb-3 border-b border-rose-100/40 dark:border-rose-950/20 mb-4">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-rose-500 animate-pulse" />
+                      <h4 className="font-black text-xs uppercase tracking-wider text-rose-800 dark:text-rose-400 flex items-center gap-1.5">
+                        Alto Consumo
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <span className="cursor-pointer text-rose-600 dark:text-rose-400"><Info className="h-3.5 w-3.5" /></span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs bg-slate-950 border border-slate-800 p-3 rounded-lg text-[11px] leading-relaxed" side="top">
+                            <p className="font-bold text-rose-400">Perfil de Alto Consumo</p>
+                            Condutores com média de autonomia reduzida ou altíssima variabilidade. Sugere rotas agressivas, ociosidade prolongada em marcha lenta ou desvios de combustível.
+                          </TooltipContent>
+                        </UITooltip>
+                      </h4>
+                    </div>
+                    <Badge variant="outline" className="bg-rose-100/35 border-rose-200/40 text-rose-700 dark:text-rose-400 font-bold text-[9px] uppercase">
+                      {highDrivers.length} Motoristas
+                    </Badge>
+                  </div>
+                  
+                  <ScrollArea className="flex-1 pr-1">
+                    <div className="space-y-2.5">
+                      {currentHighDrivers.length === 0 ? (
+                        <div className="text-center py-12 text-slate-400 text-[10px] font-bold uppercase tracking-widest">Nenhum motorista</div>
+                      ) : (
+                        currentHighDrivers.map((d, idx) => (
+                          <div key={idx} className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-xl p-3 shadow-sm hover:shadow-md hover:border-rose-300 dark:hover:border-rose-850 transition-all relative overflow-hidden">
+                            <span className="absolute top-0 right-0 h-full w-1 bg-rose-500" />
+                            <div className="flex justify-between items-start gap-2">
+                              <p className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 truncate flex-1 pr-2">{d.driver}</p>
+                              <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-[8px] uppercase font-black py-0 px-1.5 shrink-0">AC</Badge>
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-100/50 dark:border-slate-800/40 text-[9px] font-bold uppercase text-slate-450 dark:text-slate-550">
+                              <div>
+                                <span>Média Autonomia</span>
+                                <span className="block font-black text-rose-600 dark:text-rose-400 text-xs mt-0.5">{d.meanKmL.toFixed(2)} Km/L</span>
+                              </div>
+                              <div>
+                                <span>Variabilidade (DP)</span>
+                                <span className="block font-black text-rose-700 dark:text-rose-400 text-xs mt-0.5">±{d.stdDevKmL.toFixed(2)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </ScrollArea>
+
+                  {/* Pagination Controls */}
+                  {highTotalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 pt-3 mt-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlHighPage === 1}
+                        onClick={() => setMlHighPage(prev => Math.max(1, prev - 1))}
+                        className="h-7 px-2 text-[10px] font-bold gap-1 uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <ChevronLeft className="h-3 w-3" /> Ant
+                      </Button>
+                      <span className="text-[9px] font-black text-slate-500 uppercase">
+                        Pág {mlHighPage} de {highTotalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlHighPage >= highTotalPages}
+                        onClick={() => setMlHighPage(prev => Math.min(highTotalPages, prev + 1))}
+                        className="h-7 px-2 text-[10px] font-bold gap-1 uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Próx <ChevronRight className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
+          )}
 
-            {/* Anomalies Table */}
-            <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
-              <CardContent className="p-0">
-                <ScrollArea className="h-[500px]">
+          {mlSubTab === "regressao" && (
+            <div className="space-y-6 animate-in fade-in-50 duration-200">
+              {/* Top 10 Positive Residuals Card */}
+              <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
+                <CardHeader className="bg-rose-50/20 dark:bg-rose-950/10 border-b border-rose-100/30">
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-rose-500" />
+                      <CardTitle className="text-xs uppercase font-black tracking-wider text-rose-800 dark:text-rose-400 flex items-center gap-1.5">
+                        Sinalização de Top 10 Maiores Resíduos Positivos (Superabastecimento / Erro)
+                        <UITooltip>
+                          <TooltipTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-5 w-5 p-0 text-rose-600 dark:text-rose-400 hover:bg-rose-100/30 rounded-full">
+                              <Info className="h-3.5 w-3.5" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-md bg-slate-950 border border-slate-800 p-4 rounded-xl text-slate-200 text-xs space-y-2 shadow-2xl" side="bottom">
+                            <p className="font-black text-rose-400 text-[11px] uppercase tracking-wider">Como o Resíduo de Consumo é Calculado?</p>
+                            <p className="leading-relaxed">
+                              O <strong>Resíduo</strong> é a diferença entre os Litros Reais Abastecidos e os Litros Previstos pela Regressão Linear:
+                            </p>
+                            <p className="font-mono bg-slate-900 p-2 rounded text-center text-rose-300 font-bold my-1 text-[11px]">
+                              Resíduo = Litros Real - (Slope × KM Percorrido + Intercept)
+                            </p>
+                            <p className="leading-relaxed">
+                              • <strong>Previsão Estatística:</strong> O modelo calcula quantos litros o veículo deveria consumir baseado na distância rodada e na inclinação (Slope / L/Km) histórica do próprio veículo.
+                            </p>
+                            <p className="leading-relaxed">
+                              • <strong>Sinalização Vermelha:</strong> Se um veículo rodou 100 Km e consome 0.1 L/Km, sua previsão é 10L. Se o abastecimento foi de 40L, temos um <strong>Resíduo Positivo de +30 Litros</strong>. Isso indica erro de digitação, vazamento físico ou faturamento fantasma.
+                            </p>
+                          </TooltipContent>
+                        </UITooltip>
+                      </CardTitle>
+                    </div>
+                  </div>
+                  <CardDescription className="text-[10px] text-slate-500 dark:text-slate-450 mt-1">
+                    Transações onde a quantidade de litros reais abastecidos superou significativamente a previsão matemática ajustada ao rendimento individual e quilometragem do veículo.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="p-0 overflow-x-auto scrollbar-thin">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="text-[10px] uppercase font-black text-center">Placa</TableHead>
                         <TableHead className="text-[10px] uppercase font-black">Data</TableHead>
                         <TableHead className="text-[10px] uppercase font-black">Motorista</TableHead>
-                        <TableHead className="text-[10px] uppercase font-black">Métrica Alerta</TableHead>
-                        <TableHead className="text-[10px] uppercase font-black">Explicação Técnica</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-center">KM Percorrido</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-center">Litros Reais</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-center">Previsto (Regressão)</TableHead>
+                        <TableHead className="text-[10px] uppercase font-black text-center text-rose-600">Resíduo (Excesso)</TableHead>
                         <TableHead className="text-[10px] uppercase font-black text-right">Ação Recomendada</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredAnomalies.length === 0 ? (
+                      {regressionModels.top10PositiveResiduals.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-12 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                            Nenhuma anomalia encontrada com os termos buscados.
+                          <TableCell colSpan={8} className="text-center py-12 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Nenhum veículo com registros suficientes (≥ 10 abastecimentos) para ajuste de resíduos.
                           </TableCell>
                         </TableRow>
                       ) : (
-                        filteredAnomalies.map((a, i) => (
-                          <TableRow key={i} className="hover:bg-slate-50/5 dark:hover:bg-slate-900/5">
+                        regressionModels.top10PositiveResiduals.map((r, idx) => (
+                          <TableRow key={idx} className="hover:bg-rose-50/5 dark:hover:bg-rose-950/5">
                             <TableCell className="text-center">
                               <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
                                 <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
-                                {a.placa}
+                                {r.placa}
                               </div>
                             </TableCell>
-                            <TableCell className="text-xs text-slate-500 dark:text-slate-450 whitespace-nowrap">{String(a.date).split(" ")[0]}</TableCell>
-                            <TableCell className="text-xs font-semibold uppercase truncate max-w-[120px]" title={a.driver}>{a.driver}</TableCell>
-                            <TableCell className="space-y-1 py-2">
-                              {a.alerts.map((al: any, idx: number) => (
-                                <Badge key={idx} variant="destructive" className="text-[8px] font-black uppercase tracking-wider block w-fit">
-                                  {al.rule}
-                                </Badge>
-                              ))}
-                            </TableCell>
-                            <TableCell className="text-xs text-slate-600 dark:text-slate-400 max-w-sm">
-                              {a.alerts.map((al: any, idx: number) => (
-                                <p key={idx} className="leading-normal">• {al.explanation}</p>
-                              ))}
-                            </TableCell>
-                            <TableCell className="text-right text-xs py-2">
-                              {a.alerts.map((al: any, idx: number) => (
-                                <p key={idx} className="font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[10px] tracking-tight">{al.action}</p>
-                              ))}
+                            <TableCell className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{String(r.date).split(" ")[0]}</TableCell>
+                            <TableCell className="text-xs font-semibold uppercase truncate max-w-[140px]" title={r.driver}>{r.driver}</TableCell>
+                            <TableCell className="text-center text-xs font-medium">{r.km_percorrido} km</TableCell>
+                            <TableCell className="text-center text-xs font-semibold">{r.litros.toFixed(1)} L</TableCell>
+                            <TableCell className="text-center text-xs text-slate-400 font-medium">{(r.predY).toFixed(1)} L</TableCell>
+                            <TableCell className="text-center text-xs font-black text-rose-600 dark:text-rose-400">+{r.residual.toFixed(1)} L</TableCell>
+                            <TableCell className="text-right whitespace-nowrap">
+                              <Badge variant="outline" className="text-[8px] font-black bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-950/20 dark:border-rose-900/30 uppercase">
+                                Verificar Nota Fiscal
+                              </Badge>
                             </TableCell>
                           </TableRow>
                         ))
                       )}
                     </TableBody>
                   </Table>
-                </ScrollArea>
-              </CardContent>
-            </Card>
-          </div>
-        )}
-      </div>
+                </CardContent>
+              </Card>
+
+              {/* Regression equations listing */}
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <h4 className="font-black text-xs uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                    Ajuste Coeficientes Consumo Médio (L/KM) por Veículo
+                  </h4>
+                  <UITooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 p-0 text-slate-450 hover:text-indigo-500 rounded-full">
+                        <Info className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-md bg-slate-950 border border-slate-800 p-4 rounded-xl text-slate-200 text-xs space-y-2 shadow-2xl" side="right">
+                      <p className="font-black text-indigo-400 text-[11px] uppercase tracking-wider">Parâmetros de Ajuste de Regressão Linear por Veículo</p>
+                      <p className="leading-relaxed">
+                        • <strong>Equação de Regressão (Litros = Slope × Km + Intercept):</strong> A inclinação da reta (Slope) representa o consumo real marginal por quilômetro. O Intercept representa o consumo basal na partida.
+                      </p>
+                      <p className="leading-relaxed">
+                        • <strong>R² (Coeficiente de Determinação):</strong> Mede a confiabilidade do modelo (de 0 a 1). Um R² &ge; 0.70 é considerado estatisticamente confiável e consistente. Valores baixos indicam alta aleatoriedade no padrão de consumo.
+                      </p>
+                      <p className="leading-relaxed">
+                        • <strong>Amostras (pts):</strong> Indica a quantidade de pontos históricos válidos utilizados para calcular os coeficientes de regressão pelo método dos mínimos quadrados ordinários.
+                      </p>
+                    </TooltipContent>
+                  </UITooltip>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {currentRegressionModels.length === 0 ? (
+                    <div className="col-span-full bg-slate-100/50 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/60 p-12 rounded-xl text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      Nenhum modelo de regressão gerado (requer veículos com ≥ 10 transações históricas).
+                    </div>
+                  ) : (
+                    currentRegressionModels.map(([placa, model], idx) => {
+                      const reliable = model.r2 >= 0.70;
+                      return (
+                        <div key={idx} className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200/50 dark:border-slate-800 shadow-sm flex flex-col justify-between gap-3 hover:shadow hover:border-indigo-200 dark:hover:border-indigo-900/60 transition-all">
+                          <div className="flex items-center justify-between">
+                            <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
+                              <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
+                              {placa}
+                            </div>
+                            <UITooltip>
+                              <TooltipTrigger asChild>
+                                <span className={`cursor-pointer px-2 py-0.5 rounded text-[9px] font-black tracking-wide border uppercase ${reliable ? "bg-emerald-50 text-emerald-700 border-emerald-200" : "bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700"}`}>
+                                  R²: {model.r2.toFixed(2)}
+                                </span>
+                              </TooltipTrigger>
+                              <TooltipContent className="max-w-xs bg-slate-950 border border-slate-800 p-2 text-[10px]">
+                                {reliable ? "Modelo altamente confiável (explica mais de 70% da variabilidade do consumo)." : "Modelo com moderada dispersão nos dados. Recomendado acumular mais amostras."}
+                              </TooltipContent>
+                            </UITooltip>
+                          </div>
+
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[8px] font-black text-slate-450 dark:text-slate-500 uppercase tracking-widest block">Equação Ajustada</span>
+                            <p className="text-xs font-mono font-black text-indigo-650 dark:text-indigo-400">
+                              Litros = {model.slope.toFixed(3)} &times; Km {model.intercept >= 0 ? `+ ${model.intercept.toFixed(1)}` : `- ${Math.abs(model.intercept).toFixed(1)}`}
+                            </p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 text-[9px] font-bold uppercase text-slate-450 border-t border-slate-100 dark:border-slate-800 pt-2">
+                            <div>
+                              <span>Consumo L/Km</span>
+                              <span className="block text-slate-800 dark:text-slate-100 text-[10px] font-black mt-0.5">{(model.slope * 1000).toFixed(1)} L/kKm</span>
+                            </div>
+                            <div>
+                              <span>Amostras</span>
+                              <span className="block text-slate-800 dark:text-slate-100 text-[10px] font-black mt-0.5">
+                                {operationalIndicators.vehiclesStats.find(v => v.placa === placa)?.count || 0} pts
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Regression Grid Pagination Controls */}
+                {regressionTotalPages > 1 && (
+                  <div className="flex items-center justify-center gap-3 border-t border-slate-100 dark:border-slate-800 pt-4 mt-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={mlRegressionPage === 1}
+                      onClick={() => setMlRegressionPage(prev => Math.max(1, prev - 1))}
+                      className="h-8 gap-1.5 text-xs font-bold uppercase"
+                    >
+                      <ChevronLeft className="h-4 w-4" /> Anterior
+                    </Button>
+                    <span className="text-xs font-black text-slate-500 uppercase px-3">
+                      Página {mlRegressionPage} de {regressionTotalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={mlRegressionPage >= regressionTotalPages}
+                      onClick={() => setMlRegressionPage(prev => Math.min(regressionTotalPages, prev + 1))}
+                      className="h-8 gap-1.5 text-xs font-bold uppercase"
+                    >
+                      Próxima <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {mlSubTab === "alertas" && (
+            <div className="space-y-4 animate-in fade-in-50 duration-200">
+              <div className="bg-slate-50 dark:bg-slate-900/60 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-black text-sm uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                      Dossiê Completo de Anomalias (Detecção Multicamada)
+                    </h3>
+                    <UITooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-5 w-5 p-0 text-slate-400 hover:text-indigo-500 rounded-full">
+                          <Info className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-md bg-slate-950 border border-slate-800 p-4 rounded-xl text-slate-200 text-xs space-y-2.5 shadow-2xl" side="bottom">
+                        <p className="font-black text-indigo-400 text-[11px] uppercase tracking-wider">Como funciona o Dossiê de Anomalias?</p>
+                        <p className="leading-relaxed">
+                          O sistema cruza validações cruzadas matemáticas e físicas para emitir alertas com as seguintes origens estruturadas:
+                        </p>
+                        <p className="leading-relaxed">
+                          • <strong>Odômetro Regressivo:</strong> Apontamento de digitação errônea ou anomalia operacional no painel do veículo.
+                        </p>
+                        <p className="leading-relaxed">
+                          • <strong>Abastecimento Duplo:</strong> Registro de múltiplas transações no mesmo veículo no mesmo dia, sugerindo fraude de notas fiscais ou cupons falsos.
+                        </p>
+                        <p className="leading-relaxed">
+                          • <strong>Excesso de Tanque:</strong> Volume registrado excede fisicamente 110% da especificação nominal oficial do tanque do ativo correspondente.
+                        </p>
+                        <p className="leading-relaxed">
+                          • <strong>Sub-Consumo Crítico (Z-Score &le; -2.0):</strong> Autonomia em Km/L do abastecimento ficou mais de 2 desvios padrão abaixo da eficiência média de longo prazo do veículo.
+                        </p>
+                      </TooltipContent>
+                    </UITooltip>
+                  </div>
+                  <p className="text-xs text-slate-500 dark:text-slate-450">
+                    Auditoria inteligente cruzando dados do Nexus, telemetria física de tanques e regressão estatística integrada de resíduos.
+                  </p>
+                </div>
+                <div className="relative w-full md:w-72 shrink-0">
+                  <input
+                    type="text"
+                    placeholder="Buscar por placa, condutor ou alerta..."
+                    value={mlAnomalySearch}
+                    onChange={(e) => setMlAnomalySearch(e.target.value)}
+                    className="w-full h-9 pl-3 pr-8 rounded-lg border border-slate-200 dark:border-slate-800 text-xs bg-white dark:bg-slate-950 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Anomalies Table */}
+              <Card className="border-none shadow-sm overflow-hidden bg-white dark:bg-slate-900">
+                <CardContent className="p-0 flex flex-col">
+                  <ScrollArea className="w-full overflow-x-auto scrollbar-thin">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="text-[10px] uppercase font-black text-center">Placa</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black">Data</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black">Motorista</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black">Métrica Alerta</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black">Explicação Técnica</TableHead>
+                          <TableHead className="text-[10px] uppercase font-black text-right">Ação Recomendada</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {currentAnomalies.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={6} className="text-center py-12 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                              Nenhuma anomalia encontrada com os termos buscados.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          currentAnomalies.map((a, i) => (
+                            <TableRow key={i} className="hover:bg-slate-50/5 dark:hover:bg-slate-900/5">
+                              <TableCell className="text-center">
+                                <div className="px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-[10px] font-black tracking-widest text-slate-800 dark:text-slate-200 uppercase relative overflow-hidden inline-flex items-center h-5">
+                                  <span className="absolute top-0 left-0 right-0 h-0.5 bg-blue-600" />
+                                  {a.placa}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-500 dark:text-slate-450 whitespace-nowrap">{String(a.date).split(" ")[0]}</TableCell>
+                              <TableCell className="text-xs font-semibold uppercase truncate max-w-[120px]" title={a.driver}>{a.driver}</TableCell>
+                              <TableCell className="space-y-1 py-2">
+                                {a.alerts.map((al: any, idx: number) => (
+                                  <Badge key={idx} variant="destructive" className="text-[8px] font-black uppercase tracking-wider block w-fit">
+                                    {al.rule}
+                                  </Badge>
+                                ))}
+                              </TableCell>
+                              <TableCell className="text-xs text-slate-600 dark:text-slate-400 max-w-sm">
+                                {a.alerts.map((al: any, idx: number) => (
+                                  <p key={idx} className="leading-normal">• {al.explanation}</p>
+                                ))}
+                              </TableCell>
+                              <TableCell className="text-right text-xs py-2 whitespace-nowrap">
+                                {a.alerts.map((al: any, idx: number) => (
+                                  <p key={idx} className="font-semibold text-indigo-650 dark:text-indigo-400 leading-normal block uppercase text-[10px] tracking-tight">{al.action}</p>
+                                ))}
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </ScrollArea>
+
+                  {/* Anomalies Table Pagination Controls */}
+                  {anomaliesTotalPages > 1 && (
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-800 p-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlAnomaliesPage === 1}
+                        onClick={() => setMlAnomaliesPage(prev => Math.max(1, prev - 1))}
+                        className="h-8 gap-1.5 text-xs font-bold uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        <ChevronLeft className="h-4 w-4" /> Anterior
+                      </Button>
+                      <span className="text-xs font-black text-slate-500 uppercase">
+                        Mostrando {currentAnomalies.length} de {filteredAnomalies.length} alertas — Página {mlAnomaliesPage} de {anomaliesTotalPages}
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={mlAnomaliesPage >= anomaliesTotalPages}
+                        onClick={() => setMlAnomaliesPage(prev => Math.min(anomaliesTotalPages, prev + 1))}
+                        className="h-8 gap-1.5 text-xs font-bold uppercase hover:bg-slate-100 dark:hover:bg-slate-800"
+                      >
+                        Próxima <ChevronRight className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </div>
+      </TooltipProvider>
     );
   };
 
