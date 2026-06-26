@@ -51,17 +51,8 @@ service cloud.firestore {
 
     // --- Users ---
     match /users/{userId} {
-      // Permitir que o proprietário sempre veja seu próprio perfil (get e create)
-      allow get: if isOwner(userId);
-      allow create: if isOwner(userId); // Permitir criação inicial
-      
-      // Administradores vejam qualquer perfil e listem usuários
-      allow get, list: if isAdmin();
-        
-      allow update: if isAdmin() || (isOwner(userId) && 
-        !incoming().diff(existing()).affectedKeys().hasAny(['role', 'email', 'uid']));
-
-      allow delete: if isAdmin();
+      allow read: if isSignedIn();
+      allow write: if isOwner(userId) || isAdmin();
     }
 
     // --- Maintenance Tasks ---

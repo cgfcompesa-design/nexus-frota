@@ -19,7 +19,7 @@ async function testConnection() {
     console.log("Firebase Connection: Online and Ready");
   } catch (error: any) {
     if (error?.message && (error.message.includes('the client is offline') || error.message.includes('unavailable'))) {
-      console.error("Firebase Report: Connection failure. The database might still be provisioning or network is restricted.");
+      console.warn("Firebase Report: Connection is in offline mode or network is restricted.");
     } else if (error?.code === 'permission-denied') {
       console.log("Firebase Connection: Success (authenticated, but permission denied for test doc)");
     } else {

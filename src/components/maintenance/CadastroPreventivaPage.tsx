@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { useAssets, useFuelData } from "@/hooks/useFleetData";
 import { usePreventiveLocadosData } from "@/hooks/usePreventiveLocadosData";
 import { useFirebasePreventivas, FirebasePreventiveData } from "@/hooks/useFirebasePreventivas";
@@ -37,6 +38,16 @@ import { auth, db } from "../../lib/firebase";
 import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp, doc, getDoc, setDoc } from "firebase/firestore";
 import { UserProfile } from "../../types";
 import { toast } from "sonner";
+import { 
+  getSheetsAccessToken, 
+  setSheetsAccessToken, 
+  clearSheetsAccessToken, 
+  authorizeGoogleSheets, 
+  updateGoogleSheetsData 
+} from "../../services/googleSheetsService";
+
+const EMPTY_OBJECT = {};
+const EMPTY_ARRAY: any[] = [];
 
 interface CadastroPreventivaPageProps {
   onBack?: () => void;
@@ -100,10 +111,10 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
     setSearchTerm("");
   }, [selectedLocadora]);
 
-  const { data: assets = [], isLoading: isLoadingAssets } = useAssets();
-  const { data: fuel = [], isLoading: isLoadingFuel } = useFuelData();
-  const { data: sheetPreventivas = [] } = usePreventiveLocadosData();
-  const { data: rawFirebasePreventivas = {}, save, refetch: refetchFirebase, isSaving } = useFirebasePreventivas();
+  const { data: assets = EMPTY_ARRAY, isLoading: isLoadingAssets } = useAssets();
+  const { data: fuel = EMPTY_ARRAY, isLoading: isLoadingFuel } = useFuelData();
+  const { data: sheetPreventivas = EMPTY_ARRAY } = usePreventiveLocadosData();
+  const { data: rawFirebasePreventivas = EMPTY_OBJECT, save, refetch: refetchFirebase, isSaving } = useFirebasePreventivas();
   const firebasePreventivas = useMemo(() => rawFirebasePreventivas as Record<string, FirebasePreventiveData>, [rawFirebasePreventivas]);
 
   const allowedLocadoras = useMemo(() => {
@@ -130,6 +141,25 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
   }>>({});
 
   const [savingRows, setSavingRows] = useState<Record<string, boolean>>({});
+  const [isExportingSheet, setIsExportingSheet] = useState<boolean>(false);
+  const [hasSheetsAuth, setHasSheetsAuth] = useState<boolean>(false);
+  const [isConnectingSheets, setIsConnectingSheets] = useState<boolean>(false);
+
+  useEffect(() => {
+    setHasSheetsAuth(getSheetsAccessToken() !== null);
+  }, []);
+
+  const handleConnectGoogleSheets = async () => {
+    setIsConnectingSheets(true);
+    try {
+      await authorizeGoogleSheets();
+      setHasSheetsAuth(true);
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsConnectingSheets(false);
+    }
+  };
 
   interface ActivityLog {
     id: string;
@@ -558,6 +588,8 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
     setEditedRows(prev => {
       const updatedRows = { ...prev };
+      let hasChanges = false;
+
       locadoraVehicles.forEach(vehicle => {
         const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
         
@@ -589,14 +621,23 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
         );
 
         if (!prev[placa] || !hasUnsavedEdits) {
-          updatedRows[placa] = {
-            odometroRevisao: savedOdo,
-            revisaoPrevista: savedPrev,
-            dataRevisao: formattedDate,
-          };
+          const isIdentical = prev[placa] &&
+            prev[placa].odometroRevisao === savedOdo &&
+            prev[placa].revisaoPrevista === savedPrev &&
+            prev[placa].dataRevisao === formattedDate;
+
+          if (!isIdentical) {
+            updatedRows[placa] = {
+              odometroRevisao: savedOdo,
+              revisaoPrevista: savedPrev,
+              dataRevisao: formattedDate,
+            };
+            hasChanges = true;
+          }
         }
       });
-      return updatedRows;
+
+      return hasChanges ? updatedRows : prev;
     });
   }, [locadoraVehicles, firebasePreventivas, sheetPreventivas]);
 
@@ -711,7 +752,33 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
       await logActivity(placa, odoRev, revPrev, dataRev, "individual");
       await checkAndScheduleEmail(placa, odoRev, revPrev, dataRev);
       fetchActivityLogs();
-      toast.success(`Dados da placa ${placa} salvos com sucesso!`);
+      toast.success(`Dados da placa ${placa} salvos no Firestore!`);
+
+      // Try syncing with Google Sheets
+      try {
+        const odometroAtual = latestOdometersMap.get(placa) || 0;
+        const isOverdue = (odoRev + revPrev) - odometroAtual < 0;
+        const status = isOverdue ? "Pendente" : "Em Dia";
+
+        const syncedCount = await updateGoogleSheetsData([{
+          placa,
+          odometroRevisao: odoRev,
+          revisaoPrevista: revPrev,
+          dataRevisao: dataRev,
+          status,
+        }]);
+
+        if (syncedCount > 0) {
+          toast.success(`Google Sheets sincronizado para a placa ${placa}!`);
+          setHasSheetsAuth(true);
+        } else {
+          toast.warning(`Placa ${placa} não encontrada na planilha "CONTROLE PREVENTIVA".`);
+        }
+      } catch (sheetsErr: any) {
+        console.error("Sheets sync error:", sheetsErr);
+        toast.warning(`Salvo no Firestore, mas não no Google Sheets: ${sheetsErr.message}`);
+      }
+
     } catch (e: any) {
       console.error(e);
       toast.error(`Erro ao salvar dados da placa ${placa}.`);
@@ -722,6 +789,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
   // Save all changed rows
   const handleSaveAll = async () => {
+    const updatesListForSheets: any[] = [];
     const promises = Object.entries(editedRows).map(async ([placa, rawRow]) => {
       const row = rawRow as { odometroRevisao: string; revisaoPrevista: string; dataRevisao: string; };
       const odoRev = Number(row.odometroRevisao);
@@ -754,6 +822,17 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
         });
         await logActivity(placa, odoRev, revPrev, dataRev, "lote");
         await checkAndScheduleEmail(placa, odoRev, revPrev, dataRev);
+
+        const odometroAtual = latestOdometersMap.get(placa) || 0;
+        const isOverdue = (odoRev + revPrev) - odometroAtual < 0;
+        const status = isOverdue ? "Pendente" : "Em Dia";
+        updatesListForSheets.push({
+          placa,
+          odometroRevisao: odoRev,
+          revisaoPrevista: revPrev,
+          dataRevisao: dataRev,
+          status,
+        });
       } catch (err) {
         console.error(`Erro ao salvar placa ${placa}:`, err);
       }
@@ -762,13 +841,138 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
     const savePromise = Promise.all(promises).then(async () => {
       await refetchFirebase();
       fetchActivityLogs();
+
+      if (updatesListForSheets.length > 0) {
+        try {
+          const syncedCount = await updateGoogleSheetsData(updatesListForSheets);
+          if (syncedCount > 0) {
+            toast.success(`${syncedCount} veículos atualizados diretamente no Google Sheets!`);
+            setHasSheetsAuth(true);
+          } else {
+            toast.warning("Veículos editados não foram localizados na aba 'CONTROLE PREVENTIVA' do Google Sheets.");
+          }
+        } catch (sheetsErr: any) {
+          console.error("Sheets batch sync error:", sheetsErr);
+          toast.warning(`Salvo no Firestore, mas falhou ao atualizar no Google Sheets: ${sheetsErr.message}`);
+        }
+      }
     });
 
     toast.promise(savePromise, {
-      loading: "Salvando todos os registros...",
+      loading: "Salvando e sincronizando registros...",
       success: "Revisões salvas com sucesso!",
       error: "Erro parcial ao salvar alguns registros.",
     });
+  };
+
+  // Export updated spreadsheet to matching XLSX with CONTROLE PREVENTIVA sheet modified
+  const handleExportUpdatedSpreadsheet = async () => {
+    setIsExportingSheet(true);
+    try {
+      const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ_A1EB7zQfuUlE4LCa_PbXGmtPHoXTyibIStoSW0T8Pe4jense43xIP4uRbgS77KFUKyM5FEX5w99N/pub?output=xlsx";
+      const res = await fetch(url);
+      if (!res.ok) throw new Error("Não foi possível carregar a planilha original do Google.");
+      
+      const arrayBuffer = await res.arrayBuffer();
+      const wb = XLSX.read(arrayBuffer, { type: "array" });
+      
+      // Find the sheet named "CONTROLE PREVENTIVA"
+      let sheetName = wb.SheetNames.find(name => name.toUpperCase().trim() === "CONTROLE PREVENTIVA");
+      if (!sheetName) {
+        // fallback to any sheet containing PREVENTIVA
+        sheetName = wb.SheetNames.find(name => name.toUpperCase().includes("PREVENTIVA")) || wb.SheetNames[0];
+      }
+      
+      const ws = wb.Sheets[sheetName];
+      if (!ws) {
+        throw new Error(`Aba "CONTROLE PREVENTIVA" não encontrada no arquivo original.`);
+      }
+      
+      // Convert to 2D array to easily manipulate
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      if (rows.length <= 3) {
+        throw new Error("A planilha original não contém linhas de cabeçalho suficientes.");
+      }
+      
+      const headers = rows[3].map(h => String(h || "").trim().toUpperCase());
+      
+      const placaIdx = headers.findIndex(h => h === "PLACA");
+      const odoRevIdx = headers.findIndex(h => h.includes("ODÔMETRO REVISÃO") || h.includes("ODOMETRO REVISAO"));
+      const revPrevIdx = headers.findIndex(h => h.includes("REVISÃO PREVISTA") || h.includes("REVISAO PREVISTA"));
+      const dataRevIdx = headers.findIndex(h => h.includes("DATA REVISÃO") || h.includes("DATA REVISAO"));
+      const statusIdx = headers.findIndex(h => h.includes("STATUS REVISÃO") || h.includes("STATUS REVISAO"));
+      
+      if (placaIdx === -1) {
+        throw new Error("Coluna 'PLACA' não encontrada na planilha original.");
+      }
+      
+      // Track how many rows were updated
+      let updateCount = 0;
+      
+      // Update data rows (from row index 4 onwards)
+      for (let i = 4; i < rows.length; i++) {
+        const row = rows[i];
+        if (!row || !row[placaIdx]) continue;
+        
+        const placa = String(row[placaIdx]).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+        const firebaseRecord = firebasePreventivas[placa];
+        
+        if (firebaseRecord) {
+          // Update the cell values
+          if (odoRevIdx !== -1) {
+            row[odoRevIdx] = firebaseRecord.odometroRevisao;
+          }
+          if (revPrevIdx !== -1) {
+            row[revPrevIdx] = firebaseRecord.revisaoPrevista;
+          }
+          if (dataRevIdx !== -1) {
+            // Format date back to DD/MM/YYYY
+            let dateStr = firebaseRecord.dataRevisao;
+            if (dateStr && dateStr.includes("-")) {
+              const parts = dateStr.split("-");
+              if (parts.length === 3) {
+                dateStr = `${parts[2]}/${parts[1]}/${parts[0]}`;
+              }
+            }
+            row[dataRevIdx] = dateStr;
+          }
+          if (statusIdx !== -1) {
+            // Calculate status
+            const odometroAtual = latestOdometersMap.get(placa) || 0;
+            const odometroProximaRevisao = firebaseRecord.odometroRevisao + firebaseRecord.revisaoPrevista;
+            const odometroRestante = odometroProximaRevisao - odometroAtual;
+            const isOverdue = odometroRestante < 0;
+            row[statusIdx] = isOverdue ? "Pendente" : "Em Dia";
+          }
+          updateCount++;
+        }
+      }
+      
+      // Write the 2D array back to the worksheet
+      const newWs = XLSX.utils.aoa_to_sheet(rows);
+      
+      // Preserve sheet structure and replace in workbook
+      wb.Sheets[sheetName] = newWs;
+      
+      // Generate new workbook file
+      const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      const blob = new Blob([wbout], { type: 'application/octet-stream' });
+      
+      // Download XLSX file
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Planilha_CONTROLE_PREVENTIVA_Atualizada.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      toast.success(`Planilha exportada com sucesso! ${updateCount} veículos atualizados.`);
+    } catch (err: any) {
+      console.error("Erro ao exportar planilha atualizada:", err);
+      toast.error(`Falha ao exportar planilha: ${err.message}`);
+    } finally {
+      setIsExportingSheet(false);
+    }
   };
 
   // Filter vehicle option lists based on locadoraVehicles
@@ -1890,6 +2094,40 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
               )}
 
               <Button
+                onClick={handleConnectGoogleSheets}
+                disabled={isConnectingSheets || !selectedLocadora}
+                variant="outline"
+                className={`font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9 ${
+                  hasSheetsAuth 
+                    ? "bg-emerald-100 hover:bg-emerald-200 border-emerald-300 text-emerald-800" 
+                    : "bg-blue-50 hover:bg-blue-100 border-blue-200 hover:border-blue-300 text-blue-700"
+                }`}
+                title={hasSheetsAuth ? "Google Sheets já conectado e ativo!" : "Autorizar integração em tempo real com o Google Sheets"}
+              >
+                {isConnectingSheets ? (
+                  <div className="w-4 h-4 mr-1.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Check size={16} className={`mr-1.5 ${hasSheetsAuth ? 'text-emerald-600 animate-pulse' : 'text-blue-500'}`} />
+                )}
+                {hasSheetsAuth ? "Sheets Conectado" : "Conectar Google Sheets"}
+              </Button>
+
+              <Button
+                onClick={handleExportUpdatedSpreadsheet}
+                disabled={isExportingSheet || !selectedLocadora}
+                variant="outline"
+                className="bg-emerald-50 hover:bg-emerald-100 border-emerald-200 hover:border-emerald-300 text-emerald-700 font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9 disabled:opacity-50"
+                title="Exportar planilha Excel completa com os dados atualizados"
+              >
+                {isExportingSheet ? (
+                  <div className="w-4 h-4 mr-1.5 border-2 border-emerald-700 border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <FileText size={16} className="mr-1.5 text-emerald-600" />
+                )}
+                Exportar Planilha (XLSX)
+              </Button>
+
+              <Button
                 onClick={handleSaveAll}
                 disabled={isSaving}
                 className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9 disabled:opacity-50"
@@ -1905,6 +2143,27 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
           </CardHeader>
 
           <CardContent className="p-0">
+            {selectedLocadora && (
+              <div className="mx-4 mt-4 p-4.5 bg-indigo-50 border border-indigo-100 rounded-2xl flex items-start gap-3">
+                <AlertCircle className="text-indigo-600 h-5 w-5 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <h4 className="text-xs font-bold text-indigo-900 uppercase tracking-tight">Sincronização em Tempo Real</h4>
+                  <p className="text-[11px] text-indigo-700 leading-relaxed font-medium">
+                    Ao salvar um registro ou clicar em <strong>Salvar Tudo</strong>, os dados são gravados no Firestore.
+                    {hasSheetsAuth ? (
+                      <span className="text-emerald-700 font-extrabold block mt-1">
+                        ● INTEGRAÇÃO COM SHEETS ATIVA: Suas atualizações de odômetro, revisão e status estão sendo sincronizadas automaticamente e gravadas em tempo real diretamente na aba "CONTROLE PREVENTIVA" da planilha oficial do Google Sheets!
+                      </span>
+                    ) : (
+                      <span className="block mt-1">
+                        Para sincronizar automaticamente em tempo real direto na sua planilha oficial do Google Sheets, clique no botão <strong>Conectar Google Sheets</strong> acima para conceder permissão de edição. Você também pode clicar em <strong>Exportar Planilha (XLSX)</strong> para baixar o arquivo completo editado localmente.
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Interactive Search & Multi-Criteria Filters Bar */}
             {selectedLocadora && !isLoadingAssets && !isLoadingFuel && (
               <div className="bg-slate-50/50 dark:bg-slate-900/60 border-b border-slate-100 dark:border-slate-800 p-4 gap-3 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 items-end">

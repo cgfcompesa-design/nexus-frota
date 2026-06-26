@@ -1154,16 +1154,16 @@ A Coordenação de Gestão de Frotas (CGF) identificou uma importante oportunida
 
 Na tela de Análise de Preços da COMPESA, foi detectado o seguinte posto credenciado com o melhor preço para a sua localidade:
 
-📍 Localidade: ${row.cidade} (${row.regiao})
-Gasolina/Diesel: ${row.tipo}
-⛽ Posto com Melhor Preço Credenciado: ${row.bestStationName}
-💰 Valor de Melhor Preço: R$ ${row.bestPrice.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} / L
+- Localidade: ${row.cidade} (${row.regiao})
+- Gasolina/Diesel: ${row.tipo}
+- Posto com Melhor Preço Credenciado: ${row.bestStationName}
+- Valor de Melhor Preço: R$ ${row.bestPrice.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} / L
 
 Pelo nosso levantamento mais recente, veículos sob a sua gestão realizaram abastecimentos em OUTROS postos de combustíveis na mesma cidade, pagando mais caro pelo mesmo tipo de combustível:
 
-📊 Volume de Abastecimentos noutros postos: ${row.otherLitersPaid.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Litros
-📈 Preço Médio Pago nos Outros Postos: R$ ${row.avgPricePaidOther.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} / L
-📉 Impacto Financeiro (Desperdício) Evitável Mensurado: R$ ${row.potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+- Volume de Abastecimentos noutros postos: ${row.otherLitersPaid.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} Litros
+- Preço Médio Pago nos Outros Postos: R$ ${row.avgPricePaidOther.toLocaleString('pt-BR', { minimumFractionDigits: 3 })} / L
+- Impacto Financeiro (Desperdício) Evitável Mensurado: R$ ${row.potentialSavings.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
 
 Ressaltamos que a COMPESA possui convênio direto e regras estritas para priorização dos postos de combustíveis de menor preço cadastrados no sistema Nexus BI, sendo estes os mais viáveis economicamente para as despesas públicas de nossa frota corporativa.
 

@@ -80,6 +80,9 @@ function useAppLogic() {
             setUserProfile(profile);
             userRole = profile.role || 'Visualizador';
             
+            // Cache profile in localStorage for offline fallback
+            localStorage.setItem(`profile_${authUser.uid}`, JSON.stringify(profile));
+
             // Check for Master or Gestão role to show alerts
             if (profile.role === 'Master' || profile.role === 'Gestão' || authUser.email === 'cgf.compesa@gmail.com') {
               setShowAlerts(true);
@@ -93,7 +96,12 @@ function useAppLogic() {
               role,
               createdAt: new Date().toISOString()
             };
-            await setDoc(docRef, newProfile);
+            try {
+              await setDoc(docRef, newProfile);
+              localStorage.setItem(`profile_${authUser.uid}`, JSON.stringify(newProfile));
+            } catch (setErr) {
+              console.warn("Erro ao salvar novo perfil no banco (possível offline):", setErr);
+            }
             setUserProfile(newProfile);
             userRole = role;
             
@@ -101,6 +109,37 @@ function useAppLogic() {
           }
         } catch (error) {
           console.error("Erro ao buscar perfil:", error);
+          
+          // Try loading from localStorage cache
+          const cachedProfileStr = localStorage.getItem(`profile_${authUser.uid}`);
+          if (cachedProfileStr) {
+            try {
+              const cachedProfile = JSON.parse(cachedProfileStr);
+              setUserProfile(cachedProfile);
+              userRole = cachedProfile.role || 'Visualizador';
+              if (cachedProfile.role === 'Master' || cachedProfile.role === 'Gestão' || authUser.email === 'cgf.compesa@gmail.com') {
+                setShowAlerts(true);
+              }
+              console.log("Perfil carregado do cache local (offline mode)");
+            } catch (jsonErr) {
+              // Ignore invalid cache
+            }
+          }
+
+          if (!userRole) {
+            const role = authUser.email === 'cgf.compesa@gmail.com' ? 'Master' : 'Visualizador';
+            const fallbackProfile = {
+              uid: authUser.uid,
+              email: authUser.email,
+              displayName: authUser.displayName || authUser.email?.split('@')[0],
+              role,
+              createdAt: new Date().toISOString()
+            };
+            setUserProfile(fallbackProfile);
+            userRole = role;
+            if (role === 'Master') setShowAlerts(true);
+            console.log("Perfil fallback padrão aplicado (offline mode)");
+          }
         }
         
         const searchParams = new URLSearchParams(window.location.search);
