@@ -131,6 +131,25 @@ function enderecoCompativel(end1: string, end2: string): boolean {
   return e1.includes(e2) || e2.includes(e1);
 }
 
+// 4.1. Calculate Haversine distance in meters between two lat/lng coordinates
+export function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3; // meters
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+    Math.cos(phi1) *
+      Math.cos(phi2) *
+      Math.sin(deltaLambda / 2) *
+      Math.sin(deltaLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+}
+
 // 5. Robust Full Date-Time Parser
 export function parseFullDateTime(dateVal: any): Date | null {
   if (!dateVal) return null;
@@ -278,28 +297,65 @@ function parseTelemetryHtml(fileName: string, htmlText: string): {
   const trs = Array.from(doc.querySelectorAll("tr[id]"));
   const telemetryRows: TelemetryRow[] = [];
 
+  // Find column indices dynamically from table headers if available
+  let latIndex = 8;
+  let lngIndex = 9;
+  let velIndex = 3;
+  let hodIndex = 4;
+  let horIndex = 5;
+  let txIndex = 6;
+  let motIndex = 7;
+  let igIndex = 1;
+  let endIndex = 2;
+
+  // Scan all rows to find one with <th> tags (headers) or the first row without id
+  const headerTr = doc.querySelector("thead tr") || doc.querySelector("tr:not([id])");
+  if (headerTr) {
+    const headerCells = Array.from(headerTr.querySelectorAll("th, td"));
+    headerCells.forEach((cell, idx) => {
+      const text = cell.textContent?.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") || "";
+      if (text === "LATITUDE" || text === "LAT") {
+        latIndex = idx;
+      } else if (text === "LONGITUDE" || text === "LONG" || text === "LNG") {
+        lngIndex = idx;
+      } else if (text === "VELOCIDADE" || text === "VEL") {
+        velIndex = idx;
+      } else if (text === "HODOMETRO" || text === "HODO" || text === "HOD") {
+        hodIndex = idx;
+      } else if (text === "HORIMETRO" || text === "HORO" || text === "HOR") {
+        horIndex = idx;
+      } else if (text === "IGNICAO" || text === "IG" || text === "IGN") {
+        igIndex = idx;
+      } else if (text === "ENDERECO" || text === "LOCAL" || text === "LOCALIZACAO") {
+        endIndex = idx;
+      } else if (text === "MOTORISTA" || text === "CONDUTOR") {
+        motIndex = idx;
+      }
+    });
+  }
+
   trs.forEach(tr => {
     const tds = Array.from(tr.querySelectorAll("td"));
-    if (tds.length >= 10) {
+    if (tds.length >= Math.max(latIndex, lngIndex, 10)) {
       const dataHoraStr = tds[0]?.textContent?.trim() || "";
       const dataHora = parseFullDateTime(dataHoraStr);
-      const ig = tds[1]?.textContent?.trim() || "";
+      const ig = tds[igIndex]?.textContent?.trim() || "";
       
       let endereco = "";
-      const link = tds[2]?.querySelector("a");
+      const link = tds[endIndex]?.querySelector("a");
       if (link) {
-        endereco = link.getAttribute("title") || link.textContent?.trim() || tds[2]?.textContent?.trim() || "";
+        endereco = link.getAttribute("title") || link.textContent?.trim() || tds[endIndex]?.textContent?.trim() || "";
       } else {
-        endereco = tds[2]?.textContent?.trim() || "";
+        endereco = tds[endIndex]?.textContent?.trim() || "";
       }
 
-      const vel = parseFloat(tds[3]?.textContent?.replace(",", ".").trim() || "0") || 0;
-      const hod = parseFloat(tds[4]?.textContent?.trim() || "0") || 0;
-      const hor = tds[5]?.textContent?.trim() || "";
-      const tx = tds[6]?.textContent?.trim() || "";
-      const motorista = tds[7]?.textContent?.trim() || "";
-      const lat = parseFloat(tds[8]?.textContent?.trim() || "0") || 0;
-      const lng = parseFloat(tds[9]?.textContent?.trim() || "0") || 0;
+      const vel = parseFloat(tds[velIndex]?.textContent?.replace(",", ".").trim() || "0") || 0;
+      const hod = parseFloat(tds[hodIndex]?.textContent?.trim() || "0") || 0;
+      const hor = tds[horIndex]?.textContent?.trim() || "";
+      const tx = tds[txIndex]?.textContent?.trim() || "";
+      const motorista = tds[motIndex]?.textContent?.trim() || "";
+      const lat = parseFloat(tds[latIndex]?.textContent?.trim() || "0") || 0;
+      const lng = parseFloat(tds[lngIndex]?.textContent?.trim() || "0") || 0;
 
       const motivoTx = tds[10]?.textContent?.trim() || "";
       const contador = tds[11]?.textContent?.trim() || "";
@@ -358,6 +414,70 @@ export default function AbastTelemetriaTab({ fuel = [], assets = [] }: { fuel: a
 
   // Handle local state edit of checked asset types during an active selection session
   const [localCheckedTypes, setLocalCheckedTypes] = useState<string[]>([]);
+
+  // State to store geocoded coordinates of fueling stations (postos)
+  const [geocodedPostos, setGeocodedPostos] = useState<Record<string, { lat: number; lng: number }>>({});
+
+  // Background geocoding loader hook for fueling stations
+  useEffect(() => {
+    if (!fuel || fuel.length === 0) return;
+
+    // Collect all unique postos
+    const uniquePostos = new Set<string>();
+    fuel.forEach(f => {
+      const postoA = String(f["NOME POSTO"] || f._posto || f["NOME ESTABELECIMENTO"] || "N/A").trim().toUpperCase();
+      const rawRaw = (f as any).__raw || (f as any)._raw || [];
+      const enderecoPosto = String(f["ENDERECO"] || f["ENDEREÇO"] || f._endereco || rawRaw[23] || "").trim();
+      const bairroPosto = String(f["BAIRRO"] || f._bairro || rawRaw[24] || "").trim();
+      const cidadePosto = String(f["CIDADE"] || f._cidade || rawRaw[25] || "").trim();
+      const partesPosto = [enderecoPosto, bairroPosto, cidadePosto]
+        .map(p => p.trim())
+        .filter(p => p && p.toUpperCase() !== "N/A" && p.toUpperCase() !== "N_A" && p.toUpperCase() !== "NULL" && p !== "-");
+      const enderecoCompletoPosto = partesPosto.join(", ").trim().toUpperCase();
+      const localComparacao = enderecoCompletoPosto || postoA;
+      if (localComparacao && localComparacao !== "N/A") {
+        uniquePostos.add(localComparacao);
+      }
+    });
+
+    const postosToFetch: string[] = [];
+    setGeocodedPostos(prev => {
+      postosToFetch.push(...Array.from(uniquePostos).filter(p => !prev[p]));
+      return prev;
+    });
+
+    if (postosToFetch.length === 0) return;
+
+    let isSubscribed = true;
+    const fetchCoords = async () => {
+      const results: Record<string, { lat: number; lng: number }> = {};
+      
+      // Fetch geocodes sequentially or in minor parallel batches to avoid overloading
+      for (const posto of postosToFetch) {
+        if (!isSubscribed) return;
+        try {
+          const url = `/api/geocode?address=${encodeURIComponent(posto)}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          if (data.success && typeof data.lat === "number" && typeof data.lng === "number") {
+            results[posto] = { lat: data.lat, lng: data.lng };
+          }
+        } catch (e) {
+          console.error(`Error geocoding ${posto}:`, e);
+        }
+      }
+
+      if (Object.keys(results).length > 0 && isSubscribed) {
+        setGeocodedPostos(prev => ({ ...prev, ...results }));
+      }
+    };
+
+    fetchCoords();
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [fuel]);
 
   // Calculate unique asset types across the actual fleet
   const allAssetTypes = useMemo(() => {
@@ -660,25 +780,6 @@ Coordenação de Gestão de Frotas – CGF`;
       initialRow: TelemetryRow;
       finalRow: TelemetryRow;
     }> = [];
-
-    // Helper: Haversine distance in meters
-    const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-      const R = 6371e3; // meters
-      const phi1 = (lat1 * Math.PI) / 180;
-      const phi2 = (lat2 * Math.PI) / 180;
-      const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
-      const deltaLambda = ((lon2 - lon1) * Math.PI) / 180;
-
-      const a =
-        Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
-        Math.cos(phi1) *
-          Math.cos(phi2) *
-          Math.sin(deltaLambda / 2) *
-          Math.sin(deltaLambda / 2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-      return R * c;
-    };
 
     telemetryFiles.forEach(file => {
       const sortedRows = [...file.rows]
@@ -1383,7 +1484,64 @@ Coordenação de Gestão de Frotas – CGF`;
 
         // REGRA 3 - DIVERGÊNCIA DE ENDEREÇO
         const localComparacao = enderecoCompletoPosto || postoA;
-        if (!enderecoCompativel(enderecoT, localComparacao)) {
+        let isEnderecoDivergente = false;
+
+        // Try to get directly from columns parsed in the fuel transaction 'f' (e.g. LATITUDE/LONGITUDE columns)
+        let postoLat: number | undefined = undefined;
+        let postoLng: number | undefined = undefined;
+
+        const possibleLat = f.LATITUDE || f.Latitude || f["LATITUDE"] || f["LAT"] || f._lat || f.lat;
+        const possibleLng = f.LONGITUDE || f.Longitude || f["LONGITUDE"] || f["LONG"] || f["LNG"] || f._lng || f.lng;
+
+        if (possibleLat !== undefined && possibleLat !== null && possibleLat !== "") {
+          const parsedLat = parseFloat(String(possibleLat).replace(",", "."));
+          if (!isNaN(parsedLat) && parsedLat !== 0) {
+            postoLat = parsedLat;
+          }
+        }
+        if (possibleLng !== undefined && possibleLng !== null && possibleLng !== "") {
+          const parsedLng = parseFloat(String(possibleLng).replace(",", "."));
+          if (!isNaN(parsedLng) && parsedLng !== 0) {
+            postoLng = parsedLng;
+          }
+        }
+
+        // If direct coords are not found, fallback to geocoded ones from Google Maps API or Gemini
+        let isGeocoded = false;
+        if (postoLat === undefined || postoLng === undefined) {
+          const fallbackCoords = geocodedPostos[localComparacao];
+          if (fallbackCoords) {
+            postoLat = fallbackCoords.lat;
+            postoLng = fallbackCoords.lng;
+            isGeocoded = true;
+          }
+        }
+
+        const telemetryLat = matchedTR.lat;
+        const telemetryLng = matchedTR.lng;
+
+        let calculatedDist: number | undefined = undefined;
+
+        if (postoLat !== undefined && postoLng !== undefined && typeof telemetryLat === "number" && typeof telemetryLng === "number" && telemetryLat !== 0 && telemetryLng !== 0) {
+          calculatedDist = calculateDistance(postoLat, postoLng, telemetryLat, telemetryLng);
+          // If the distance is greater than 800 meters, it's considered outside a reasonable radius.
+          // This avoids false matches/mismatches when the vehicle is just parked across the street or very nearby.
+          if (calculatedDist > 800) {
+            isEnderecoDivergente = true;
+          }
+        } else {
+          // Fallback to textual comparison if geocoding coordinates are not available
+          isEnderecoDivergente = !enderecoCompativel(enderecoT, localComparacao);
+        }
+
+        if (isEnderecoDivergente) {
+          const sourceText = isGeocoded ? "Google Maps/Gemini" : "planilha";
+          const postoCoordsText = (postoLat !== undefined && postoLng !== undefined) ? ` (${postoLat.toFixed(5)}, ${postoLng.toFixed(5)} - ${sourceText})` : "";
+          const teleCoordsText = (telemetryLat && telemetryLng) ? ` (${telemetryLat.toFixed(5)}, ${telemetryLng.toFixed(5)})` : "";
+          const distText = (calculatedDist !== undefined) 
+            ? ` [Distância: ${Math.round(calculatedDist)}m]` 
+            : "";
+
           deviations.push({
             placa: placaA,
             dataAbast: dataA.toLocaleString('pt-BR'),
@@ -1392,7 +1550,7 @@ Coordenação de Gestão de Frotas – CGF`;
             difMin: melhorDiff.toFixed(1),
             motoristaTelem: matchedTR.motorista || "N/A",
             ignicao,
-            obs: `TELEMETRIA EM: ${enderecoT} / POSTO EM: ${localComparacao}`,
+            obs: `TELEMETRIA EM: ${enderecoT}${teleCoordsText} / POSTO EM: ${localComparacao}${postoCoordsText}${distText}`,
             litros: f["LITROS"],
             posto: postoA,
             motoristaAbast: rawDriverA

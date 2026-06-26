@@ -103,7 +103,7 @@ export default function CadastroPreventivaPage({ onBack, hideBackButton = false,
   const { data: assets = [], isLoading: isLoadingAssets } = useAssets();
   const { data: fuel = [], isLoading: isLoadingFuel } = useFuelData();
   const { data: sheetPreventivas = [] } = usePreventiveLocadosData();
-  const { data: rawFirebasePreventivas = {}, save, refetch: refetchFirebase } = useFirebasePreventivas();
+  const { data: rawFirebasePreventivas = {}, save, refetch: refetchFirebase, isSaving } = useFirebasePreventivas();
   const firebasePreventivas = useMemo(() => rawFirebasePreventivas as Record<string, FirebasePreventiveData>, [rawFirebasePreventivas]);
 
   const allowedLocadoras = useMemo(() => {
@@ -707,6 +707,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
         dataRevisao: dataRev,
         locadora: selectedLocadora,
       });
+      await refetchFirebase();
       await logActivity(placa, odoRev, revPrev, dataRev, "individual");
       await checkAndScheduleEmail(placa, odoRev, revPrev, dataRev);
       fetchActivityLogs();
@@ -758,7 +759,8 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
       }
     });
 
-    const savePromise = Promise.all(promises).then(() => {
+    const savePromise = Promise.all(promises).then(async () => {
+      await refetchFirebase();
       fetchActivityLogs();
     });
 
@@ -1889,9 +1891,15 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
 
               <Button
                 onClick={handleSaveAll}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9"
+                disabled={isSaving}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center transition-all h-9 disabled:opacity-50"
               >
-                <Save size={16} className="mr-1.5" /> Salvar Tudo
+                {isSaving ? (
+                  <div className="w-4 h-4 mr-1.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <Save size={16} className="mr-1.5" />
+                )}
+                Salvar Tudo
               </Button>
             </div>
           </CardHeader>
@@ -2185,7 +2193,7 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
                           <TableCell className="text-center">
                             <Button
                               onClick={() => handleSaveRow(placa)}
-                              disabled={savingRows[placa]}
+                              disabled={savingRows[placa] || isSaving}
                               className="bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white p-1.5 h-7 w-7 rounded-lg transition-all"
                             >
                               {savingRows[placa] ? (

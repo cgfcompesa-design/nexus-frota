@@ -290,6 +290,90 @@ async function startServer() {
     }
   });
 
+  // Helper for geocoding API JSON fetch
+  function getHttpJSON(urlStr: string): Promise<any> {
+    return new Promise((resolve, reject) => {
+      https.get(urlStr, (res) => {
+        const statusCode = res.statusCode || 0;
+        if (statusCode !== 200) {
+          return reject(new Error(`HTTP ${statusCode}`));
+        }
+        let data = "";
+        res.on("data", (chunk) => data += chunk);
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(data));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      }).on("error", reject);
+    });
+  }
+
+  // API Route to Geocode an address/establishment name
+  app.get("/api/geocode", async (req, res) => {
+    const address = req.query.address as string;
+    if (!address) {
+      return res.status(400).json({ error: "Address is required" });
+    }
+
+    // 1. Try using Google Maps Geocoding API if key is present
+    const apiKey = process.env.VITE_GOOGLE_MAPS_API_KEY || process.env.GOOGLE_MAPS_PLATFORM_KEY || "";
+    if (apiKey && apiKey !== "YOUR_API_KEY") {
+      try {
+        const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+        const data = await getHttpJSON(url);
+        if (data.status === "OK" && data.results && data.results[0]) {
+          const location = data.results[0].geometry.location;
+          console.log(`[GEOCODE] Successfully geocoded with Google Maps: ${address} -> (${location.lat}, ${location.lng})`);
+          return res.json({ success: true, lat: location.lat, lng: location.lng, source: "google-maps" });
+        } else {
+          console.warn(`[GEOCODE] Google Maps API status not OK: ${data.status} for address: ${address}`);
+        }
+      } catch (e: any) {
+        console.error("[SERVER] Google Maps Geocoding failed:", e.message);
+      }
+    }
+
+    // 2. Fallback to Gemini AI which has excellent spatial understanding of Pernambuco postos / cities
+    const ai = getGeminiClient();
+    if (ai) {
+      try {
+        const prompt = `Geocode the following Brazilian establishment/address (usually a gas station in Pernambuco, Brazil). Provide the best estimated latitude and longitude for it.
+Address/Posto: "${address}"
+Respond ONLY with a JSON object containing "lat" (number) and "lng" (number). No extra formatting, markdown or wrapper tags outside the JSON.`;
+        const response = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                lat: { type: Type.NUMBER },
+                lng: { type: Type.NUMBER }
+              },
+              required: ["lat", "lng"]
+            }
+          }
+        });
+        const text = response.text || "{}";
+        const coords = JSON.parse(text);
+        if (coords && typeof coords.lat === "number" && typeof coords.lng === "number") {
+          console.log(`[GEOCODE] Successfully geocoded with Gemini: ${address} -> (${coords.lat}, ${coords.lng})`);
+          return res.json({ success: true, lat: coords.lat, lng: coords.lng, source: "gemini" });
+        }
+      } catch (e: any) {
+        console.error("[SERVER] Gemini geocoding fallback failed:", e.message);
+      }
+    }
+
+    // 3. Ultimate Fallback (Recife, Brazil center)
+    console.warn(`[GEOCODE] All geocoding attempts failed for: ${address}. Using default Recife fallback.`);
+    return res.json({ success: false, lat: -8.047562, lng: -34.877002, error: "Could not geocode" });
+  });
+
   // API Route to classify vehicle stops using Gemini AI (lazer, lazer spaces etc)
   let aiClient: any = null;
   function getGeminiClient() {
