@@ -948,8 +948,8 @@ Companhia Pernambucana de Saneamento`;
         _bairro: String(f._bairro || f["BAIRRO"] || raw[24] || raw[19] || "N/A").trim().toUpperCase(),
         _posto: String(f._posto || f._establishment || f["NOME ESTABELECIMENTO"] || f["NOME POSTO"] || f["ESTABELECIMENTO"] || raw[21] || raw[16] || "N/A").trim().toUpperCase(),
         _cidade: String(f._cidade || f["CIDADE"] || f["MUNICÍPIO"] || f["MUNICIPIO"] || raw[25] || raw[20] || raw[22] || "N/A").trim().toUpperCase(),
-        _kmHoras: f._kmRodados || 0,
-        _autReal: f._autReal || 0,
+        _kmHoras: parseNumLocal(f._kmRodados || f["KM RODADOS OU HORAS TRABALHADAS"] || f.COL_17 || (raw && raw[17]) || (raw && raw[39]) || f.COL_39 || 0),
+        _autReal: parseNumLocal(f._autReal || f["AUTONOMIA REAIS"] || f["AUTONOMIA REAL"] || f["AUTONOMIA"] || (raw && raw[42]) || f.COL_42 || 0),
       };
     });
   }, [fuel]);
@@ -1465,7 +1465,7 @@ Companhia Pernambucana de Saneamento`;
       const tc = String(tipoControleVal).trim().toUpperCase();
       if (tc !== "FROTA" && tc !== "") continue;
 
-      const valR = f._valR;
+      const valR = f._kmHoras;
       
       if (valR > 0) {
         const curr = assetAverages.get(placa) || { sum: 0, count: 0 };
@@ -1489,11 +1489,13 @@ Companhia Pernambucana de Saneamento`;
           lastTxTimestamp: 0,
           autonomias: [],
           alerts: new Set<string>(),
-          lastTx: null
+          lastTx: null,
+          txs: []
         });
       }
       
       const v = vehicleMap.get(placa);
+      v.txs.push(f);
       const litros = f._litros;
       const timestamp = f._timestamp || 0;
       const currentFuelType = f._fuelType;
@@ -1575,22 +1577,49 @@ Companhia Pernambucana de Saneamento`;
       const valR = f._valR;
       const autReal = f._autReal;
 
+      const valR_km = f._kmHoras;
       const avgRData = assetAverages.get(placa);
-      if (avgRData && avgRData.count > 1 && valR > 0) {
-          const avgR = avgRData.sum / avgRData.count;
-          if (Math.abs(valR - avgR) / avgR > 0.30) {
-            const perc = (Math.abs(valR - avgR) / avgR * 100).toFixed(1);
-            const d = { 
-              placa, 
-              tipo: 'KM/Hora', 
-              descricao: `Cód. Transação: ${f._txId} | KM/H: ${valR} vs Med: ${avgR.toFixed(1)} (${perc}%)`, 
-              data: f["DATA TRANSACAO"] || f._formattedDate || f._date
-            };
-            desvios.push(d);
-            v.alerts.add('KM/Hora');
-            stats.kmHora++;
+      let triggeredKm = false;
+      let reasonKm = "";
+
+      if (avgRData && avgRData.count > 1 && valR_km > 0) {
+        const avgR = avgRData.sum / avgRData.count;
+        if (Math.abs(valR_km - avgR) / avgR > 0.30) {
+          const perc = (Math.abs(valR_km - avgR) / avgR * 100).toFixed(1);
+          reasonKm = `KM/H: ${valR_km} vs Média: ${avgR.toFixed(1)} (${perc}%)`;
+          triggeredKm = true;
+        }
+      }
+
+      const txsList = v.txs || [];
+      const idx = txsList.indexOf(f);
+      if (idx !== -1 && idx + 1 < txsList.length) {
+        const prev = txsList[idx + 1];
+        const prevVal = prev._kmHoras || 0;
+        if (prevVal > 0 && valR_km > 0 && Math.abs(valR_km - prevVal) / prevVal > 0.30) {
+          const perc = (Math.abs(valR_km - prevVal) / prevVal * 100).toFixed(1);
+          const compWord = valR_km > prevVal ? "Acréscimo" : "Decréscimo";
+          const prevReason = `${compWord} de KM/H de ${perc}% vs Anterior (${valR_km} vs ${prevVal})`;
+          if (triggeredKm) {
+            reasonKm += ` | ${prevReason}`;
+          } else {
+            reasonKm = prevReason;
+            triggeredKm = true;
           }
         }
+      }
+
+      if (triggeredKm) {
+        const d = { 
+          placa, 
+          tipo: 'KM/Hora', 
+          descricao: `Cód. Transação: ${f._txId} | ${reasonKm}`, 
+          data: f["DATA TRANSACAO"] || f._formattedDate || f._date
+        };
+        desvios.push(d);
+        v.alerts.add('KM/Hora');
+        stats.kmHora++;
+      }
 
       if (asset) {
         const assetRaw = (asset as any).__raw || [];
