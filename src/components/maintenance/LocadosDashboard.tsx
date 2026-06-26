@@ -559,8 +559,22 @@ export const LocadosDashboard = () => {
       const firebaseRecord = firebasePreventivas[placa];
       const sheetRecord = sheetPreventiveLocados.find(p => p.placa.toUpperCase().replace(/[^A-Z0-9]/gi, "").trim() === placa);
 
-      const odometroRevisao = firebaseRecord ? firebaseRecord.odometroRevisao : (sheetRecord ? sheetRecord.odometroRevisao : undefined);
-      const revisaoPrevista = firebaseRecord ? firebaseRecord.revisaoPrevista : (sheetRecord ? sheetRecord.revisaoPrevista : undefined);
+      const modelName = String(asset.MODELO || asset.modelo || "").toUpperCase().trim();
+      let defaultPrev = 10000;
+      if (modelName.includes("ACCELO 817")) {
+        defaultPrev = 40000;
+      } else if (modelName.includes("DELIVERY 9.180")) {
+        defaultPrev = 20000;
+      }
+
+      const odometroRevisao = firebaseRecord 
+        ? Number(firebaseRecord.odometroRevisao) 
+        : (sheetRecord && sheetRecord.odometroRevisao ? Number(sheetRecord.odometroRevisao) : undefined);
+
+      const revisaoPrevista = firebaseRecord 
+        ? Number(firebaseRecord.revisaoPrevista) 
+        : (sheetRecord && sheetRecord.revisaoPrevista ? Number(sheetRecord.revisaoPrevista) : (odometroRevisao !== undefined ? defaultPrev : undefined));
+
       const dataRevisao = firebaseRecord ? firebaseRecord.dataRevisao : (sheetRecord ? sheetRecord.dataRevisao : undefined);
 
       const odometroAtual = latestOdometersMap.get(placa) || 0;

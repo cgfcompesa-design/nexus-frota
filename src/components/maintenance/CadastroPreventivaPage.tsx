@@ -69,6 +69,17 @@ const getLocadoraEmails = (locadoraName: string): string => {
 
 const REVISAO_OPCOES = [1000, 5000, 10000, 15000, 20000, 40000];
 
+const getVehicleDefaultRevisaoPrevista = (vehicle: any): string => {
+  const modelName = String(vehicle?.MODELO || vehicle?.modelo || "").toUpperCase().trim();
+  if (modelName.includes("ACCELO 817")) {
+    return "40000";
+  }
+  if (modelName.includes("DELIVERY 9.180")) {
+    return "20000";
+  }
+  return "10000";
+};
+
 export default function CadastroPreventivaPage({ onBack, hideBackButton = false, userProfile }: CadastroPreventivaPageProps) {
   const [selectedLocadora, setSelectedLocadora] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
@@ -545,35 +556,48 @@ Coordenação de Gestão de Frotas (CGF) - COMPESA`;
   useEffect(() => {
     if (locadoraVehicles.length === 0) return;
 
-    const initialRows: typeof editedRows = {};
-    locadoraVehicles.forEach(vehicle => {
-      const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
-      
-      const firebaseRecord = firebasePreventivas[placa];
-      const sheetRecord = sheetPreventivas.find(p => p.placa.toUpperCase().replace(/[^A-Z0-9]/gi, "").trim() === placa);
+    setEditedRows(prev => {
+      const updatedRows = { ...prev };
+      locadoraVehicles.forEach(vehicle => {
+        const placa = String(vehicle.PLACA || vehicle.placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+        
+        const firebaseRecord = firebasePreventivas[placa];
+        const sheetRecord = sheetPreventivas.find(p => p.placa.toUpperCase().replace(/[^A-Z0-9]/gi, "").trim() === placa);
 
-      const savedOdo = firebaseRecord ? String(firebaseRecord.odometroRevisao) : (sheetRecord ? String(sheetRecord.odometroRevisao) : "");
-      const savedPrev = firebaseRecord ? String(firebaseRecord.revisaoPrevista) : (sheetRecord ? String(sheetRecord.revisaoPrevista) : "10000");
-      const savedDate = firebaseRecord ? firebaseRecord.dataRevisao : (sheetRecord ? sheetRecord.dataRevisao : "");
+        const defaultPrev = getVehicleDefaultRevisaoPrevista(vehicle);
 
-      // Date conversion helper if sheet dates are dd/mm/yyyy
-      let formattedDate = savedDate;
-      if (savedDate && savedDate.includes("/")) {
-        const parts = savedDate.split("/");
-        if (parts.length === 3) {
-          // Format from DD/MM/YYYY to YYYY-MM-DD
-          formattedDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+        const savedOdo = firebaseRecord ? String(firebaseRecord.odometroRevisao) : (sheetRecord ? String(sheetRecord.odometroRevisao) : "");
+        const savedPrev = firebaseRecord 
+          ? String(firebaseRecord.revisaoPrevista) 
+          : (sheetRecord && sheetRecord.revisaoPrevista ? String(sheetRecord.revisaoPrevista) : defaultPrev);
+        const savedDate = firebaseRecord ? firebaseRecord.dataRevisao : (sheetRecord ? sheetRecord.dataRevisao : "");
+
+        // Date conversion helper if sheet dates are dd/mm/yyyy
+        let formattedDate = savedDate;
+        if (savedDate && savedDate.includes("/")) {
+          const parts = savedDate.split("/");
+          if (parts.length === 3) {
+            // Format from DD/MM/YYYY to YYYY-MM-DD
+            formattedDate = `${parts[2]}-${parts[1].padStart(2, "0")}-${parts[0].padStart(2, "0")}`;
+          }
         }
-      }
 
-      initialRows[placa] = {
-        odometroRevisao: savedOdo,
-        revisaoPrevista: savedPrev,
-        dataRevisao: formattedDate,
-      };
+        const hasUnsavedEdits = prev[placa] && (
+          prev[placa].odometroRevisao !== savedOdo ||
+          prev[placa].revisaoPrevista !== savedPrev ||
+          prev[placa].dataRevisao !== formattedDate
+        );
+
+        if (!prev[placa] || !hasUnsavedEdits) {
+          updatedRows[placa] = {
+            odometroRevisao: savedOdo,
+            revisaoPrevista: savedPrev,
+            dataRevisao: formattedDate,
+          };
+        }
+      });
+      return updatedRows;
     });
-
-    setEditedRows(initialRows);
   }, [locadoraVehicles, firebasePreventivas, sheetPreventivas]);
 
   // Check if saved odometer creates "Pendente" status and schedule notification e-mail
