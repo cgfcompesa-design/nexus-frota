@@ -194,6 +194,11 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
       const statusEl = document.getElementById("nexus-status");
       const detailsEl = document.getElementById("nexus-details");
       const startBtn = document.getElementById("nexus-start-btn");
+      
+      // Auto accept dialogs
+      window.alert = function() { return true; };
+      window.confirm = function() { return true; };
+      
       try {
         const response = await fetch("\${serverUrl}/api/pending-automations");
         const data = await response.json();
@@ -222,6 +227,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
             if (!menuEl) throw new Error("Menu lateral 'Financeiro' não localizado.");
             menuEl.click();
             await new Promise(r => setTimeout(r, 1500));
+            
             statusEl.innerText = "Navegando para Gestão Orçamentária...";
             const subMenuEl = Array.from(document.querySelectorAll("a, span, div, li")).find(el => {
               const text = el.textContent ? el.textContent.trim() : "";
@@ -230,33 +236,83 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
             if (!subMenuEl) throw new Error("Submenu 'Gestão Orçamentária' não localizado.");
             subMenuEl.click();
             await new Promise(r => setTimeout(r, 3000));
+            
             statusEl.innerText = \`Localizando Gerência "\${task.gerencia}"...\`;
-            const rows = Array.from(document.querySelectorAll("tr"));
-            const targetRow = rows.find(r => r.textContent && r.textContent.toUpperCase().includes(task.gerencia.toUpperCase()));
-            if (!targetRow) throw new Error(\`Gerência "\${task.gerencia}" não localizada.\`);
+            let targetRow = null;
+            const rows = Array.from(document.querySelectorAll("tr, div.row, div.grid, .grid-row, .table-row"));
+            const candidates = rows.filter(r => {
+              const text = r.textContent || "";
+              return text.toUpperCase().includes(task.gerencia.toUpperCase());
+            });
+            if (candidates.length > 0) {
+              candidates.sort((a, b) => a.textContent.length - b.textContent.length);
+              targetRow = candidates[0];
+            }
+            if (!targetRow) throw new Error(\`Gerência "\${task.gerencia}" não localizada na página.\`);
+            
             statusEl.innerText = "Abrindo modal de orçamento...";
-            const editBtn = targetRow.querySelector("img[src*='editar'], button, .btn-editar, .icon-pencil");
-            if (!editBtn) throw new Error("Botão de edição não encontrado.");
+            const editBtn = targetRow.querySelector("img[src*='editar'], img[alt*='Editar'], img[title*='editar'], .icones, [role='button'][tabindex='0'], .btn-editar, button, a");
+            if (!editBtn) throw new Error("Botão/ícone de edição (canetinha) não localizado.");
             editBtn.click();
             await new Promise(r => setTimeout(r, 2000));
+            
             statusEl.innerText = "Atualizando campo de orçamento...";
-            const budgetInput = document.querySelector("input[name*='abastecimento'], input[id*='abastecimento'], .input-orcamento") as HTMLInputElement;
+            let budgetInput = null;
+            const inputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"));
+            budgetInput = inputs.find(i => {
+              const name = (i.name || "").toLowerCase();
+              const id = (i.id || "").toLowerCase();
+              return name.includes("abastecimento") || id.includes("abastecimento") || name.includes("orcamento") || id.includes("orcamento") || name.includes("servico") || id.includes("servico");
+            });
+            if (!budgetInput) {
+              const labels = Array.from(document.querySelectorAll("label, span, td, div, th"));
+              const targetLabel = labels.find(l => {
+                const text = (l.textContent || "").toUpperCase();
+                return text.includes("ABASTECIMENTO/SERVIÇOS") || text.includes("ABASTECIMENTO") || text.includes("ORÇAMENTO");
+              });
+              if (targetLabel) {
+                budgetInput = targetLabel.parentElement.querySelector("input") || 
+                              targetLabel.parentElement.parentElement.querySelector("input");
+              }
+            }
+            if (!budgetInput && inputs.length > 0) {
+              budgetInput = inputs[0];
+            }
             if (!budgetInput) throw new Error("Campo de input de orçamento não localizado.");
-            const originalVal = parseFloat(budgetInput.value.replace(/[^\\\\d]/g, "")) / 100 || 0;
+            
+            let rawValue = budgetInput.value.trim();
+            let originalVal = 0;
+            if (rawValue) {
+              const normalized = rawValue.replace(/\\\\./g, "").replace(",", ".");
+              originalVal = parseFloat(normalized) || 0;
+            }
             const newVal = originalVal + task.valor;
             budgetInput.value = newVal.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
             budgetInput.dispatchEvent(new Event('input', { bubbles: true }));
+            budgetInput.dispatchEvent(new Event('change', { bubbles: true }));
+            
             statusEl.innerText = "Salvando orçamento...";
-            const saveBtn = Array.from(document.querySelectorAll("button, input")).find(el => {
-              const text = el.textContent ? el.textContent.trim() : "";
-              return text.includes("Salvar") || el.value?.includes("Salvar");
+            const saveBtn = Array.from(document.querySelectorAll("button, input[type='button'], input[type='submit'], a.btn")).find(el => {
+              const text = (el.textContent || el.value || "").trim().toUpperCase();
+              return text.includes("SALVAR") || text.includes("GRAVAR") || text.includes("CONFIRMAR");
             });
-            if (saveBtn) {
-              saveBtn.click();
-              await new Promise(r => setTimeout(r, 2500));
+            if (!saveBtn) throw new Error("Botão de salvar não localizado.");
+            saveBtn.click();
+            await new Promise(r => setTimeout(r, 2500));
+            
+            // Auto accept any modal confirmation dialog
+            const modalButtons = Array.from(document.querySelectorAll("button, input[type='button'], a.btn"));
+            const okBtn = modalButtons.find(btn => {
+              const txt = (btn.textContent || btn.value || "").trim().toUpperCase();
+              return txt === "OK" || txt === "CONFIRMAR" || txt === "FECHAR" || txt === "SIM" || txt.includes("OK");
+            });
+            if (okBtn) {
+              okBtn.click();
+              await new Promise(r => setTimeout(r, 1500));
             }
+            
             statusEl.innerText = "Etapa 2: Acessando Alteração de Limite...";
-            menuEl.click();
+            if (menuEl) menuEl.click();
             await new Promise(r => setTimeout(r, 1000));
             const limitSubMenu = Array.from(document.querySelectorAll("a, span, div, li")).find(el => {
               const text = el.textContent ? el.textContent.trim() : "";
@@ -265,34 +321,110 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
             if (!limitSubMenu) throw new Error("Submenu 'Alteração de Limite' não localizado.");
             limitSubMenu.click();
             await new Promise(r => setTimeout(r, 3000));
+            
             statusEl.innerText = \`Buscando veículo pela Placa "\${task.placa}"...\`;
-            const plateInput = document.querySelector("input[name*='placa'], input[id*='placa']") as HTMLInputElement;
+            let plateInput = document.querySelector("input[name*='placa'], input[id*='placa'], input.placa");
+            if (!plateInput) {
+              const label = Array.from(document.querySelectorAll("label, span, div, td")).find(el => {
+                const text = (el.textContent || "").toUpperCase();
+                return text.includes("PLACA DO VEÍCULO") || text.includes("PLACA VEÍCULO") || text.includes("PLACA");
+              });
+              if (label) {
+                plateInput = label.parentElement.querySelector("input") || label.parentElement.parentElement.querySelector("input");
+              }
+            }
+            if (!plateInput) {
+              const textInputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])"));
+              if (textInputs.length > 0) plateInput = textInputs[0];
+            }
             if (!plateInput) throw new Error("Campo de inserção de placa não encontrado.");
+            
             plateInput.value = task.placa;
             plateInput.dispatchEvent(new Event('input', { bubbles: true }));
-            plateInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter' }));
-            await new Promise(r => setTimeout(r, 2500));
+            plateInput.dispatchEvent(new Event('change', { bubbles: true }));
+            const enterEvents = ['keydown', 'keypress', 'keyup'];
+            enterEvents.forEach(evtType => {
+              plateInput.dispatchEvent(new KeyboardEvent(evtType, {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+              }));
+            });
+            await new Promise(r => setTimeout(r, 3000));
+            
             statusEl.innerText = "Ajustando limite...";
-            const limitInput = document.querySelector("input[name*='valor'], input[id*='valor']") as HTMLInputElement;
-            if (!limitInput) throw new Error("Campo de valor não encontrado.");
+            let limitInput = document.querySelector("input[name*='valor'], input[id*='valor'], input[name*='limite'], input[id*='limite']");
+            if (!limitInput) {
+              const label = Array.from(document.querySelectorAll("label, span, div")).find(el => {
+                const text = (el.textContent || "").toUpperCase();
+                return text.includes("VALOR PARA ALTERAÇÃO") || text.includes("VALOR DA ALTERAÇÃO") || text.includes("VALOR");
+              });
+              if (label) {
+                limitInput = label.parentElement.querySelector("input") || label.parentElement.parentElement.querySelector("input");
+              }
+            }
+            if (!limitInput) {
+              const textInputs = Array.from(document.querySelectorAll("input[type='text'], input:not([type])")).filter(i => i !== plateInput);
+              if (textInputs.length > 0) limitInput = textInputs[0];
+            }
+            if (!limitInput) throw new Error("Campo de valor para alteração não encontrado.");
+            
             limitInput.value = task.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
             limitInput.dispatchEvent(new Event('input', { bubbles: true }));
-            const chks = Array.from(document.querySelectorAll("input[type='checkbox']")) as HTMLInputElement[];
-            if (chks.length >= 2) {
-              chks[0].checked = true;
-              chks[1].checked = true;
-              chks[0].dispatchEvent(new Event('change', { bubbles: true }));
-              chks[1].dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            statusEl.innerText = "Confirmando alteração de limite...";
-            const confirmBtn = Array.from(document.querySelectorAll("button, input")).find(el => {
-              const text = el.textContent ? el.textContent.trim() : "";
-              return text.includes("Alterar") || el.value?.includes("Alterar");
+            limitInput.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            statusEl.innerText = "Flegando opções de limite...";
+            const checkboxes = Array.from(document.querySelectorAll("input[type='checkbox']"));
+            let checkedCount = 0;
+            checkboxes.forEach(chk => {
+              const name = (chk.name || "").toLowerCase();
+              const id = (chk.id || "").toLowerCase();
+              const labelText = (chk.parentElement?.textContent || chk.parentElement?.parentElement?.textContent || "").toUpperCase();
+              const isTarget = name.includes("chklimite") || 
+                               id.includes("chklimite") || 
+                               labelText.includes("ADICIONAR O VALOR") || 
+                               labelText.includes("SOMENTE PARA O PERÍODO") ||
+                               labelText.includes("PERIODO");
+              if (isTarget) {
+                if (!chk.checked) {
+                  chk.click();
+                  chk.checked = true;
+                  chk.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                checkedCount++;
+              }
             });
-            if (confirmBtn) {
-              confirmBtn.click();
-              await new Promise(r => setTimeout(r, 2000));
+            if (checkedCount === 0) {
+              checkboxes.forEach(chk => {
+                if (!chk.checked) {
+                  chk.click();
+                  chk.checked = true;
+                  chk.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+              });
             }
+            
+            statusEl.innerText = "Confirmando alteração de limite...";
+            const confirmBtn = Array.from(document.querySelectorAll("button, input[type='button'], input[type='submit'], a.btn")).find(el => {
+              const text = (el.textContent || el.value || "").trim().toUpperCase();
+              return text.includes("ALTERAR") || text.includes("SALVAR") || text.includes("CONFIRMAR") || text.includes("ENVIAR");
+            });
+            if (!confirmBtn) throw new Error("Botão de alterar limite não encontrado.");
+            confirmBtn.click();
+            await new Promise(r => setTimeout(r, 2500));
+            
+            const finalModals = Array.from(document.querySelectorAll("button, input[type='button'], a.btn"));
+            const finalOk = finalModals.find(btn => {
+              const txt = (btn.textContent || btn.value || "").trim().toUpperCase();
+              return txt === "OK" || txt === "CONFIRMAR" || txt === "FECHAR" || txt === "SIM" || txt.includes("OK");
+            });
+            if (finalOk) {
+              finalOk.click();
+              await new Promise(r => setTimeout(r, 1500));
+            }
+            
             statusEl.innerText = "Sincronizando conclusão...";
             await fetch("\${serverUrl}/api/pending-automations/complete", {
               method: "POST",
