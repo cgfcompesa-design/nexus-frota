@@ -131,6 +131,20 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    // --- Nexus FuelControl ---
+    match /fuel_control_gerencias/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /fuel_control_ativos/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /fuel_control_historico/{docId} {
+      allow read, write: if isSignedIn();
+    }
+    match /fuel_control_config/{docId} {
+      allow read, write: if isSignedIn();
+    }
+
     // Connection test
     match /test/connection {
       allow read: if true;

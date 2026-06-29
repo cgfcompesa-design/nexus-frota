@@ -31,6 +31,7 @@ import ActivityManagement from './components/config/ActivityManagement';
 import ChecklistManutencaoPage from './components/maintenance/ChecklistManutencaoPage';
 import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
 import CadastroPreventivaPage from './components/maintenance/CadastroPreventivaPage';
+import { NexusFuelControlPage } from './components/fuel/NexusFuelControlPage';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
 import { LoadingState } from './components/dashboard/LoadingState';
 import AlertConfig from './components/config/AlertConfig';
@@ -380,6 +381,7 @@ export default function App() {
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
+      case 'nexus-fuelcontrol': return <NexusFuelControlPage userProfile={userProfile} onBack={() => setCurrentView('home')} />;
       case 'abast-maquinas': return <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />;
       case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
       case 'gestao-vista': return <GestaoVista onBack={() => setCurrentView('home')} />;

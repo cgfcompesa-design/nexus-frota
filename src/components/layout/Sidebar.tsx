@@ -8,6 +8,7 @@ import {
   Menu, 
   X,
   Sun,
+  Cpu,
   Moon,
   ChevronDown,
   ChevronRight,
@@ -86,6 +87,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         { id: 'abast-dash', label: 'Dashboards', icon: PieChart },
         { id: 'abast-desvios', label: 'Monitoramento e Análise', icon: Activity },
         { id: 'abast-precos', label: 'Análise de Preços', icon: TrendingUp },
+        { id: 'nexus-fuelcontrol', label: 'Nexus FuelControl', icon: Cpu },
       ]
     },
     { 
@@ -140,6 +142,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       'abast-dash': PieChart,
       'abast-desvios': Activity,
       'abast-precos': TrendingUp,
+      'nexus-fuelcontrol': Cpu,
       'manutencao': Wrench,
       'proprios': Car,
       'mnt-ctrl-op': ClipboardList,
