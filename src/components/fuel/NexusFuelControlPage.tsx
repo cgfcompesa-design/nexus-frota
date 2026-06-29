@@ -126,9 +126,9 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
   const hasAccess = userRole === "Master" || userRole === "Gestão";
 
   // Dynamic bookmarklet generation code
-  const bookmarkletCode = useMemo(() => {
+  const rawBookmarkletCode = useMemo(() => {
     const origin = window.location.origin;
-    const jsCode = `javascript:(async function(){
+    const jsCode = `(async function(){
       const serverUrl = "${origin}";
       if (!document.getElementById("nexus-styles")) {
         const style = document.createElement("style");
@@ -450,8 +450,12 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
         statusEl.style.color = "#f87171";
       }
     })();`;
-    return jsCode.replace(/\s+/g, " ");
+    return jsCode;
   }, []);
+
+  const bookmarkletCode = useMemo(() => {
+    return "javascript:" + encodeURIComponent(rawBookmarkletCode.replace(/\s+/g, " "));
+  }, [rawBookmarkletCode]);
 
   // Load all initial database records
   const loadDatabase = async () => {
@@ -1384,25 +1388,27 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                     <p className="text-[10px] text-amber-700 dark:text-slate-400 leading-normal font-medium">
                       Para injetar dados e executar de fato no site da Ticket Log (<a href="https://plataforma.ticketlog.com.br/home" target="_blank" rel="noreferrer" className="underline font-bold text-amber-800 dark:text-amber-300">plataforma.ticketlog.com.br</a>):
                     </p>
-                    <ol className="text-[9.5px] text-slate-600 dark:text-slate-400 space-y-1 pl-3 list-decimal">
-                      <li>Arraste o botão abaixo para a sua barra de favoritos (Bookmarks):</li>
+                    <ol className="text-[9.5px] text-slate-600 dark:text-slate-400 space-y-1 pl-3 list-decimal font-medium">
+                      <li><b>Método 1 (Favoritos):</b> Arraste o botão abaixo para a barra de favoritos do navegador e clique nele quando estiver na aba da TicketLog.</li>
+                      <li><b>Método 2 (F12 Console - Infalível):</b> Clique no botão para copiar o código, abra o Portal TicketLog, aperte <b>F12</b> (Console) e cole o código para rodar instantaneamente!</li>
                     </ol>
                     <div className="pt-1 flex flex-col gap-2">
                       <a
                         href={bookmarkletCode}
                         onClick={(e) => {
                           e.preventDefault();
-                          navigator.clipboard.writeText(bookmarkletCode);
-                          toast.success("Script do assistente copiado! Adicione aos favoritos ou execute no console do site.");
+                          const rawCode = rawBookmarkletCode.replace(/\s+/g, " ");
+                          navigator.clipboard.writeText(rawCode);
+                          toast.success("Código JavaScript copiado! Se o favorito falhar devido a bloqueio do portal, aperte F12 na TicketLog, cole o código no Console e aperte Enter.");
                         }}
                         className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] uppercase tracking-wider py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-md cursor-grab active:cursor-grabbing text-center"
-                        title="Arraste para a barra de favoritos ou clique para copiar o código"
+                        title="Arraste para a barra de favoritos ou clique para copiar o código limpo para colar no F12 Console"
                       >
                         <Bookmark size={11} />
-                        <span>Assistente TicketLog (Arraste)</span>
+                        <span>Assistente TicketLog (Arraste / Clique)</span>
                       </a>
                       <p className="text-[8px] text-slate-400 dark:text-slate-500 text-center font-mono italic">
-                        *Ou clique para copiar o código e colar no console do site.
+                        *Clique para copiar o código limpo e executar direto no console (F12).
                       </p>
                     </div>
                   </div>
