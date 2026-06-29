@@ -486,6 +486,73 @@ ${JSON.stringify(stops, null, 2)}`;
     }
   });
 
+  // --- CLIENT-SIDE INTEGRATION & BOOKMARKLET QUEUE ---
+  let pendingAutomations: any[] = [];
+
+  app.post("/api/pending-automations", (req, res) => {
+    const { gerencia, placa, valor, user } = req.body;
+    if (!gerencia || !placa || !valor) {
+      return res.status(400).json({ success: false, error: "Missing required fields" });
+    }
+    const id = Date.now().toString();
+    const newItem = { 
+      id, 
+      gerencia, 
+      placa, 
+      valor: parseFloat(valor) || 0, 
+      user: user || "anonymous", 
+      status: "pending", 
+      createdAt: new Date().toISOString() 
+    };
+    pendingAutomations.push(newItem);
+    console.log("[AUTOMATION] Registered pending automation:", newItem);
+    res.json({ success: true, automation: newItem });
+  });
+
+  app.get("/api/pending-automations", (req, res) => {
+    // Enable CORS to allow the bookmarklet on plataforma.ticketlog.com.br to query our app!
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+
+    const active = pendingAutomations.filter(a => a.status === "pending");
+    res.json({ success: true, pending: active });
+  });
+
+  app.post("/api/pending-automations/complete", (req, res) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+
+    const { id, status, logs, msg } = req.body;
+    const foundIndex = pendingAutomations.findIndex(a => a.id === id);
+    if (foundIndex !== -1) {
+      pendingAutomations[foundIndex].status = status || "completed";
+      pendingAutomations[foundIndex].logs = logs || [];
+      pendingAutomations[foundIndex].msg = msg || "";
+      console.log(`[AUTOMATION] Automation ${id} completed with status: ${status}. Message: ${msg}`);
+      return res.json({ success: true });
+    }
+    res.status(404).json({ success: false, error: "Automation task not found" });
+  });
+
+  app.get("/api/pending-automations/status/:id", (req, res) => {
+    const { id } = req.params;
+    const item = pendingAutomations.find(a => a.id === id);
+    if (item) {
+      return res.json({ success: true, status: item.status, msg: item.msg, logs: item.logs });
+    }
+    res.status(404).json({ success: false, error: "Not found" });
+  });
+
   // Automated Email Scheduler (09h and 14h)
   let lastSentDate: string | null = null;
   setInterval(() => {

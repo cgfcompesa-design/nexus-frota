@@ -29,7 +29,9 @@ import {
   Calendar,
   SlidersHorizontal,
   Mail,
-  ShieldAlert
+  ShieldAlert,
+  Bookmark,
+  HelpCircle
 } from "lucide-react";
 import { 
   getGerencias, 
@@ -123,6 +125,202 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
   // Security Access Guard check
   const hasAccess = userRole === "Master" || userRole === "Gestão";
 
+  // Dynamic bookmarklet generation code
+  const bookmarkletCode = useMemo(() => {
+    const origin = window.location.origin;
+    const jsCode = `javascript:(async function(){
+      const serverUrl = "${origin}";
+      if (!document.getElementById("nexus-styles")) {
+        const style = document.createElement("style");
+        style.id = "nexus-styles";
+        style.innerHTML = \`
+          #nexus-automation-panel {
+            position: fixed !important;
+            top: 20px !important;
+            right: 20px !important;
+            width: 350px !important;
+            background-color: #1e293b !important;
+            color: #ffffff !important;
+            padding: 18px !important;
+            border-radius: 16px !important;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5) !important;
+            z-index: 9999999 !important;
+            font-family: system-ui, -apple-system, sans-serif !important;
+            font-size: 12px !important;
+            border: 1px solid #334155 !important;
+          }
+          .nexus-btn {
+            background-color: #4f46e5 !important;
+            color: #ffffff !important;
+            border: none !important;
+            padding: 10px 14px !important;
+            border-radius: 8px !important;
+            font-weight: bold !important;
+            cursor: pointer !important;
+            font-size: 11px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            width: 100% !important;
+            margin-top: 10px !important;
+          }
+          .nexus-btn:hover {
+            background-color: #4338ca !important;
+          }
+          .nexus-close {
+            background: none !important;
+            border: none !important;
+            color: #94a3b8 !important;
+            cursor: pointer !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+          }
+        \`;
+        document.head.appendChild(style);
+      }
+      const existing = document.getElementById("nexus-automation-panel");
+      if (existing) existing.remove();
+      const div = document.createElement("div");
+      div.id = "nexus-automation-panel";
+      div.innerHTML = \`
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #334155; padding-bottom:8px; margin-bottom:10px;">
+          <span style="font-weight:800; text-transform:uppercase; font-size:10px; color:#38bdf8; letter-spacing:0.5px;">Assistente Nexus Frota</span>
+          <button class="nexus-close" onclick="document.getElementById('nexus-automation-panel').remove()">✕</button>
+        </div>
+        <div id="nexus-status" style="margin-bottom:12px; font-weight:500; color:#cbd5e1;">Buscando comandos ativos...</div>
+        <div id="nexus-details" style="background-color:#0f172a; padding:10px; border-radius:8px; font-family:monospace; font-size:10.5px; border:1px solid #1e293b; color:#94a3b8; display:none; line-height:1.5;"></div>
+        <button id="nexus-start-btn" class="nexus-btn" style="display:none;">Iniciar Execução Real</button>
+      \`;
+      document.body.appendChild(div);
+      const statusEl = document.getElementById("nexus-status");
+      const detailsEl = document.getElementById("nexus-details");
+      const startBtn = document.getElementById("nexus-start-btn");
+      try {
+        const response = await fetch("\${serverUrl}/api/pending-automations");
+        const data = await response.json();
+        if (!data.success || !data.pending || data.pending.length === 0) {
+          statusEl.innerText = "Nenhum comando de crédito extra localizado na fila.";
+          statusEl.style.color = "#f87171";
+          return;
+        }
+        const task = data.pending[0];
+        statusEl.innerText = "Comando de Crédito Extra Localizado!";
+        statusEl.style.color = "#4ade80";
+        detailsEl.style.display = "block";
+        detailsEl.innerHTML = \`
+          <div style="margin-bottom:2px;"><span style="color:#64748b;">Gerência:</span> <b style="color:#f1f5f9;">\${task.gerencia}</b></div>
+          <div style="margin-bottom:2px;"><span style="color:#64748b;">Placa:</span> <b style="color:#f1f5f9;">\${task.placa}</b></div>
+          <div><span style="color:#64748b;">Valor Adicional:</span> <b style="color:#34d399;">R$ \${task.valor.toLocaleString('pt-BR', {minimumFractionDigits: 2})}</b></div>
+        \`;
+        startBtn.style.display = "block";
+        startBtn.onclick = async () => {
+          startBtn.disabled = true;
+          startBtn.style.opacity = "0.5";
+          try {
+            statusEl.innerText = "Etapa 1: Abrindo Financeiro...";
+            statusEl.style.color = "#38bdf8";
+            const menuEl = Array.from(document.querySelectorAll("a, button, span, div, li")).find(el => el.textContent && el.textContent.trim() === "Financeiro");
+            if (!menuEl) throw new Error("Menu lateral 'Financeiro' não localizado.");
+            menuEl.click();
+            await new Promise(r => setTimeout(r, 1500));
+            statusEl.innerText = "Navegando para Gestão Orçamentária...";
+            const subMenuEl = Array.from(document.querySelectorAll("a, span, div, li")).find(el => {
+              const text = el.textContent ? el.textContent.trim() : "";
+              return text.includes("Gestão Orçamentária") || text.includes("Gestao Orcamentaria");
+            });
+            if (!subMenuEl) throw new Error("Submenu 'Gestão Orçamentária' não localizado.");
+            subMenuEl.click();
+            await new Promise(r => setTimeout(r, 3000));
+            statusEl.innerText = \`Localizando Gerência "\${task.gerencia}"...\`;
+            const rows = Array.from(document.querySelectorAll("tr"));
+            const targetRow = rows.find(r => r.textContent && r.textContent.toUpperCase().includes(task.gerencia.toUpperCase()));
+            if (!targetRow) throw new Error(\`Gerência "\${task.gerencia}" não localizada.\`);
+            statusEl.innerText = "Abrindo modal de orçamento...";
+            const editBtn = targetRow.querySelector("img[src*='editar'], button, .btn-editar, .icon-pencil");
+            if (!editBtn) throw new Error("Botão de edição não encontrado.");
+            editBtn.click();
+            await new Promise(r => setTimeout(r, 2000));
+            statusEl.innerText = "Atualizando campo de orçamento...";
+            const budgetInput = document.querySelector("input[name*='abastecimento'], input[id*='abastecimento'], .input-orcamento") as HTMLInputElement;
+            if (!budgetInput) throw new Error("Campo de input de orçamento não localizado.");
+            const originalVal = parseFloat(budgetInput.value.replace(/[^\\\\d]/g, "")) / 100 || 0;
+            const newVal = originalVal + task.valor;
+            budgetInput.value = newVal.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+            budgetInput.dispatchEvent(new Event('input', { bubbles: true }));
+            statusEl.innerText = "Salvando orçamento...";
+            const saveBtn = Array.from(document.querySelectorAll("button, input")).find(el => {
+              const text = el.textContent ? el.textContent.trim() : "";
+              return text.includes("Salvar") || el.value?.includes("Salvar");
+            });
+            if (saveBtn) {
+              saveBtn.click();
+              await new Promise(r => setTimeout(r, 2500));
+            }
+            statusEl.innerText = "Etapa 2: Acessando Alteração de Limite...";
+            menuEl.click();
+            await new Promise(r => setTimeout(r, 1000));
+            const limitSubMenu = Array.from(document.querySelectorAll("a, span, div, li")).find(el => {
+              const text = el.textContent ? el.textContent.trim() : "";
+              return text.includes("Alteração de Limite") || text.includes("Alteracao de Limite");
+            });
+            if (!limitSubMenu) throw new Error("Submenu 'Alteração de Limite' não localizado.");
+            limitSubMenu.click();
+            await new Promise(r => setTimeout(r, 3000));
+            statusEl.innerText = \`Buscando veículo pela Placa "\${task.placa}"...\`;
+            const plateInput = document.querySelector("input[name*='placa'], input[id*='placa']") as HTMLInputElement;
+            if (!plateInput) throw new Error("Campo de inserção de placa não encontrado.");
+            plateInput.value = task.placa;
+            plateInput.dispatchEvent(new Event('input', { bubbles: true }));
+            plateInput.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter' }));
+            await new Promise(r => setTimeout(r, 2500));
+            statusEl.innerText = "Ajustando limite...";
+            const limitInput = document.querySelector("input[name*='valor'], input[id*='valor']") as HTMLInputElement;
+            if (!limitInput) throw new Error("Campo de valor não encontrado.");
+            limitInput.value = task.valor.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+            limitInput.dispatchEvent(new Event('input', { bubbles: true }));
+            const chks = Array.from(document.querySelectorAll("input[type='checkbox']")) as HTMLInputElement[];
+            if (chks.length >= 2) {
+              chks[0].checked = true;
+              chks[1].checked = true;
+              chks[0].dispatchEvent(new Event('change', { bubbles: true }));
+              chks[1].dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            statusEl.innerText = "Confirmando alteração de limite...";
+            const confirmBtn = Array.from(document.querySelectorAll("button, input")).find(el => {
+              const text = el.textContent ? el.textContent.trim() : "";
+              return text.includes("Alterar") || el.value?.includes("Alterar");
+            });
+            if (confirmBtn) {
+              confirmBtn.click();
+              await new Promise(r => setTimeout(r, 2000));
+            }
+            statusEl.innerText = "Sincronizando conclusão...";
+            await fetch("\${serverUrl}/api/pending-automations/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: task.id, status: "completed", msg: "Sucesso" })
+            });
+            statusEl.innerText = "Automação Concluída!";
+            statusEl.style.color = "#4ade80";
+            startBtn.style.display = "none";
+            setTimeout(() => div.remove(), 4000);
+          } catch (execErr) {
+            statusEl.innerText = "Erro: " + execErr.message;
+            statusEl.style.color = "#f87171";
+            await fetch("\${serverUrl}/api/pending-automations/complete", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: task.id, status: "failed", msg: execErr.message })
+            });
+          }
+        };
+      } catch (err) {
+        statusEl.innerText = "Falha ao consultar servidor: " + err.message;
+        statusEl.style.color = "#f87171";
+      }
+    })();`;
+    return jsCode.replace(/\s+/g, " ");
+  }, []);
+
   // Load all initial database records
   const loadDatabase = async () => {
     setIsLoadingData(true);
@@ -177,15 +375,17 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
     return "10.00.00"; // Fallback CC
   };
 
-  // Filter unique Gerencias from the real fleet base (Google Sheets) + Firestore
+  // Filter unique Gerencias from the real fleet base (Google Sheets) + Firestore where status is OPERACIONAL
   const uniqueGerenciasFromFleet = useMemo(() => {
     const set = new Set<string>();
     
-    // First, collect all from fleetAssets (Column E / GERENCIA / GERÊNCIA)
+    // First, collect all from fleetAssets (Column E / GERENCIA / GERÊNCIA) where STATUS_OPERACIONAL is OPERACIONAL
     fleetAssets.forEach(a => {
-      const ger = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim();
-      if (ger && ger !== "N/A" && ger !== "GERÊNCIA" && ger !== "GERENCIA") {
-        set.add(ger.toUpperCase());
+      if (a.STATUS_OPERACIONAL === "OPERACIONAL") {
+        const ger = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim();
+        if (ger && ger !== "N/A" && ger !== "GERÊNCIA" && ger !== "GERENCIA") {
+          set.add(ger.toUpperCase());
+        }
       }
     });
 
@@ -199,26 +399,28 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
     return Array.from(set).sort();
   }, [fleetAssets, gerencias]);
 
-  // Filter plates dynamically depending on the selected Management, pulling from both Google Sheets fleetAssets & Firestore
+  // Filter plates dynamically depending on the selected Management, pulling from both Google Sheets fleetAssets & Firestore where STATUS_OPERACIONAL is OPERACIONAL
   const filteredPlatesForSelectedGerencia = useMemo(() => {
     if (!selectedGerencia) return [];
     
     const platesMap = new Map<string, { id: string; placa: string; gerencia: string; centroCusto: string; status: string; limite: number }>();
 
-    // 1. Get plates matching the selectedGerencia from the real fleet assets
+    // 1. Get plates matching the selectedGerencia from the real fleet assets where STATUS_OPERACIONAL is OPERACIONAL
     fleetAssets.forEach(a => {
-      const aGer = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim().toUpperCase();
-      const placa = (a.PLACA || "").trim().toUpperCase();
-      if (aGer === selectedGerencia.toUpperCase() && placa) {
-        const cc = a["CENTRO DE CUSTO"] || a.CENTRO_CUSTO || a.CC || getCentroCustoForGerencia(selectedGerencia);
-        platesMap.set(placa, {
-          id: a.ID_OBJETO || placa,
-          placa: placa,
-          gerencia: selectedGerencia,
-          centroCusto: String(cc),
-          status: "Ativo",
-          limite: 1500
-        });
+      if (a.STATUS_OPERACIONAL === "OPERACIONAL") {
+        const aGer = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim().toUpperCase();
+        const placa = (a.PLACA || "").trim().toUpperCase();
+        if (aGer === selectedGerencia.toUpperCase() && placa) {
+          const cc = a["CENTRO DE CUSTO"] || a.CENTRO_CUSTO || a.CC || getCentroCustoForGerencia(selectedGerencia);
+          platesMap.set(placa, {
+            id: a.ID_OBJETO || placa,
+            placa: placa,
+            gerencia: selectedGerencia,
+            centroCusto: String(cc),
+            status: "Ativo",
+            limite: 1500
+          });
+        }
       }
     });
 
@@ -226,7 +428,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
     ativos.forEach(a => {
       const aGer = (a.gerencia || "").trim().toUpperCase();
       const placa = (a.placa || "").trim().toUpperCase();
-      if (aGer === selectedGerencia.toUpperCase() && placa) {
+      if (aGer === selectedGerencia.toUpperCase() && placa && a.status === "Ativo") {
         const existing = platesMap.get(placa);
         platesMap.set(placa, {
           id: a.id || placa,
@@ -306,6 +508,32 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
     addLog(`[PLAYWRIGHT] Timeout configurado: ${config?.timeout || 30} segundos.`);
     addLog(`[SYSTEM] Modo de Execução: ${config?.executionMode === "production" ? "PRODUÇÃO REAL" : "AMBIENTE DE SIMULAÇÃO"}`);
     
+    // Register the pending task on the backend server for the bookmarklet
+    let taskId = "";
+    try {
+      addLog("[INTEGRATION] Registrando comando na fila de pendências do servidor...");
+      const res = await fetch("/api/pending-automations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          gerencia: selectedGerencia,
+          placa: selectedPlaca,
+          valor: numericExtraCreditValue,
+          user: userEmail
+        })
+      });
+      const resData = await res.json();
+      if (resData.success && resData.automation) {
+        taskId = resData.automation.id;
+        addLog(`[INTEGRATION] Comando registrado com ID: ${taskId}. Aguardando Assistente Bookmarklet...`);
+        if (config?.executionMode === "production") {
+          addLog("[INTEGRATION] ⚠️ MODO REAL: Abra a Ticket Log, faça login e clique no Assistente Favorito!");
+        }
+      }
+    } catch (apiErr: any) {
+      addLog(`[WARN] Erro ao registrar comando na API: ${apiErr.message}`);
+    }
+
     // Timer counter
     timerRef.current = setInterval(() => {
       setExecutionTimer(prev => prev + 1);
@@ -367,7 +595,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
         mockScreen: "orcamento_salvo",
         logs: [
           "[PLAYWRIGHT] Aguardando popup de confirmação do portal...",
-          "[DOM] Alerta de sucesso detectado: 'Orçamento atualizado com sucesso!'",
+          "[DOM] Alerta de sucesso detectado: 'Orçamento updated com sucesso!'",
           "[PLAYWRIGHT] Clicando no botão 'OK' do popup de confirmação.",
           "[DATABASE] Sincronizando novo orçamento do departamento no histórico..."
         ],
@@ -417,16 +645,108 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
     let currentStepIdx = 0;
 
     const executeNextStep = async () => {
+      // Bidirectional real-time check: has the bookmarklet completed the task?
+      if (taskId) {
+        try {
+          const statusRes = await fetch(`/api/pending-automations/status/${taskId}`);
+          const statusData = await statusRes.json();
+          if (statusData.success) {
+            if (statusData.status === "completed") {
+              // Real automation completed on Ticket Log portal via user browser!
+              if (timerRef.current) clearInterval(timerRef.current);
+              setIsExecuting(false);
+              const finalTime = executionTimer;
+              
+              setSimulatedBudget(currentBudget + numericExtraCreditValue);
+              
+              try {
+                const runLog: HistoricoExecucao = {
+                  usuario: userEmail,
+                  data: new Date().toISOString(),
+                  gerencia: selectedGerencia,
+                  placa: selectedPlaca,
+                  valorCredito: numericExtraCreditValue,
+                  status: "Sucesso",
+                  mensagem: "Automação REALIZADA diretamente no portal da Ticket Log via Assistente Bookmarklet com sucesso!",
+                  tempoExecucao: finalTime || 12,
+                  logs: [
+                    ...logs,
+                    `[${new Date().toLocaleTimeString()}] [REAL] Assistente detectado na aba plataforma.ticketlog.com.br.`,
+                    `[${new Date().toLocaleTimeString()}] [REAL] Alteração orçamentária para ${selectedGerencia} enviada e salva.`,
+                    `[${new Date().toLocaleTimeString()}] [REAL] Alteração de limite do veículo ${selectedPlaca} concluída com sucesso.`,
+                    `[${new Date().toLocaleTimeString()}] [SYSTEM] Sincronização e persistência realizada no Firestore.`
+                  ]
+                };
+                await addHistorico(runLog);
+                setHistorico(prev => [runLog, ...prev]);
+                toast.success("Automação Realizada com Sucesso no Ticket Log!");
+                
+                // Firestore Updates
+                const foundGerencia = gerencias.find(g => g.nome.toUpperCase() === selectedGerencia.toUpperCase());
+                if (foundGerencia && foundGerencia.id) {
+                  const newBudget = (foundGerencia.orcamento ?? 22608.41) + numericExtraCreditValue;
+                  await updateGerencia(foundGerencia.id, { orcamento: newBudget });
+                }
+                const foundAtivo = ativos.find(a => a.placa.toUpperCase() === selectedPlaca.toUpperCase());
+                if (foundAtivo && foundAtivo.id) {
+                  const newLimit = (foundAtivo.limite ?? 1500) + numericExtraCreditValue;
+                  await updateAtivo(foundAtivo.id, { limite: newLimit });
+                }
+                await loadDatabase();
+              } catch (e) {
+                console.error("Firestore persistence error:", e);
+              }
+              
+              setSelectedGerencia("");
+              setSelectedPlaca("");
+              setExtraCredit("");
+              return;
+            } else if (statusData.status === "failed") {
+              // Real automation failed on Ticket Log portal!
+              if (timerRef.current) clearInterval(timerRef.current);
+              setIsExecuting(false);
+              
+              try {
+                const runLog: HistoricoExecucao = {
+                  usuario: userEmail,
+                  data: new Date().toISOString(),
+                  gerencia: selectedGerencia,
+                  placa: selectedPlaca,
+                  valorCredito: numericExtraCreditValue,
+                  status: "Falha",
+                  mensagem: `Automação falhou no portal real: ${statusData.msg || "Erro inesperado"}`,
+                  tempoExecucao: executionTimer || 12,
+                  logs: [
+                    ...logs,
+                    `[${new Date().toLocaleTimeString()}] [REAL_ERROR] Falha retornada do Assistente: ${statusData.msg}`
+                  ]
+                };
+                await addHistorico(runLog);
+                setHistorico(prev => [runLog, ...prev]);
+                toast.error(`Automação no Ticket Log falhou: ${statusData.msg}`);
+              } catch (e) {
+                console.error("Firestore error:", e);
+              }
+              
+              setSelectedGerencia("");
+              setSelectedPlaca("");
+              setExtraCredit("");
+              return;
+            }
+          }
+        } catch (e) {
+          console.warn("Status check failed:", e);
+        }
+      }
+
       if (currentStepIdx >= runSteps.length) {
-        // Complete execution
+        // Complete execution in fallback simulated sandbox mode
         if (timerRef.current) clearInterval(timerRef.current);
         setIsExecuting(false);
         const finalTime = executionTimer;
         
-        // Update simulated budget
         setSimulatedBudget(currentBudget + numericExtraCreditValue);
         
-        // Save to Firestore
         try {
           const runLog: HistoricoExecucao = {
             usuario: userEmail,
@@ -435,16 +755,15 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
             placa: selectedPlaca,
             valorCredito: numericExtraCreditValue,
             status: "Sucesso",
-            mensagem: "Automação Ticket Log executada e validada com total sucesso via Nexus FuelControl.",
+            mensagem: "Automação Ticket Log executada e homologada via Sandbox do Nexus FuelControl.",
             tempoExecucao: finalTime || 21,
             logs: logs
           };
           await addHistorico(runLog);
           setHistorico(prev => [runLog, ...prev]);
-          toast.success("Automação de Crédito Extra Concluída!");
+          toast.success("Homologação/Simulação de Crédito Extra Concluída!");
 
           // PERSIST UPDATE IN FIRESTORE:
-          // 1. Update/create Gerencia Budget
           const foundGerencia = gerencias.find(g => g.nome.toUpperCase() === selectedGerencia.toUpperCase());
           if (foundGerencia && foundGerencia.id) {
             const newBudget = (foundGerencia.orcamento ?? 22608.41) + numericExtraCreditValue;
@@ -459,7 +778,6 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
             });
           }
 
-          // 2. Update/create Ativo Credit Limit
           const foundAtivo = ativos.find(a => a.placa.toUpperCase() === selectedPlaca.toUpperCase());
           if (foundAtivo && foundAtivo.id) {
             const newLimit = (foundAtivo.limite ?? 1500) + numericExtraCreditValue;
@@ -475,13 +793,11 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
             });
           }
 
-          // Reload DB to show updated persistent budget & limits!
           await loadDatabase();
         } catch (err) {
           console.error("Erro ao salvar histórico no Firebase:", err);
         }
         
-        // Reset selections
         setSelectedGerencia("");
         setSelectedPlaca("");
         setExtraCredit("");
@@ -499,7 +815,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
       setTimeout(executeNextStep, step.delay);
     };
 
-    // Trigger sequential steps
+    // Trigger sequential steps with simultaneous real-time bookmarklet pooling
     executeNextStep();
   };
 
@@ -924,6 +1240,38 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                     <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
                       <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center font-bold text-[9px]">4</div>
                       <span>Geração de logs de conformidade</span>
+                    </div>
+                  </div>
+
+                  {/* Bookmarklet Assist Panel */}
+                  <div className="bg-amber-50/60 dark:bg-amber-950/20 p-4 rounded-2xl border border-amber-200/50 dark:border-amber-900/30 space-y-2.5">
+                    <div className="flex items-center space-x-2 text-amber-800 dark:text-amber-400">
+                      <HelpCircle size={15} className="animate-pulse" />
+                      <span className="font-extrabold uppercase tracking-widest text-[9px]">Execução REAL no Portal Ticket Log</span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 dark:text-slate-400 leading-normal font-medium">
+                      Para injetar dados e executar de fato no site da Ticket Log (<a href="https://plataforma.ticketlog.com.br/home" target="_blank" rel="noreferrer" className="underline font-bold text-amber-800 dark:text-amber-300">plataforma.ticketlog.com.br</a>):
+                    </p>
+                    <ol className="text-[9.5px] text-slate-600 dark:text-slate-400 space-y-1 pl-3 list-decimal">
+                      <li>Arraste o botão abaixo para a sua barra de favoritos (Bookmarks):</li>
+                    </ol>
+                    <div className="pt-1 flex flex-col gap-2">
+                      <a
+                        href={bookmarkletCode}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          navigator.clipboard.writeText(bookmarkletCode);
+                          toast.success("Script do assistente copiado! Adicione aos favoritos ou execute no console do site.");
+                        }}
+                        className="bg-amber-600 hover:bg-amber-700 text-white font-extrabold text-[10px] uppercase tracking-wider py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 shadow-md cursor-grab active:cursor-grabbing text-center"
+                        title="Arraste para a barra de favoritos ou clique para copiar o código"
+                      >
+                        <Bookmark size={11} />
+                        <span>Assistente TicketLog (Arraste)</span>
+                      </a>
+                      <p className="text-[8px] text-slate-400 dark:text-slate-500 text-center font-mono italic">
+                        *Ou clique para copiar o código e colar no console do site.
+                      </p>
                     </div>
                   </div>
                 </div>
