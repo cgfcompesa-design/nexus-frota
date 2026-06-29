@@ -51,6 +51,7 @@ import {
   DEFAULT_GERENCIAS,
   DEFAULT_ATIVOS
 } from "../../services/fuelControlService";
+import { useAssets } from "../../hooks/useFleetData";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
 
@@ -72,6 +73,9 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
   
   // Tab Navigation
   const [activeTab, setActiveTab] = useState<ActiveTab>("dashboard");
+
+  // Real Fleet Assets from Google Sheet via useAssets
+  const { data: fleetAssets = [] } = useAssets();
 
   // Database States
   const [gerencias, setGerencias] = useState<Gerencia[]>([]);
@@ -95,15 +99,16 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
   const [executionTimer, setExecutionTimer] = useState(0);
   const [activeMockScreen, setActiveMockScreen] = useState<string>("idle");
   const [simulatedBudget, setSimulatedBudget] = useState<number>(22608.41);
+  const [initialBudget, setInitialBudget] = useState<number>(22608.41);
 
   // Modals / CRUD states
   const [isGerenciaModalOpen, setIsGerenciaModalOpen] = useState(false);
   const [editingGerencia, setEditingGerencia] = useState<Gerencia | null>(null);
-  const [gerenciaForm, setGerenciaForm] = useState({ nome: "", centroCusto: "", codigoTicketLog: "" });
+  const [gerenciaForm, setGerenciaForm] = useState({ nome: "", centroCusto: "", codigoTicketLog: "", orcamento: 22608.41 });
 
   const [isAtivoModalOpen, setIsAtivoModalOpen] = useState(false);
   const [editingAtivo, setEditingAtivo] = useState<Ativo | null>(null);
-  const [ativoForm, setAtivoForm] = useState({ placa: "", gerencia: "", centroCusto: "", status: "Ativo" as "Ativo" | "Inativo" });
+  const [ativoForm, setAtivoForm] = useState({ placa: "", gerencia: "", centroCusto: "", status: "Ativo" as "Ativo" | "Inativo", limite: 1500 });
 
   const [selectedHistoryItem, setSelectedHistoryItem] = useState<HistoricoExecucao | null>(null);
 
@@ -153,11 +158,98 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
     }
   }, [executionLogs]);
 
-  // Filter plates dynamically depending on the selected Management
+  // Helper to extract or fallback to a Centro de Custo for a given department
+  const getCentroCustoForGerencia = (gName: string) => {
+    // 1. Check local Firestore gerencias first
+    const foundLocal = gerencias.find(g => g.nome.toUpperCase() === gName.toUpperCase());
+    if (foundLocal?.centroCusto) return foundLocal.centroCusto;
+    
+    // 2. Check fleetAssets
+    const foundFleet = fleetAssets.find(a => {
+      const aGer = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim().toUpperCase();
+      return aGer === gName.toUpperCase();
+    });
+    if (foundFleet) {
+      const cc = foundFleet["CENTRO DE CUSTO"] || foundFleet.CENTRO_CUSTO || foundFleet.CC || "";
+      if (cc) return String(cc);
+    }
+    
+    return "10.00.00"; // Fallback CC
+  };
+
+  // Filter unique Gerencias from the real fleet base (Google Sheets) + Firestore
+  const uniqueGerenciasFromFleet = useMemo(() => {
+    const set = new Set<string>();
+    
+    // First, collect all from fleetAssets (Column E / GERENCIA / GERÊNCIA)
+    fleetAssets.forEach(a => {
+      const ger = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim();
+      if (ger && ger !== "N/A" && ger !== "GERÊNCIA" && ger !== "GERENCIA") {
+        set.add(ger.toUpperCase());
+      }
+    });
+
+    // Also collect from local firestore gerencias to make sure we don't miss anything manually added
+    gerencias.forEach(g => {
+      if (g.nome) {
+        set.add(g.nome.toUpperCase());
+      }
+    });
+
+    return Array.from(set).sort();
+  }, [fleetAssets, gerencias]);
+
+  // Filter plates dynamically depending on the selected Management, pulling from both Google Sheets fleetAssets & Firestore
   const filteredPlatesForSelectedGerencia = useMemo(() => {
     if (!selectedGerencia) return [];
-    return ativos.filter(a => a.gerencia === selectedGerencia && a.status === "Ativo");
-  }, [selectedGerencia, ativos]);
+    
+    const platesMap = new Map<string, { id: string; placa: string; gerencia: string; centroCusto: string; status: string; limite: number }>();
+
+    // 1. Get plates matching the selectedGerencia from the real fleet assets
+    fleetAssets.forEach(a => {
+      const aGer = (a.GERENCIA || a["GERÊNCIA"] || a.COLUNA_E || "").trim().toUpperCase();
+      const placa = (a.PLACA || "").trim().toUpperCase();
+      if (aGer === selectedGerencia.toUpperCase() && placa) {
+        const cc = a["CENTRO DE CUSTO"] || a.CENTRO_CUSTO || a.CC || getCentroCustoForGerencia(selectedGerencia);
+        platesMap.set(placa, {
+          id: a.ID_OBJETO || placa,
+          placa: placa,
+          gerencia: selectedGerencia,
+          centroCusto: String(cc),
+          status: "Ativo",
+          limite: 1500
+        });
+      }
+    });
+
+    // 2. Also check our Firestore local assets, in case they aren't in fleetAssets or have customized limits
+    ativos.forEach(a => {
+      const aGer = (a.gerencia || "").trim().toUpperCase();
+      const placa = (a.placa || "").trim().toUpperCase();
+      if (aGer === selectedGerencia.toUpperCase() && placa) {
+        const existing = platesMap.get(placa);
+        platesMap.set(placa, {
+          id: a.id || placa,
+          placa: placa,
+          gerencia: a.gerencia,
+          centroCusto: a.centroCusto || (existing ? existing.centroCusto : ""),
+          status: a.status || "Ativo",
+          limite: a.limite ?? (existing ? existing.limite : 1500)
+        });
+      }
+    });
+
+    return Array.from(platesMap.values())
+      .filter(p => p.status === "Ativo")
+      .sort((a, b) => a.placa.localeCompare(b.placa));
+  }, [selectedGerencia, fleetAssets, ativos]);
+
+  // Persistent budget lookup per selected gerencia
+  const currentGerenciaBudget = useMemo(() => {
+    if (!selectedGerencia) return 22608.41;
+    const found = gerencias.find(g => g.nome.toUpperCase() === selectedGerencia.toUpperCase());
+    return found?.orcamento ?? 22608.41;
+  }, [selectedGerencia, gerencias]);
 
   // Handle selected Gerencia changing (to pre-set correct placa if needed)
   useEffect(() => {
@@ -192,6 +284,9 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
       toast.error("Por favor, preencha todos os campos obrigatórios corretamente.");
       return;
     }
+
+    const currentBudget = currentGerenciaBudget;
+    setInitialBudget(currentBudget);
 
     setIsExecuting(true);
     setExecutionProgress(0);
@@ -259,9 +354,9 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
         logs: [
           "[DOM] Modal/Formulário de Edição de Orçamento visível.",
           "[SCRAPE] Lendo campo 'Orçamento ABASTECIMENTO/SERVIÇOS'...",
-          `[DATA] Valor atual lido no portal: R$ ${simulatedBudget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-          `[CALC] Somando Crédito Extra: R$ ${simulatedBudget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} + R$ ${numericExtraCreditValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
-          `[CALC] Novo Orçamento a ser inserido: R$ ${(simulatedBudget + numericExtraCreditValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          `[DATA] Valor atual lido no portal: R$ ${currentBudget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          `[CALC] Somando Crédito Extra: R$ ${currentBudget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} + R$ ${numericExtraCreditValue.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
+          `[CALC] Novo Orçamento a ser inserido: R$ ${(currentBudget + numericExtraCreditValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`,
           `[PLAYWRIGHT] Limpando o campo de texto e inserindo o novo valor formatado...`,
           "[PLAYWRIGHT] Clicando no botão 'Salvar'..."
         ],
@@ -329,7 +424,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
         const finalTime = executionTimer;
         
         // Update simulated budget
-        setSimulatedBudget(prev => prev + numericExtraCreditValue);
+        setSimulatedBudget(currentBudget + numericExtraCreditValue);
         
         // Save to Firestore
         try {
@@ -347,6 +442,41 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
           await addHistorico(runLog);
           setHistorico(prev => [runLog, ...prev]);
           toast.success("Automação de Crédito Extra Concluída!");
+
+          // PERSIST UPDATE IN FIRESTORE:
+          // 1. Update/create Gerencia Budget
+          const foundGerencia = gerencias.find(g => g.nome.toUpperCase() === selectedGerencia.toUpperCase());
+          if (foundGerencia && foundGerencia.id) {
+            const newBudget = (foundGerencia.orcamento ?? 22608.41) + numericExtraCreditValue;
+            await updateGerencia(foundGerencia.id, { orcamento: newBudget });
+          } else {
+            const cc = getCentroCustoForGerencia(selectedGerencia);
+            await addGerencia({
+              nome: selectedGerencia,
+              centroCusto: cc,
+              codigoTicketLog: `TL-${selectedGerencia}-AUTO`,
+              orcamento: 22608.41 + numericExtraCreditValue
+            });
+          }
+
+          // 2. Update/create Ativo Credit Limit
+          const foundAtivo = ativos.find(a => a.placa.toUpperCase() === selectedPlaca.toUpperCase());
+          if (foundAtivo && foundAtivo.id) {
+            const newLimit = (foundAtivo.limite ?? 1500) + numericExtraCreditValue;
+            await updateAtivo(foundAtivo.id, { limite: newLimit });
+          } else {
+            const cc = getCentroCustoForGerencia(selectedGerencia);
+            await addAtivo({
+              placa: selectedPlaca.toUpperCase(),
+              gerencia: selectedGerencia,
+              centroCusto: cc,
+              status: "Ativo",
+              limite: 1500 + numericExtraCreditValue
+            });
+          }
+
+          // Reload DB to show updated persistent budget & limits!
+          await loadDatabase();
         } catch (err) {
           console.error("Erro ao salvar histórico no Firebase:", err);
         }
@@ -400,7 +530,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
       }
       setIsGerenciaModalOpen(false);
       setEditingGerencia(null);
-      setGerenciaForm({ nome: "", centroCusto: "", codigoTicketLog: "" });
+      setGerenciaForm({ nome: "", centroCusto: "", codigoTicketLog: "", orcamento: 22608.41 });
       loadDatabase();
     } catch (err) {
       toast.error("Erro ao salvar gerência.");
@@ -419,14 +549,14 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
       
       if (editingAtivo?.id) {
         await updateAtivo(editingAtivo.id, payload);
-        toast.success("Ativo atualizado com sucesso.");
+        toast.success("Ativo updated com sucesso.");
       } else {
         await addAtivo(payload);
         toast.success("Ativo cadastrado com sucesso.");
       }
       setIsAtivoModalOpen(false);
       setEditingAtivo(null);
-      setAtivoForm({ placa: "", gerencia: "", centroCusto: "", status: "Ativo" });
+      setAtivoForm({ placa: "", gerencia: "", centroCusto: "", status: "Ativo", limite: 1500 });
       loadDatabase();
     } catch (err) {
       toast.error("Erro ao salvar ativo.");
@@ -701,14 +831,17 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl py-2 pl-3 pr-8 text-xs font-bold text-slate-700 dark:text-slate-200 focus:outline-none appearance-none h-10"
                       >
                         <option value="">Selecione a Gerência...</option>
-                        {gerencias.map(g => (
-                          <option key={g.id} value={g.nome}>{g.nome} (CC: {g.centroCusto})</option>
-                        ))}
+                        {uniqueGerenciasFromFleet.map(gName => {
+                          const cc = getCentroCustoForGerencia(gName);
+                          return (
+                            <option key={gName} value={gName}>{gName} (CC: {cc})</option>
+                          );
+                        })}
                       </select>
                       <Building2 className="absolute right-3 top-3 text-slate-400 pointer-events-none" size={14} />
                     </div>
-                    {gerencias.length === 0 && (
-                      <p className="text-[10px] text-amber-600 font-medium">Nenhuma gerência mapeada. Cadastre na aba "Gerências".</p>
+                    {uniqueGerenciasFromFleet.length === 0 && (
+                      <p className="text-[10px] text-amber-600 font-medium">Nenhuma gerência encontrada na base de ativos ou cadastrada no Firestore.</p>
                     )}
                   </div>
 
@@ -747,7 +880,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                     </div>
                     {selectedGerencia && filteredPlatesForSelectedGerencia.length === 0 && (
                       <p className="text-[10px] text-amber-600 font-medium leading-normal">
-                        Nenhum veículo ativo cadastrado para a gerência {selectedGerencia}. Cadastre um veículo na aba "Ativos" ou selecione outra gerência.
+                        Nenhum veículo ativo localizado na base de ativos ou cadastrado no Firestore para a gerência {selectedGerencia}.
                       </p>
                     )}
                   </div>
@@ -921,7 +1054,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                         <div className="grid grid-cols-2 gap-2">
                           <div className="space-y-1">
                             <span className="text-[8px] uppercase text-slate-500 font-bold">Valor Original</span>
-                            <div className="bg-slate-950 px-2 py-1 rounded text-[9px] text-slate-400 font-mono font-bold">R$ {simulatedBudget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
+                            <div className="bg-slate-950 px-2 py-1 rounded text-[9px] text-slate-400 font-mono font-bold">R$ {initialBudget.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</div>
                           </div>
                           <div className="space-y-1">
                             <span className="text-[8px] uppercase text-slate-500 font-bold">Crédito Adicional</span>
@@ -932,7 +1065,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                         <div className="space-y-1">
                           <span className="text-[8px] uppercase text-indigo-400 font-black">Novo Orçamento Total</span>
                           <div className="bg-slate-950 px-2 py-1 border border-indigo-500/40 rounded text-[10px] text-white font-mono font-black text-center bg-indigo-950/20">
-                            R$ {(simulatedBudget + numericExtraCreditValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            R$ {(initialBudget + numericExtraCreditValue).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                           </div>
                         </div>
                       </div>
@@ -1105,7 +1238,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                 <Button 
                   onClick={() => {
                     setEditingGerencia(null);
-                    setGerenciaForm({ nome: "", centroCusto: "", codigoTicketLog: "" });
+                    setGerenciaForm({ nome: "", centroCusto: "", codigoTicketLog: "", orcamento: 22608.41 });
                     setIsGerenciaModalOpen(true);
                   }}
                   className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/10 h-10 w-full sm:w-auto"
@@ -1124,13 +1257,14 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                         <th className="py-3 px-4">Gerência (Nome)</th>
                         <th className="py-3 px-4">Centro de Custo</th>
                         <th className="py-3 px-4">Código Ticket Log</th>
+                        <th className="py-3 px-4 text-right">Orçamento Atual</th>
                         <th className="py-3 px-4 text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
                       {filteredGerencias.length === 0 ? (
                         <tr>
-                          <td colSpan={4} className="py-10 text-center text-slate-400 font-medium">Nenhuma gerência localizada com o filtro informado.</td>
+                          <td colSpan={5} className="py-10 text-center text-slate-400 font-medium">Nenhuma gerência localizada com o filtro informado.</td>
                         </tr>
                       ) : (
                         filteredGerencias.map((g) => (
@@ -1142,12 +1276,15 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                                 {g.codigoTicketLog}
                               </span>
                             </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                              R$ {(g.orcamento ?? 22608.41).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end space-x-1">
                                 <button
                                   onClick={() => {
                                     setEditingGerencia(g);
-                                    setGerenciaForm({ nome: g.nome, centroCusto: g.centroCusto, codigoTicketLog: g.codigoTicketLog });
+                                    setGerenciaForm({ nome: g.nome, centroCusto: g.centroCusto, codigoTicketLog: g.codigoTicketLog, orcamento: g.orcamento ?? 22608.41 });
                                     setIsGerenciaModalOpen(true);
                                   }}
                                   className="p-1.5 border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all"
@@ -1204,7 +1341,7 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                   <Button 
                     onClick={() => {
                       setEditingAtivo(null);
-                      setAtivoForm({ placa: "", gerencia: "", centroCusto: "", status: "Ativo" });
+                      setAtivoForm({ placa: "", gerencia: "", centroCusto: "", status: "Ativo", limite: 1500 });
                       setIsAtivoModalOpen(true);
                     }}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs uppercase tracking-wider px-4 py-2.5 rounded-xl flex items-center gap-1.5 shadow-md shadow-indigo-600/10 h-10 w-full sm:w-auto"
@@ -1225,13 +1362,14 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                         <th className="py-3 px-4">Gerência Vinculada</th>
                         <th className="py-3 px-4">Centro de Custo</th>
                         <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4 text-right">Limite Atual</th>
                         <th className="py-3 px-4 text-right">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs text-slate-700 dark:text-slate-300">
                       {filteredAtivos.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="py-10 text-center text-slate-400 font-medium">Nenhum veículo ativo localizado com o filtro informado.</td>
+                          <td colSpan={6} className="py-10 text-center text-slate-400 font-medium">Nenhum veículo ativo localizado com o filtro informado.</td>
                         </tr>
                       ) : (
                         filteredAtivos.map((a) => (
@@ -1252,12 +1390,15 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                                 {a.status}
                               </span>
                             </td>
+                            <td className="py-3 px-4 text-right font-mono font-bold text-slate-900 dark:text-white">
+                              R$ {(a.limite ?? 1500).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+                            </td>
                             <td className="py-3 px-4 text-right">
                               <div className="flex items-center justify-end space-x-1">
                                 <button
                                   onClick={() => {
                                     setEditingAtivo(a);
-                                    setAtivoForm({ placa: a.placa, gerencia: a.gerencia, centroCusto: a.centroCusto, status: a.status });
+                                    setAtivoForm({ placa: a.placa, gerencia: a.gerencia, centroCusto: a.centroCusto, status: a.status, limite: a.limite ?? 1500 });
                                     setIsAtivoModalOpen(true);
                                   }}
                                   className="p-1.5 border border-slate-200 dark:border-slate-800 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-lg transition-all"
@@ -1504,6 +1645,17 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                   className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-750 rounded-xl py-2 px-3 text-xs font-bold text-slate-850 dark:text-white"
                 />
               </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Orçamento da Gerência (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={gerenciaForm.orcamento}
+                  onChange={(e) => setGerenciaForm({ ...gerenciaForm, orcamento: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-750 rounded-xl py-2 px-3 text-xs font-bold text-slate-850 dark:text-white"
+                />
+              </div>
               <div className="flex items-center justify-end space-x-2 pt-2 text-xs font-bold uppercase">
                 <button
                   type="button"
@@ -1581,6 +1733,17 @@ export function NexusFuelControlPage({ userProfile, onBack }: NexusFuelControlPa
                   <option value="Ativo">Ativo no FuelControl</option>
                   <option value="Inativo">Inativo</option>
                 </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block">Limite Atual de Crédito (R$)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  value={ativoForm.limite}
+                  onChange={(e) => setAtivoForm({ ...ativoForm, limite: parseFloat(e.target.value) || 0 })}
+                  className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-750 rounded-xl py-2 px-3 text-xs font-bold text-slate-850 dark:text-white"
+                />
               </div>
               <div className="flex items-center justify-end space-x-2 pt-2 text-xs font-bold uppercase">
                 <button

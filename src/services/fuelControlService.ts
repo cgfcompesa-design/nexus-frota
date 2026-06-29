@@ -18,6 +18,7 @@ export interface Gerencia {
   nome: string;
   centroCusto: string;
   codigoTicketLog: string;
+  orcamento?: number;
 }
 
 export interface Ativo {
@@ -26,6 +27,7 @@ export interface Ativo {
   gerencia: string;
   centroCusto: string;
   status: "Ativo" | "Inativo";
+  limite?: number;
 }
 
 export interface HistoricoExecucao {
@@ -52,18 +54,18 @@ export interface FuelControlConfig {
 
 // Default initial seed data for Offline/Fallback
 export const DEFAULT_GERENCIAS: Gerencia[] = [
-  { nome: "GAD", centroCusto: "10.01.20", codigoTicketLog: "TL-GAD-4482" },
-  { nome: "GEF", centroCusto: "10.02.14", codigoTicketLog: "TL-GEF-1290" },
-  { nome: "GAT", centroCusto: "20.14.05", codigoTicketLog: "TL-GAT-9921" },
-  { nome: "GEC", centroCusto: "30.08.11", codigoTicketLog: "TL-GEC-5024" }
+  { nome: "GAD", centroCusto: "10.01.20", codigoTicketLog: "TL-GAD-4482", orcamento: 22608.41 },
+  { nome: "GEF", centroCusto: "10.02.14", codigoTicketLog: "TL-GEF-1290", orcamento: 15400.00 },
+  { nome: "GAT", centroCusto: "20.14.05", codigoTicketLog: "TL-GAT-9921", orcamento: 31250.00 },
+  { nome: "GEC", centroCusto: "30.08.11", codigoTicketLog: "TL-GEC-5024", orcamento: 18900.00 }
 ];
 
 export const DEFAULT_ATIVOS: Ativo[] = [
-  { placa: "PCA7094", gerencia: "GAD", centroCusto: "10.01.20", status: "Ativo" },
-  { placa: "PCA1111", gerencia: "GAD", centroCusto: "10.01.20", status: "Ativo" },
-  { placa: "PCA2222", gerencia: "GEF", centroCusto: "10.02.14", status: "Ativo" },
-  { placa: "PCB3333", gerencia: "GAT", centroCusto: "20.14.05", status: "Ativo" },
-  { placa: "PCC4444", gerencia: "GEC", centroCusto: "30.08.11", status: "Ativo" }
+  { placa: "PCA7094", gerencia: "GAD", centroCusto: "10.01.20", status: "Ativo", limite: 1500 },
+  { placa: "PCA1111", gerencia: "GAD", centroCusto: "10.01.20", status: "Ativo", limite: 1200 },
+  { placa: "PCA2222", gerencia: "GEF", centroCusto: "10.02.14", status: "Ativo", limite: 2000 },
+  { placa: "PCB3333", gerencia: "GAT", centroCusto: "20.14.05", status: "Ativo", limite: 1800 },
+  { placa: "PCC4444", gerencia: "GEC", centroCusto: "30.08.11", status: "Ativo", limite: 2500 }
 ];
 
 export const DEFAULT_CONFIG: FuelControlConfig = {
