@@ -32,6 +32,7 @@ import ChecklistManutencaoPage from './components/maintenance/ChecklistManutenca
 import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
 import CadastroPreventivaPage from './components/maintenance/CadastroPreventivaPage';
 import { NexusFuelControlPage } from './components/fuel/NexusFuelControlPage';
+import { checkAndSeedAllData } from './lib/initialSeeds';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
 import { LoadingState } from './components/dashboard/LoadingState';
 import AlertConfig from './components/config/AlertConfig';
@@ -66,6 +67,10 @@ function useAppLogic() {
     return 'home';
   });
   const [showAlerts, setShowAlerts] = useState(false);
+
+  useEffect(() => {
+    checkAndSeedAllData();
+  }, []);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (authUser) => {
