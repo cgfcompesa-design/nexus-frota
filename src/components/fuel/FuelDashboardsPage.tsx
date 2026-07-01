@@ -1443,8 +1443,8 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
         didParseCell: (data) => {
           if (data.row.section === 'body') {
             const firstCellText = data.row.raw && (data.row.raw as any)[0];
-            if (firstCellText === 'Maio') {
-              data.cell.styles.textColor = [220, 38, 38]; // Dynamic red color for Maio
+            if (firstCellText === 'Julho') {
+              data.cell.styles.textColor = [220, 38, 38]; // Dynamic red color for Julho (Current Month)
               data.cell.styles.fontStyle = 'bold';
             }
           }
