@@ -1084,11 +1084,14 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
     doc.setTextColor(30, 64, 175);
     doc.text("Custo de Manutenção por Tipo", 14, currentY);
 
-    const tipoTableData = costsByTipo.map(item => [
-      item.name || "Não Especificado",
-      String((item as any).numAssets || 0),
-      formatCurrency(item.value)
-    ]);
+    const tipoTableData = costsByTipo.map(item => {
+      const numAssets = item.numAssets || 0;
+      return [
+        `${item.name || "Não Especificado"} (${numAssets} ativo${numAssets !== 1 ? 's' : ''})`,
+        String(numAssets),
+        formatCurrency(item.value)
+      ];
+    });
 
     autoTable(doc, {
       startY: currentY + 4,
@@ -2238,8 +2241,26 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
                 <BarChart data={costsByTipo} layout="vertical" margin={{ left: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} opacity={0.1} />
                   <XAxis type="number" hide />
-                  <YAxis dataKey="name" type="category" tick={{fontSize: 10}} width={120} />
-                  <RechartsTooltip formatter={(v) => formatCurrency(Number(v))} />
+                  <YAxis 
+                    dataKey="name" 
+                    type="category" 
+                    tick={{fontSize: 9}} 
+                    width={160} 
+                    tickFormatter={(name) => {
+                      const item = costsByTipo.find(c => c.name === name);
+                      return item ? `${name} (${item.numAssets} ativo${item.numAssets !== 1 ? 's' : ''})` : name;
+                    }}
+                  />
+                  <RechartsTooltip 
+                    formatter={(value, name, props) => {
+                      const item = props?.payload;
+                      const numAssets = item?.numAssets || 0;
+                      return [
+                        `${formatCurrency(Number(value))} (${numAssets} ativo${numAssets !== 1 ? 's' : ''})`, 
+                        "Custo"
+                      ];
+                    }} 
+                  />
                   <Bar dataKey="value" name="Custo" fill="#3b82f6" radius={[0, 4, 4, 0]} label={{ position: 'right', fontSize: 10, fill: '#64748b', formatter: (v: any) => `R$${(v/1000).toFixed(1)}k` }} />
                 </BarChart>
               </ResponsiveContainer>
