@@ -1025,7 +1025,10 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
         doc.setTextColor(60);
         // Map label to long description if it's a TAM key or look up vehicle details for plates
         let displayLabel = label;
-        if (labelKey === "tam") {
+        if (labelKey === "name") {
+          const numAssets = item.numAssets || 0;
+          displayLabel = `${label} (${numAssets} ativo${numAssets !== 1 ? 's' : ''})`;
+        } else if (labelKey === "tam") {
           displayLabel = `${label} - ${TAM_DESCRIPTIONS[label] || 'Outros'}`;
         } else if (labelKey === "placa") {
           const normPlaca = label.toUpperCase().replace(/[^A-Z0-9]/g, '');
