@@ -79,6 +79,96 @@ const MACHINERY_OPTIONS = [
 
 const PROPERTY_OPTIONS = ["PRÓPRIO", "LOCADO"];
 
+const normalizeTxId = (id: any): string => {
+  if (id === undefined || id === null) return "";
+  let str = String(id).trim();
+  str = str.replace(/^R\$\s*/i, "");
+  str = str.replace(/[,.]00$/, "");
+  str = str.replace(/[,.]0$/, "");
+  str = str.replace(/[.,\s\-_]/g, "");
+  return str;
+};
+
+const getRecordMonthYear = (f: any): string => {
+  if (!f) return "N/A";
+  // 1. Try f.COL_41 or f._monthYear
+  let m = String(f.COL_41 || f._monthYear || "").trim();
+  if (m && m !== "null" && m !== "undefined" && m !== "N/A") {
+    if (/^\d{2}\/\d{4}$/.test(m)) {
+      return m;
+    }
+    const my = m.toLowerCase();
+    const monthNames: Record<string, string> = { 
+      'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06', 
+      'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
+      'janeiro': '01', 'fevereiro': '02', 'março': '03', 'abril': '04', 'maio': '05', 
+      'junho': '06', 'julho': '07', 'agosto': '08', 'setembro': '09', 'outubro': '10', 
+      'novembro': '11', 'dezembro': '12'
+    };
+    const parts = my.split(/[\/\s-]/);
+    if (parts.length >= 2) {
+      let month = "";
+      let year = "";
+      if (monthNames[parts[0]]) {
+        month = monthNames[parts[0]];
+        year = parts[1];
+      } else if (monthNames[parts[1]]) {
+        month = monthNames[parts[1]];
+        year = parts[0];
+      } else if (/^\d{1,2}$/.test(parts[0])) {
+        month = parts[0].padStart(2, '0');
+        year = parts[1];
+      }
+      if (month && year) {
+        if (year.length === 2) year = '20' + year;
+        return `${month}/${year}`;
+      }
+    }
+  }
+
+  // 2. Extract from date (COL_4 or _date)
+  const rawDate = f._date || f.COL_4;
+  if (rawDate) {
+    if (rawDate instanceof Date) {
+      const mm = (rawDate.getMonth() + 1).toString().padStart(2, '0');
+      const yyyy = rawDate.getFullYear().toString();
+      return `${mm}/${yyyy}`;
+    }
+    
+    // Check if it's an Excel number
+    const str = String(rawDate).trim();
+    if (/^\d+(\.\d+)?$/.test(str)) {
+      const excelNum = parseFloat(str);
+      const utcDate = new Date((excelNum - 25569) * 86400 * 1000);
+      if (!isNaN(utcDate.getTime())) {
+        const mm = (utcDate.getUTCMonth() + 1).toString().padStart(2, '0');
+        const yyyy = utcDate.getUTCFullYear().toString();
+        return `${mm}/${yyyy}`;
+      }
+    }
+
+    const parts = str.split(/[\/\-]/);
+    if (parts.length >= 3) {
+      let month = "";
+      let year = "";
+      if (parts[0].length === 4) {
+        month = parts[1];
+        year = parts[0];
+      } else {
+        month = parts[1];
+        year = parts[2].split(' ')[0];
+      }
+      month = month.padStart(2, '0');
+      if (year.length === 2) year = '20' + year;
+      if (month.length === 2 && year.length === 4) {
+        return `${month}/${year}`;
+      }
+    }
+  }
+
+  return "N/A";
+};
+
 const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => void; isEmbedded?: boolean }) => {
   const { data: fuel = [], isLoading: loadingFuel } = useFuelData();
   const { data: assets = [], isLoading: loadingAssets } = useAssets();
@@ -236,8 +326,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const monthOptions = useMemo(() => {
     const months = new Set<string>();
     fuel.forEach(f => {
-      const m = String(f.COL_41 || "").trim();
-      if (m) months.add(m);
+      const m = getRecordMonthYear(f);
+      if (m && m !== "N/A") months.add(m);
     });
     return Array.from(months).sort((a, b) => b.localeCompare(a));
   }, [fuel]);
@@ -328,11 +418,12 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       const unit = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
       if (selectedUnits.length > 0 && !selectedUnits.includes(unit)) return false;
 
-      const mesAno = String(f.COL_41 || "").trim();
+      const mesAno = getRecordMonthYear(f);
       if (selectedMonths.length > 0 && !selectedMonths.includes(mesAno)) return false;
 
       const txId = String(f.COL_0 || f._txId || "");
-      const assignment = assignments.find(a => a.transactionId === txId);
+      const normTxId = normalizeTxId(txId);
+      const assignment = assignments.find(a => normalizeTxId(a.transactionId) === normTxId);
 
       if (selectedDestinations.length > 0) {
         if (!assignment || !selectedDestinations.some(d => (assignment.machineryDestination || "").includes(d))) return false;
@@ -374,8 +465,10 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       
       const txIdA = String(a.COL_0 || a._txId || "");
       const txIdB = String(b.COL_0 || b._txId || "");
-      const assignA = assignments.find(x => x.transactionId === txIdA);
-      const assignB = assignments.find(x => x.transactionId === txIdB);
+      const normTxIdA = normalizeTxId(txIdA);
+      const normTxIdB = normalizeTxId(txIdB);
+      const assignA = assignments.find(x => normalizeTxId(x.transactionId) === normTxIdA);
+      const assignB = assignments.find(x => normalizeTxId(x.transactionId) === normTxIdB);
 
       switch (sortField) {
         case "transacao":
@@ -419,8 +512,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
           valB = String(b.COL_35 || "");
           break;
         case "mesAno":
-          valA = String(a.COL_41 || "");
-          valB = String(b.COL_41 || "");
+          valA = getRecordMonthYear(a);
+          valB = getRecordMonthYear(b);
           break;
         case "destino":
           valA = String(assignA?.machineryDestination || "");
@@ -479,7 +572,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
 
     filteredFuel.forEach(f => {
       const txId = String(f.COL_0 || f._txId || "");
-      const a = assignments.find(as => as.transactionId === txId);
+      const normTxId = normalizeTxId(txId);
+      const a = assignments.find(as => normalizeTxId(as.transactionId) === normTxId);
       
       const litres = Number(f._litros !== undefined && f._litros !== null ? f._litros : f.COL_14 || 0);
       const cost = Number(f.COL_19 !== undefined && f.COL_19 !== null && String(f.COL_19).trim() !== "" ? f.COL_19 : f._total || f["VALOR EMISSAO"] || f.VALOR || f.TOTAL || (Number(f.COL_14 || f._litros || 0) * Number(f.COL_15 || f._vlLitro || 0)) || 0);
@@ -648,7 +742,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
     try {
       const dataToExport = filteredFuel.map(f => {
         const txId = String(f.COL_0 || f._txId || "");
-        const a = assignments.find(as => as.transactionId === txId);
+        const normTxId = normalizeTxId(txId);
+        const a = assignments.find(as => normalizeTxId(as.transactionId) === normTxId);
         return {
           'Transação': txId,
           'Data': f._date || f.COL_4,
@@ -663,7 +758,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
           'Cidade': f._cidade || f.COL_25,
           'Lotação': f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || '',
           'Cartão': f.COL_35,
-          'Mês/Ano': f.COL_41,
+          'Mês/Ano': getRecordMonthYear(f),
           'Destino Maquinário': a?.machineryDestination || '',
           'Modelo': a?.model || '',
           'Propriedade': a?.property || '',
@@ -1769,7 +1864,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
               <TableBody>
                 {paginatedFuel.map((f, idx) => {
                   const txId = String(f.COL_0 || f._txId || "");
-                  const assignment = assignments.find(a => a.transactionId === txId);
+                  const normTxId = normalizeTxId(txId);
+                  const assignment = assignments.find(a => normalizeTxId(a.transactionId) === normTxId);
                   
                   return (
                     <TableRow key={`${txId}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
@@ -1788,7 +1884,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
                       </TableCell>
                       <TableCell className="text-[10px] uppercase font-bold">{f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit}</TableCell>
                       <TableCell className="text-[10px] font-mono text-slate-400">{f.COL_35 || 'N/A'}</TableCell>
-                      <TableCell className="text-[10px] font-bold text-slate-500">{f.COL_41}</TableCell>
+                      <TableCell className="text-[10px] font-bold text-slate-500">{getRecordMonthYear(f)}</TableCell>
 
                       <TableCell className="bg-indigo-50/20 dark:bg-indigo-900/5">
                         <Popover>

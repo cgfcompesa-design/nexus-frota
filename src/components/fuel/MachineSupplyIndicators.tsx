@@ -47,6 +47,96 @@ interface MachineSupplyIndicatorsProps {
   fuel: FuelData[];
 }
 
+const normalizeTxId = (id: any): string => {
+  if (id === undefined || id === null) return "";
+  let str = String(id).trim();
+  str = str.replace(/^R\$\s*/i, "");
+  str = str.replace(/[,.]00$/, "");
+  str = str.replace(/[,.]0$/, "");
+  str = str.replace(/[.,\s\-_]/g, "");
+  return str;
+};
+
+const getRecordMonthYear = (f: any): string => {
+  if (!f) return "N/A";
+  // 1. Try f.COL_41 or f._monthYear
+  let m = String(f.COL_41 || f._monthYear || "").trim();
+  if (m && m !== "null" && m !== "undefined" && m !== "N/A") {
+    if (/^\d{2}\/\d{4}$/.test(m)) {
+      return m;
+    }
+    const my = m.toLowerCase();
+    const monthNames: Record<string, string> = { 
+      'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06', 
+      'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
+      'janeiro': '01', 'fevereiro': '02', 'março': '03', 'abril': '04', 'maio': '05', 
+      'junho': '06', 'julho': '07', 'agosto': '08', 'setembro': '09', 'outubro': '10', 
+      'novembro': '11', 'dezembro': '12'
+    };
+    const parts = my.split(/[\/\s-]/);
+    if (parts.length >= 2) {
+      let month = "";
+      let year = "";
+      if (monthNames[parts[0]]) {
+        month = monthNames[parts[0]];
+        year = parts[1];
+      } else if (monthNames[parts[1]]) {
+        month = monthNames[parts[1]];
+        year = parts[0];
+      } else if (/^\d{1,2}$/.test(parts[0])) {
+        month = parts[0].padStart(2, '0');
+        year = parts[1];
+      }
+      if (month && year) {
+        if (year.length === 2) year = '20' + year;
+        return `${month}/${year}`;
+      }
+    }
+  }
+
+  // 2. Extract from date (COL_4 or _date)
+  const rawDate = f._date || f.COL_4;
+  if (rawDate) {
+    if (rawDate instanceof Date) {
+      const mm = (rawDate.getMonth() + 1).toString().padStart(2, '0');
+      const yyyy = rawDate.getFullYear().toString();
+      return `${mm}/${yyyy}`;
+    }
+    
+    // Check if it's an Excel number
+    const str = String(rawDate).trim();
+    if (/^\d+(\.\d+)?$/.test(str)) {
+      const excelNum = parseFloat(str);
+      const utcDate = new Date((excelNum - 25569) * 86400 * 1000);
+      if (!isNaN(utcDate.getTime())) {
+        const mm = (utcDate.getUTCMonth() + 1).toString().padStart(2, '0');
+        const yyyy = utcDate.getUTCFullYear().toString();
+        return `${mm}/${yyyy}`;
+      }
+    }
+
+    const parts = str.split(/[\/\-]/);
+    if (parts.length >= 3) {
+      let month = "";
+      let year = "";
+      if (parts[0].length === 4) {
+        month = parts[1];
+        year = parts[0];
+      } else {
+        month = parts[1];
+        year = parts[2].split(' ')[0];
+      }
+      month = month.padStart(2, '0');
+      if (year.length === 2) year = '20' + year;
+      if (month.length === 2 && year.length === 4) {
+        return `${month}/${year}`;
+      }
+    }
+  }
+
+  return "N/A";
+};
+
 export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) => {
   const { data: assignments = [], isLoading: loadingAssignments } = useMachineSupplyAssignments();
   const { getEmailsByGerencia } = useContactsData();
@@ -84,21 +174,22 @@ export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) 
 
   const filteredFuel = useMemo(() => {
     return fuel.filter(f => {
-      const dateStr = f._date || ""; // Formato esperado "DD/MM/YYYY" ou similar
-      return dateStr.includes(`/${selectedMonth}/${selectedYear}`);
+      const my = getRecordMonthYear(f);
+      return my === `${selectedMonth}/${selectedYear}`;
     });
   }, [fuel, selectedMonth, selectedYear]);
 
   const stats = useMemo(() => {
     const maqFuel = filteredFuel.filter(f => {
-      const placa = String(f._placa || "").toUpperCase();
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
       return placa.startsWith("MAQ") || placa.startsWith("GER");
     });
 
     const total = maqFuel.length;
     const completed = maqFuel.filter(f => {
-      const txId = String(f.COL_0 || "").trim();
-      return assignments.some(a => a.transactionId === txId);
+      const txId = String(f.COL_0 || f._txId || "").trim();
+      const normTxId = normalizeTxId(txId);
+      return assignments.some(a => normalizeTxId(a.transactionId) === normTxId);
     }).length;
 
     const pending = total - completed;
@@ -111,12 +202,13 @@ export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) 
     const units: Record<string, { total: number; completed: number; pending: number }> = {};
     
     stats.maqFuel.forEach(f => {
-      const unit = String(f.COL_29 || "N/A").trim();
+      const unit = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "N/A").trim();
       if (!units[unit]) units[unit] = { total: 0, completed: 0, pending: 0 };
       
       units[unit].total++;
-      const txId = String(f.COL_0 || "").trim();
-      if (assignments.some(a => a.transactionId === txId)) {
+      const txId = String(f.COL_0 || f._txId || "").trim();
+      const normTxId = normalizeTxId(txId);
+      if (assignments.some(a => normalizeTxId(a.transactionId) === normTxId)) {
         units[unit].completed++;
       } else {
         units[unit].pending++;
