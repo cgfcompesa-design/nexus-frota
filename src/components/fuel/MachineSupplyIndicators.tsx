@@ -59,13 +59,31 @@ const normalizeTxId = (id: any): string => {
 
 const getRecordMonthYear = (f: any): string => {
   if (!f) return "N/A";
-  // 1. Try f.COL_41 or f._monthYear
-  let m = String(f.COL_41 || f._monthYear || "").trim();
-  if (m && m !== "null" && m !== "undefined" && m !== "N/A") {
+  
+  // 1. Prioritize f._monthYear if already in MM/YYYY format
+  if (f._monthYear) {
+    const m = String(f._monthYear).trim();
     if (/^\d{2}\/\d{4}$/.test(m)) {
       return m;
     }
-    const my = m.toLowerCase();
+  }
+
+  // 2. Fallback to f.COL_41 or raw f._monthYear, and sanitize dots
+  let m = "";
+  if (f._monthYear) {
+    m = String(f._monthYear).trim();
+  } else if (f.COL_41) {
+    m = String(f.COL_41).trim();
+  }
+
+  if (m && m !== "null" && m !== "undefined" && m !== "N/A") {
+    // Sanitize by removing dots (e.g., "mai./26" -> "mai/26")
+    const sanitized = m.replace(/\./g, '').toLowerCase();
+    
+    if (/^\d{2}\/\d{4}$/.test(sanitized)) {
+      return sanitized;
+    }
+
     const monthNames: Record<string, string> = { 
       'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06', 
       'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
@@ -73,20 +91,41 @@ const getRecordMonthYear = (f: any): string => {
       'junho': '06', 'julho': '07', 'agosto': '08', 'setembro': '09', 'outubro': '10', 
       'novembro': '11', 'dezembro': '12'
     };
-    const parts = my.split(/[\/\s-]/);
+
+    const parts = sanitized.split(/[\/\s-]/);
     if (parts.length >= 2) {
       let month = "";
       let year = "";
+      
+      // Look for a direct match in monthNames
       if (monthNames[parts[0]]) {
         month = monthNames[parts[0]];
         year = parts[1];
       } else if (monthNames[parts[1]]) {
         month = monthNames[parts[1]];
         year = parts[0];
-      } else if (/^\d{1,2}$/.test(parts[0])) {
-        month = parts[0].padStart(2, '0');
-        year = parts[1];
+      } else {
+        // Fallback startsWith check
+        for (const [name, code] of Object.entries(monthNames)) {
+          if (parts[0].startsWith(name)) {
+            month = code;
+            year = parts[1];
+            break;
+          } else if (parts[1].startsWith(name)) {
+            month = code;
+            year = parts[0];
+            break;
+          }
+        }
       }
+
+      if (!month) {
+        if (/^\d{1,2}$/.test(parts[0])) {
+          month = parts[0].padStart(2, '0');
+          year = parts[1];
+        }
+      }
+      
       if (month && year) {
         if (year.length === 2) year = '20' + year;
         return `${month}/${year}`;
@@ -94,7 +133,7 @@ const getRecordMonthYear = (f: any): string => {
     }
   }
 
-  // 2. Extract from date (COL_4 or _date)
+  // 3. Fallback to extracting from date (_date or COL_4)
   const rawDate = f._date || f.COL_4;
   if (rawDate) {
     if (rawDate instanceof Date) {
