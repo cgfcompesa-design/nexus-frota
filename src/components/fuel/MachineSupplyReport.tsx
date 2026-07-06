@@ -368,7 +368,12 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       const m = getRecordMonthYear(f);
       if (m && m !== "N/A") months.add(m);
     });
-    return Array.from(months).sort((a, b) => b.localeCompare(a));
+    return Array.from(months).sort((a, b) => {
+      const [mA, yA] = a.split("/").map(Number);
+      const [mB, yB] = b.split("/").map(Number);
+      if (yB !== yA) return yB - yA;
+      return mB - mA;
+    });
   }, [fuel]);
 
   const fuelTypeOptions = useMemo(() => {
