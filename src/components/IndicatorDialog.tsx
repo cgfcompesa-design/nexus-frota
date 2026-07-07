@@ -30,11 +30,13 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
   const [isSaving, setIsSaving] = useState(false);
   const [goalType, setGoalType] = useState<"higher" | "lower">("higher");
 
+  const isAuto = !!(indicator?.is_auto || (indicator?.id && String(indicator.id).startsWith("auto-")));
+
   useEffect(() => {
     if (indicator) {
       setName(indicator.name || "");
       setTarget(indicator.target?.toString() || "");
-      setCurrentValue(indicator.current_value?.toString() || "");
+      setCurrentValue(isAuto ? "0" : (indicator.current_value?.toString() || ""));
       setUnit(indicator.unit || "");
       setChartType(indicator.chart_type || "bar");
       setMonth(format(selectedMonth, "yyyy-MM"));
@@ -52,7 +54,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setSubsection("");
       setGoalType("higher");
     }
-  }, [indicator, open, selectedMonth]);
+  }, [indicator, open, selectedMonth, isAuto]);
 
   const handleSubmit = async () => {
     if (!name || !month) return;
@@ -66,14 +68,15 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       subsection: (subsection === "none" || !subsection) ? null : subsection,
       unit,
       target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
-      current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
+      current_value: isAuto ? 0 : (isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue)),
       chart_type: chartType,
       goal_type: goalType,
+      is_auto: isAuto,
       updatedAt: serverTimestamp()
     };
 
     try {
-      if (indicator?.id) {
+      if (indicator?.id && !String(indicator.id).startsWith("auto-")) {
         // Update indicator definition
         await updateDoc(doc(db, "indicators", indicator.id), data);
         
@@ -89,7 +92,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
           indicator_id: indicator.id,
           month: monthStr,
           target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
-          current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
+          current_value: isAuto ? 0 : (isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue)),
           updatedAt: serverTimestamp()
         };
 
@@ -110,7 +113,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
           indicator_id: newDoc.id,
           month: monthStr,
           target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
-          current_value: isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue),
+          current_value: isAuto ? 0 : (isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue)),
           updatedAt: serverTimestamp()
         });
       }
@@ -128,14 +131,14 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md bg-slate-900 border-slate-800 text-white">
         <DialogHeader>
-          <DialogTitle>{indicator?.id ? "Editar Indicador" : "Novo Indicador"}</DialogTitle>
+          <DialogTitle>{indicator?.id ? (isAuto ? "Editar Meta de Indicador Automático" : "Editar Indicador") : "Novo Indicador"}</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Seção</Label>
-              <Select value={section} onValueChange={setSection}>
+              <Select value={section} onValueChange={setSection} disabled={isAuto}>
                 <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
                   <SelectValue placeholder="Seção" />
                 </SelectTrigger>
@@ -151,7 +154,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
             {section === "manutencao" && (
               <div className="space-y-2">
                 <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Subseção</Label>
-                <Select value={subsection} onValueChange={setSubsection}>
+                <Select value={subsection} onValueChange={setSubsection} disabled={isAuto}>
                   <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
                     <SelectValue placeholder="Opcional" />
                   </SelectTrigger>
@@ -172,7 +175,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Tipo de Gráfico</Label>
-              <Select value={chartType} onValueChange={setChartType}>
+              <Select value={chartType} onValueChange={setChartType} disabled={isAuto}>
                 <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
@@ -189,7 +192,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Nome do Indicador</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-slate-800 border-slate-700 h-10" placeholder="Ex: Eficiência de Combustível" />
+            <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-slate-800 border-slate-700 h-10" placeholder="Ex: Eficiência de Combustível" disabled={isAuto} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -199,18 +202,25 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Realizado ({unit || "-"})</Label>
-              <Input type="number" value={currentValue} onChange={(e) => setCurrentValue(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
+              <Input 
+                type="text" 
+                value={isAuto ? "Auto" : currentValue} 
+                onChange={(e) => setCurrentValue(e.target.value)} 
+                className="bg-slate-800 border-slate-700 h-10 font-medium text-amber-400" 
+                disabled={isAuto}
+                placeholder={isAuto ? "Cálculo Automático" : ""}
+              />
             </div>
           </div>
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Unidade (ex: %, R$, Km, L)</Label>
-            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
+            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700 h-10" disabled={isAuto} />
           </div>
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Lógica do Indicador (Meta)</Label>
-            <Select value={goalType} onValueChange={(val: any) => setGoalType(val)}>
+            <Select value={goalType} onValueChange={(val: any) => setGoalType(val)} disabled={isAuto}>
               <SelectTrigger className="bg-slate-800 border-slate-700 h-10 text-white">
                 <SelectValue placeholder="Selecione o critério" />
               </SelectTrigger>

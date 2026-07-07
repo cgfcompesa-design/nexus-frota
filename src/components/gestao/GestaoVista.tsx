@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Plus, CalendarIcon, LayoutGrid, List, Trash2, CalendarX } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -14,13 +14,57 @@ import { PrintDashboard } from "@/components/PrintDashboard";
 import { useIndicatorValues } from "@/hooks/useIndicatorValues";
 import { format, parse, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes, useFuelData, useRegularizacaoData } from "@/hooks/useFleetData";
+import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes, useFuelData, useRegularizacaoData, useMaintenanceCostData } from "@/hooks/useFleetData";
 import { useLocadosData } from "@/hooks/useLocadosData";
 import { useVeiculosLocadosDisponiveis } from "@/hooks/useDisponibilidadeLocados";
+import { useControleDocumentosData } from "@/hooks/useControleDocumentos";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const standardizeFuelType = (fuelType: string | undefined): string => {
+  if (!fuelType) return "N/A";
+  const fuel = String(fuelType).toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  
+  if (fuel.includes("GASOLINA ADITIVADA")) return "GASOLINA ADITIVADA";
+  if (fuel.includes("GASOLINA")) return "GASOLINA COMUM";
+  if (fuel.includes("DIESEL B S10") || fuel.includes("S10")) return "OLEO DIESEL S10";
+  if (fuel.includes("DIESEL COMUM") || fuel.includes("DIESEL") || fuel.includes("S500")) return "OLEO DIESEL S500";
+  if (fuel.includes("ETANOL") || fuel.includes("ALCOOL")) return "ETANOL";
+  if (fuel.includes("ARLA")) return "ARLA 32";
+  return fuel;
+};
+
+const parseBrazilianNumber = (val: any): number => {
+  if (val === undefined || val === null) return 0;
+  if (typeof val === "number") return val;
+  const str = String(val).trim().replace(/\s/g, "");
+  if (!str || str === "-") return 0;
+  const replaced = str.replace(/\./g, "").replace(",", ".");
+  const parsed = parseFloat(replaced);
+  return isNaN(parsed) ? 0 : parsed;
+};
+
+const getFuelAlertConfig = () => {
+  const DEFAULT_FUEL_ALERT_CONFIG = {
+    autonomyDeviationPercent: 30,
+    valorLitroDeviationPercent: 30,
+    minCapacityPercent: 20,
+    maxCapacityPercent: 110,
+    averageCapacityPercent: 2,
+    daysWithoutRefueling: 5
+  };
+  const saved = localStorage.getItem("fuel_alert_config");
+  if (saved) {
+    try {
+      return JSON.parse(saved);
+    } catch (e) {
+      return DEFAULT_FUEL_ALERT_CONFIG;
+    }
+  }
+  return DEFAULT_FUEL_ALERT_CONFIG;
+};
 
 const parseMonthStr = (monthStr: any): Date => {
   if (!monthStr) return new Date();
@@ -218,6 +262,42 @@ const AUTO_INDICATORS_SPECS = [
     order: 1,
     is_auto: true,
     description: "Quantidade total de infrações recebidas no mês."
+  },
+  {
+    name: "Desvio de Consumo vs. Padrão",
+    section: "abastecimento",
+    subsection: "",
+    unit: " desvios",
+    target: 5,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 6,
+    is_auto: true,
+    description: "Quantidade de desvios de consumo/autonomia vs. padrão no mês."
+  },
+  {
+    name: "Multas Pagas (Centro de Custo)",
+    section: "regularizacao",
+    subsection: "",
+    unit: " R$",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 2,
+    is_auto: true,
+    description: "Soma do valor líquido das multas pagas (Despesas com Títulos)."
+  },
+  {
+    name: "CRLV Vencidos",
+    section: "regularizacao",
+    subsection: "",
+    unit: " uni",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 3,
+    is_auto: true,
+    description: "Quantidade de CRLVs vencidos (não vigentes em 2026)."
   }
 ];
 
@@ -247,8 +327,23 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   const { data: veiculosDisponiveisData, isLoading: isLoadingVeiculosDisponiveis } = useVeiculosLocadosDisponiveis();
   const { data: fuelData = [], isLoading: isLoadingFuel } = useFuelData();
   const { data: regularizacaoData = [], isLoading: isLoadingRegularizacao } = useRegularizacaoData();
+  const { data: titulosDespesasData = [], isLoading: isLoadingTitulos } = useMaintenanceCostData();
+  const { data: controleDocumentos = [], isLoading: isLoadingControleDocs } = useControleDocumentosData();
 
-  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao;
+  const [crlvYears, setCrlvYears] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    fetch("/api/crlv-years")
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.years) {
+          setCrlvYears(data.years);
+        }
+      })
+      .catch(err => console.error("Error fetching CRLV years:", err));
+  }, []);
+
+  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao || isLoadingTitulos || isLoadingControleDocs;
   
   const formattedMonth = format(safeSelectedMonth, "yyyy-MM-01");
   const { values: indicatorValues, deleteValue } = useIndicatorValues(undefined, formattedMonth);
@@ -613,8 +708,11 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
 
       // 1. Custo de Manutenção
       const targetCustos = custosData.filter(c => matchMonthYear(c.mesAno));
-      const totalCustoRealizado = targetCustos.reduce((acc, c) => acc + (c.custoReal || 0), 0);
-      valuesMap["Custo de Manutenção"] = parseFloat(totalCustoRealizado.toFixed(2));
+      const validCustos = targetCustos.map(c => c.custoReal || 0).filter(v => v > 0);
+      const avgCustoRealizado = validCustos.length > 0
+        ? validCustos.reduce((sum, v) => sum + v, 0) / validCustos.length
+        : 0;
+      valuesMap["Custo de Manutenção"] = parseFloat(avgCustoRealizado.toFixed(2));
 
       // 2. MTTR, MTBF, MTTA, Disponibilidade Inerente
       const mceFilteredData = indicatorSource.filter(i => i.tam === "MCE");
@@ -699,7 +797,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       valuesMap["Dias de Indisponibilidade"] = totalDiasIndisponibilidade;
 
       // 4. Abastecimento Indicators
-      const targetMonthYearStr = `${String(mIndex + 1).padStart(2, '0')}/${yVal}`;
+      const targetMonthYearStr = `${String(mIndex + 1).padStart(2, "0")}/${yVal}`;
       const targetFuel = sanitizedFuelData.filter(f => f._monthYear === targetMonthYearStr);
 
       const totalCombustivel = targetFuel.reduce((sum, f) => sum + (f._litros || 0), 0);
@@ -726,13 +824,59 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       valuesMap["Autonomia Real Média"] = parseFloat(avgAutonomiaReal.toFixed(2));
       valuesMap["KM Médio"] = parseFloat(avgKmMedio.toFixed(1));
 
+      // 4.1 Desvio de Consumo vs. Padrão
+      const fuelAlertConfig = getFuelAlertConfig();
+      const assetsByPlaca = new Map<string, any>();
+      assets.forEach(a => {
+        const p = String(a.PLACA || a.placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        if (p) assetsByPlaca.set(p, a);
+      });
+
+      let desviosAutonomiaCount = 0;
+      targetFuel.forEach(f => {
+        const placa = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        if (placa.startsWith("MAQ")) return;
+
+        const asset = assetsByPlaca.get(placa);
+        if (!asset) return;
+
+        const tipoControleVal = asset["TIPO CONTROLE AUTONOMIA"] || 
+                                asset["CONTROLE DE AUTONOMIA"] || 
+                                asset["CONTROLE AUTONOMIA"] || 
+                                asset.TIPO_CONTROLE_AUTONOMIA || 
+                                (asset.__raw && asset.__raw[43]) || 
+                                "";
+        const tc = String(tipoControleVal).trim().toUpperCase();
+        if (tc !== "FROTA" && tc !== "") return;
+
+        const autReal = f._autReal || 0;
+        const fuelType = f._fuelType || f["TIPO COMBUSTIVEL"] || f["TIPO COMBUSTÍVEL"] || "";
+        
+        if (autReal > 0) {
+          const assetRaw = asset.__raw || [];
+          const fuelPadraoAtivo = standardizeFuelType(assetRaw[11]);
+          const fuelSecAtivo = standardizeFuelType(assetRaw[32]);
+          
+          let autRef = 0;
+          const stdFuelType = standardizeFuelType(fuelType);
+          if (stdFuelType === fuelPadraoAtivo) autRef = parseBrazilianNumber(assetRaw[28]);
+          else if (stdFuelType === fuelSecAtivo) autRef = parseBrazilianNumber(assetRaw[33]);
+
+          if (autRef > 0 && Math.abs(autReal - autRef) / autRef * 100 > fuelAlertConfig.autonomyDeviationPercent) {
+            desviosAutonomiaCount++;
+          }
+        }
+      });
+
+      valuesMap["Desvio de Consumo vs. Padrão"] = desviosAutonomiaCount;
+
       // 5. Regularização - Infrações Recebidas no Mês
       let infractionsCount = 0;
       regularizacaoData.forEach(item => {
         const dateStr = String(item.__raw?.[8] || "");
         if (!dateStr || dateStr === "-") return;
         try {
-          const parts = dateStr.split('/');
+          const parts = dateStr.split("/");
           if (parts.length >= 3) {
             const m = parseInt(parts[1]);
             const y = parseInt(parts[2]);
@@ -744,11 +888,61 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       });
       valuesMap["Infrações Recebidas no Mês"] = infractionsCount;
 
+      // 5.1 Multas Pagas (Centro de Custo)
+      const targetTitulos = titulosDespesasData.filter(item => {
+        const mesAno = String(item.__raw?.[56] || "").replace(/\.\//g, "/").trim();
+        const tipo = String(item.__raw?.[58] || "").trim().toUpperCase();
+        return matchMonthYear(mesAno) && tipo === "MULTA";
+      });
+      
+      const totalMultasPagas = targetTitulos.reduce((sum, item) => {
+        const valorRaw = item.__raw?.[62];
+        let valorTitulo = 0;
+        if (valorRaw) {
+          const cleanValue = String(valorRaw).replace(/R\$/gi, "").replace(/\s+/g, "").replace(/\./g, "").replace(/,/g, ".");
+          valorTitulo = parseFloat(cleanValue) || 0;
+        }
+        return sum + valorTitulo;
+      }, 0);
+      
+      valuesMap["Multas Pagas (Centro de Custo)"] = parseFloat(totalMultasPagas.toFixed(2));
+
+      // 5.2 CRLV Vencidos
+      let crlvVencidosCount = 0;
+      controleDocumentos.forEach(doc => {
+        const hasAnexo = !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5);
+        if (!hasAnexo) {
+          crlvVencidosCount++;
+          return;
+        }
+        
+        let docYear = "2025";
+        if (doc.statusCrlv && doc.statusCrlv.trim().length > 0) {
+          docYear = doc.statusCrlv.trim();
+        } else {
+          const plate = doc.placa.trim().toUpperCase();
+          if (crlvYears[plate]) {
+            docYear = crlvYears[plate];
+          } else {
+            const prop = String(doc.propriedade || "").trim().toUpperCase();
+            if (prop.includes("COMPESA") || prop.includes("CS BRASIL")) {
+              docYear = "2026";
+            }
+          }
+        }
+        
+        if (docYear !== "2026") {
+          crlvVencidosCount++;
+        }
+      });
+      
+      valuesMap["CRLV Vencidos"] = crlvVencidosCount;
+
       results[monthKey] = valuesMap;
     });
 
     return results;
-  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData, sanitizedFuelData, regularizacaoData]);
+  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData, sanitizedFuelData, regularizacaoData, titulosDespesasData, controleDocumentos, crlvYears]);
 
   const combinedIndicatorValues = useMemo(() => {
     let list = [...allIndicatorValues];
@@ -761,16 +955,20 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       );
       if (!ind) return;
 
+      const customValsForThisInd = list.filter(v => v.indicator_id === ind.id);
       list = list.filter(v => v.indicator_id !== ind.id);
       
       allAvailableMonths.forEach(monthKey => {
         const val = allCalculatedAutoValues[monthKey]?.[spec.name] ?? 0;
+        const customVal = customValsForThisInd.find(v => v.month === monthKey);
+        const targetVal = customVal && customVal.target !== undefined ? customVal.target : ind.target;
+
         list.push({
-          id: `auto-val-${ind.id}-${monthKey}`,
+          id: customVal?.id || `auto-val-${ind.id}-${monthKey}`,
           indicator_id: ind.id,
           month: monthKey,
           current_value: val,
-          target: ind.target
+          target: targetVal
         });
       });
     });
