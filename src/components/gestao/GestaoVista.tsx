@@ -22,6 +22,28 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
+const parseMonthStr = (monthStr: string): Date => {
+  if (!monthStr) return new Date();
+  
+  // If it's already YYYY-MM-DD format (like "2026-07-01")
+  if (/^\d{4}-\d{2}-\d{2}$/.test(monthStr)) {
+    const d = new Date(monthStr + "T12:00:00Z");
+    if (!isNaN(d.getTime())) return d;
+  }
+  
+  // If it's YYYY-MM format (like "2026-07")
+  if (/^\d{4}-\d{2}$/.test(monthStr)) {
+    const d = new Date(monthStr + "-01T12:00:00Z");
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // Fallback to direct parsing
+  const d = new Date(monthStr);
+  if (!isNaN(d.getTime())) return d;
+
+  return new Date();
+};
+
 const AUTO_INDICATORS_SPECS = [
   {
     name: "Custo de Manutenção",
@@ -1108,13 +1130,13 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                             </TableHeader>
                             <TableBody>
                               {allEntries
-                                .filter(e => e.section === section.id && e.month !== format(selectedMonth, "yyyy-MM"))
+                                .filter(e => e.section === section.id && e.month.substring(0, 7) !== format(selectedMonth, "yyyy-MM"))
                                 .slice(0, 10)
                                 .map((entry) => (
                                   <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 opacity-70 hover:opacity-100 transition-opacity group">
                                     <TableCell className="py-2">
                                       <span className="text-[9px] font-black uppercase text-slate-500">
-                                        {format(new Date(entry.month + "T12:00:00Z"), "MMM / yy", { locale: ptBR })}
+                                        {format(parseMonthStr(entry.month), "MMM / yy", { locale: ptBR })}
                                       </span>
                                     </TableCell>
                                     <TableCell className="py-2 text-[10px] font-bold text-slate-700 dark:text-slate-300 uppercase">
@@ -1133,7 +1155,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                               variant="ghost" 
                                               size="xs"
                                               onClick={() => {
-                                                setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
+                                                setSelectedMonth(parseMonthStr(entry.month));
                                                 handleEditIndicator(entry);
                                               }}
                                               className="h-6 text-[8px] font-black uppercase"
