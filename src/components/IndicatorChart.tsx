@@ -53,9 +53,28 @@ export const IndicatorChart = ({ indicator, onEdit, historyValues, selectedMonth
     { name: "Remaining", value: Math.max(0, (indicator.target * maxFactor) - indicator.current_value), fill: "#1e293b" }
   ];
 
+  const parseMonthStr = (monthStr: any): Date => {
+    if (!monthStr) return new Date();
+    if (monthStr instanceof Date) {
+      return isNaN(monthStr.getTime()) ? new Date() : monthStr;
+    }
+    const str = String(monthStr).trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      const d = new Date(str + "T12:00:00Z");
+      if (!isNaN(d.getTime())) return d;
+    }
+    if (/^\d{4}-\d{2}$/.test(str)) {
+      const d = new Date(str + "-01T12:00:00Z");
+      if (!isNaN(d.getTime())) return d;
+    }
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d;
+    return new Date();
+  };
+
   // Process history for line chart
   const lineData = historyValues.slice().reverse().map(v => ({
-    month: format(new Date(v.month), "MMM/yy", { locale: ptBR }),
+    month: format(parseMonthStr(v.month), "MMM/yy", { locale: ptBR }),
     value: v.current_value,
     target: v.target
   }));

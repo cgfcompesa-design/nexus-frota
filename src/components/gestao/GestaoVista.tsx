@@ -22,26 +22,56 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
-const parseMonthStr = (monthStr: string): Date => {
+const parseMonthStr = (monthStr: any): Date => {
   if (!monthStr) return new Date();
   
+  if (monthStr instanceof Date) {
+    return isNaN(monthStr.getTime()) ? new Date() : monthStr;
+  }
+  
+  // If it's a Firestore Timestamp or object with seconds/nanoseconds
+  if (typeof monthStr === 'object' && monthStr.seconds) {
+    const d = new Date(monthStr.seconds * 1000);
+    return isNaN(d.getTime()) ? new Date() : d;
+  }
+  
+  const str = String(monthStr).trim();
+  
   // If it's already YYYY-MM-DD format (like "2026-07-01")
-  if (/^\d{4}-\d{2}-\d{2}$/.test(monthStr)) {
-    const d = new Date(monthStr + "T12:00:00Z");
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    const d = new Date(str + "T12:00:00Z");
     if (!isNaN(d.getTime())) return d;
   }
   
   // If it's YYYY-MM format (like "2026-07")
-  if (/^\d{4}-\d{2}$/.test(monthStr)) {
-    const d = new Date(monthStr + "-01T12:00:00Z");
+  if (/^\d{4}-\d{2}$/.test(str)) {
+    const d = new Date(str + "-01T12:00:00Z");
+    if (!isNaN(d.getTime())) return d;
+  }
+
+  // If it's MM/YYYY format
+  if (/^\d{2}\/\d{4}$/.test(str)) {
+    const parts = str.split('/');
+    const d = new Date(`${parts[1]}-${parts[0]}-01T12:00:00Z`);
     if (!isNaN(d.getTime())) return d;
   }
 
   // Fallback to direct parsing
-  const d = new Date(monthStr);
+  const d = new Date(str);
   if (!isNaN(d.getTime())) return d;
 
   return new Date();
+};
+
+const getMonthStr = (month: any): string => {
+  if (!month) return "";
+  if (typeof month === 'string') return month;
+  try {
+    const d = parseMonthStr(month);
+    return format(d, "yyyy-MM-01");
+  } catch {
+    return "";
+  }
 };
 
 const AUTO_INDICATORS_SPECS = [
@@ -202,6 +232,12 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndicator, setEditingIndicator] = useState<any>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
+  const safeSelectedMonth = useMemo(() => {
+    if (selectedMonth && !isNaN(selectedMonth.getTime())) {
+      return selectedMonth;
+    }
+    return new Date();
+  }, [selectedMonth]);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
 
   const { data: assets = [], isLoading: isLoadingAssets } = useAssets();
@@ -214,7 +250,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
 
   const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao;
   
-  const formattedMonth = format(selectedMonth, "yyyy-MM-01");
+  const formattedMonth = format(safeSelectedMonth, "yyyy-MM-01");
   const { values: indicatorValues, deleteValue } = useIndicatorValues(undefined, formattedMonth);
   const { values: allIndicatorValues, deleteValue: deleteAnyValue } = useIndicatorValues();
 
@@ -743,9 +779,9 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   }, [allIndicatorValues, combinedIndicators, allAvailableMonths, allCalculatedAutoValues]);
 
   const indicatorValuesForMonth = useMemo(() => {
-    const targetMonthStr = format(selectedMonth, "yyyy-MM-01");
+    const targetMonthStr = format(safeSelectedMonth, "yyyy-MM-01");
     return combinedIndicatorValues.filter(v => v.month === targetMonthStr);
-  }, [combinedIndicatorValues, selectedMonth]);
+  }, [combinedIndicatorValues, safeSelectedMonth]);
 
   const indicatorsWithMonthValues = useMemo(() => {
     return combinedIndicators.map((indicator) => {
@@ -890,7 +926,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                   className="bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-white/10 text-slate-800 dark:text-white font-black uppercase text-[10px] tracking-widest h-10 rounded-xl px-4 flex items-center gap-2 shadow-sm"
                 >
                   <CalendarIcon className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
-                  {format(selectedMonth, "MMMM / yyyy", { locale: ptBR })}
+                  {format(safeSelectedMonth, "MMMM / yyyy", { locale: ptBR })}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-2xl" align="end">
@@ -984,7 +1020,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                               Planilha de Lançamento
                             </h2>
                             <p className="text-[10px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-widest mt-1">
-                              Referência: {format(selectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
+                              Referência: {format(safeSelectedMonth, "MMMM 'de' yyyy", { locale: ptBR })}
                             </p>
                           </div>
                         </div>
@@ -1129,8 +1165,8 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                               </TableRow>
                             </TableHeader>
                             <TableBody>
-                              {allEntries
-                                .filter(e => e.section === section.id && e.month.substring(0, 7) !== format(selectedMonth, "yyyy-MM"))
+                               {allEntries
+                                .filter(e => e.section === section.id && getMonthStr(e.month).substring(0, 7) !== format(safeSelectedMonth, "yyyy-MM"))
                                 .slice(0, 10)
                                 .map((entry) => (
                                   <TableRow key={entry.value_id} className="border-slate-100 dark:border-white/5 opacity-70 hover:opacity-100 transition-opacity group">
