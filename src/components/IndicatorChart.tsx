@@ -160,14 +160,20 @@ export const IndicatorChart = ({ indicator, onEdit, historyValues, selectedMonth
         <CardTitle className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-white leading-tight">
           {indicator.name}
         </CardTitle>
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => onEdit(indicator)}
-          className="h-8 w-8 text-slate-400 hover:text-indigo-600 dark:hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Pencil className="h-4 w-4" />
-        </Button>
+        {indicator.is_auto ? (
+          <span className="text-[8px] font-black uppercase text-emerald-500 bg-emerald-500/5 dark:bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+            Auto
+          </span>
+        ) : (
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => onEdit(indicator)}
+            className="h-8 w-8 text-slate-400 hover:text-indigo-600 dark:hover:text-white opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            <Pencil className="h-4 w-4" />
+          </Button>
+        )}
       </CardHeader>
       <CardContent className="p-4 space-y-4">
         <div className="h-40 w-full">

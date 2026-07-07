@@ -12,25 +12,111 @@ import { IndicatorChart } from "@/components/IndicatorChart";
 import { useKanbanData } from "@/hooks/useKanbanData";
 import { PrintDashboard } from "@/components/PrintDashboard";
 import { useIndicatorValues } from "@/hooks/useIndicatorValues";
-import { format } from "date-fns";
+import { format, parse, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes } from "@/hooks/useFleetData";
+import { useLocadosData } from "@/hooks/useLocadosData";
+import { useVeiculosLocadosDisponiveis } from "@/hooks/useDisponibilidadeLocados";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+
+const AUTO_INDICATORS_SPECS = [
+  {
+    name: "Custo de Manutenção",
+    section: "manutencao",
+    subsection: "Próprios",
+    unit: " R$",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 1,
+    is_auto: true,
+    description: "Custo de manutenção corretiva e geral realizada no mês."
+  },
+  {
+    name: "MTTR",
+    section: "manutencao",
+    subsection: "Próprios",
+    unit: " dias",
+    target: 7,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 2,
+    is_auto: true,
+    description: "Mean Time To Repair (Tempo Médio de Reparo)."
+  },
+  {
+    name: "MTBF",
+    section: "manutencao",
+    subsection: "Próprios",
+    unit: " dias",
+    target: 30,
+    goal_type: "higher",
+    chart_type: "line",
+    order: 3,
+    is_auto: true,
+    description: "Mean Time Between Failures (Tempo Médio Entre Falhas)."
+  },
+  {
+    name: "MTTA",
+    section: "manutencao",
+    subsection: "Próprios",
+    unit: " dias",
+    target: 2,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 4,
+    is_auto: true,
+    description: "Mean Time To Approve (Tempo Médio para Aprovação de O.S.)."
+  },
+  {
+    name: "Disponibilidade Inerente",
+    section: "manutencao",
+    subsection: "Próprios",
+    unit: "%",
+    target: 90,
+    goal_type: "higher",
+    chart_type: "gauge",
+    order: 5,
+    is_auto: true,
+    description: "Porcentagem de tempo em que a frota própria esteve disponível."
+  },
+  {
+    name: "Dias de Indisponibilidade",
+    section: "manutencao",
+    subsection: "Locados",
+    unit: " dias",
+    target: 5,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 6,
+    is_auto: true,
+    description: "Total de dias de inoperância/indisponibilidade acumulados por veículos locados no mês."
+  }
+];
 
 interface GestaoVistaProps {
   onBack: () => void;
 }
 
 const GestaoVista = ({ onBack }: GestaoVistaProps) => {
-  const { indicators, isLoading, deleteIndicator } = useIndicators();
+  const { indicators, isLoading: isLoadingIndicators, deleteIndicator } = useIndicators();
   const { responsibles } = useResponsibles();
   const { tasks } = useKanbanData();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndicator, setEditingIndicator] = useState<any>(null);
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  const { data: assets = [], isLoading: isLoadingAssets } = useAssets();
+  const { data: orcamentosRows = [], isLoading: isLoadingOrcamentos } = useOrcamentos();
+  const { data: custosDetalhesRows = [], isLoading: isLoadingCustos } = useCustosDetalhes();
+  const { data: locados = [], isLoading: isLoadingLocados } = useLocadosData();
+  const { data: veiculosDisponiveisData, isLoading: isLoadingVeiculosDisponiveis } = useVeiculosLocadosDisponiveis();
+
+  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis;
   
   const formattedMonth = format(selectedMonth, "yyyy-MM-01");
   const { values: indicatorValues, deleteValue } = useIndicatorValues(undefined, formattedMonth);
@@ -87,9 +173,327 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
     { id: "dashboard", name: "Dashboard Completo" },
   ];
 
+  const parseCurrency = (raw: string) => {
+    const str = (raw || "").replace(/R\$\s*/g, "").replace(/\s/g, "").replace(/\./g, "").replace(",", ".");
+    return parseFloat(str) || 0;
+  };
+
+  const normalizePlate = (p: string) => (p || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  const parseDate = (dateStr: string): Date | null => {
+    if (!dateStr) return null;
+    const formats = ['dd/MM/yyyy', 'yyyy-MM-dd', 'MM/dd/yyyy'];
+    for (const fmt of formats) {
+      const parsed = parse(dateStr, fmt, new Date());
+      if (isValid(parsed)) return parsed;
+    }
+    return null;
+  };
+
+  const { custosData, indicatorSource } = useMemo(() => {
+    const parsedCustos: any[] = [];
+    const indicatorItems: any[] = [];
+
+    if (custosDetalhesRows.length > 0) {
+        for (let i = 1; i < custosDetalhesRows.length; i++) {
+          const row = custosDetalhesRows[i];
+          if (!row || row.length < 40) continue;
+          
+          const diretoria = row[36]?.trim() || "";
+          const gerencia = row[37]?.trim() || "";
+          const tipoManutencao = row[38]?.trim() || "";
+          const mesAnoRaw = row[42]?.trim() || "";
+          const tam = row[45]?.trim() || "";
+          const custoOrcado = parseCurrency(row[46]);
+          const custoReal = parseCurrency(row[47]);
+          const custoGeral = parseCurrency(row[40]);
+          const mesAno = mesAnoRaw.replace(/\./g, '').replace(/-/g, '/');
+
+          const placa = normalizePlate(row[35]?.trim() || row[1]?.trim() || "");
+          const nOrcamento = row[44]?.trim() || "";
+          const ordemServico = row[1]?.trim() || "";
+          const dedupeKey = nOrcamento || ordemServico || `row-${i}`;
+          const descricao = row[53]?.trim() || "";
+
+          if (placa) {
+            parsedCustos.push({ 
+              placa,
+              tipo: tipoManutencao, 
+              custo: custoGeral, 
+              mesAno, 
+              tam, 
+              custoOrcado, 
+              custoReal, 
+              gerencia, 
+              diretoria,
+              nOrcamento,
+              descricao,
+              ordemServico
+            });
+            
+            if (mesAno && tam) {
+              indicatorItems.push({
+                placa, ordemServico: dedupeKey, mesAno, tam,
+                dataEntradaOficina: row[48]?.trim() || "",
+                dataRetiradaOficina: row[49]?.trim() || "",
+                dataEnvioOS: row[50]?.trim() || "",
+                dataAprovacaoOS: row[51]?.trim() || "",
+                dataConclusao: row[52]?.trim() || "",
+                diretoria,
+                gerencia,
+                tipoAtivo: tipoManutencao,
+              });
+            }
+          }
+        }
+    }
+    return { custosData: parsedCustos, indicatorSource: indicatorItems };
+  }, [custosDetalhesRows]);
+
+  const operationalPlates = useMemo(() => {
+    const normalize = (p: string) => (p || "").toUpperCase().replace(/[^A-Z0-9]/g, '');
+    return new Set(
+      assets
+        .filter(a => {
+          const status = (a.SITUACAO || a["SITUAÇÃO"] || a.STATUS || "OPERACIONAL").toUpperCase();
+          return ["OPERACIONAL", "ATIVO", "EM OPERAÇÃO", "DISPONÍVEL", "DISPONIVEL"].includes(status);
+        })
+        .map(a => normalize(a.PLACA || a.placa || ""))
+        .filter(Boolean)
+    );
+  }, [assets]);
+
+  const combinedIndicators = useMemo(() => {
+    const list = [...indicators];
+    
+    AUTO_INDICATORS_SPECS.forEach(spec => {
+      const exists = list.find(ind => 
+        ind.name.trim().toLowerCase() === spec.name.trim().toLowerCase() &&
+        ind.section === spec.section &&
+        ind.subsection === spec.subsection
+      );
+      
+      if (exists) {
+        exists.is_auto = true;
+        exists.unit = spec.unit;
+        exists.target = exists.target || spec.target;
+        exists.goal_type = spec.goal_type;
+        exists.description = spec.description;
+      } else {
+        list.push({
+          id: `auto-${spec.name.toLowerCase().replace(/\s+/g, '-')}`,
+          ...spec
+        });
+      }
+    });
+    
+    return list;
+  }, [indicators]);
+
+  const allAvailableMonths = useMemo(() => {
+    const months = new Set<string>();
+    const ptMonths = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    
+    const extractAndAdd = (itemMesAno: string) => {
+      if (!itemMesAno) return;
+      const cleanItem = itemMesAno.toLowerCase().replace(/\s/g, '').replace(/\./g, '').replace(/-/g, '/');
+      const parts = cleanItem.split('/');
+      if (parts.length < 2) return;
+      const [mRaw, yRaw] = parts;
+      let itemYear = parseInt(yRaw);
+      if (isNaN(itemYear)) return;
+      if (itemYear < 100) itemYear += 2000;
+      
+      const cleanMRaw = mRaw.replace(/[^a-z0-9]/g, '');
+      const monthNum = parseInt(cleanMRaw);
+      let monthIndex = -1;
+      if (!isNaN(monthNum)) {
+        monthIndex = monthNum - 1;
+      } else {
+        const itemMonthName = cleanMRaw.substring(0, 3);
+        monthIndex = ptMonths.indexOf(itemMonthName);
+      }
+      if (monthIndex >= 0 && monthIndex < 12) {
+        const monthStr = String(monthIndex + 1).padStart(2, '0');
+        months.add(`${itemYear}-${monthStr}-01`);
+      }
+    };
+
+    custosData.forEach(c => extractAndAdd(c.mesAno));
+    indicatorSource.forEach(i => extractAndAdd(i.mesAno));
+    locados.forEach(l => extractAndAdd(l.mesAno));
+
+    // Also include current month
+    const curYear = new Date().getFullYear();
+    const curMonthStr = String(new Date().getMonth() + 1).padStart(2, '0');
+    months.add(`${curYear}-${curMonthStr}-01`);
+
+    return Array.from(months).sort();
+  }, [custosData, indicatorSource, locados]);
+
+  const allCalculatedAutoValues = useMemo(() => {
+    const ptMonths = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+    const results: Record<string, Record<string, number>> = {};
+
+    const titularPlatesSet = new Set(veiculosDisponiveisData?.plates || []);
+
+    allAvailableMonths.forEach(monthKey => {
+      const dateParts = monthKey.split('-');
+      const yVal = parseInt(dateParts[0]);
+      const mIndex = parseInt(dateParts[1]) - 1;
+      const valuesMap: Record<string, number> = {};
+
+      const matchMonthYear = (itemMesAno: string) => {
+        if (!itemMesAno) return false;
+        const cleanItem = itemMesAno.toLowerCase().replace(/\s/g, '').replace(/\./g, '').replace(/-/g, '/');
+        const parts = cleanItem.split('/');
+        if (parts.length < 2) return false;
+        const [mRaw, yRaw] = parts;
+        
+        let itemYear = parseInt(yRaw);
+        if (isNaN(itemYear)) return false;
+        if (itemYear < 100) itemYear += 2000;
+        if (itemYear !== yVal) return false;
+
+        const cleanMRaw = mRaw.replace(/[^a-z0-9]/g, '');
+        const monthNum = parseInt(cleanMRaw);
+        if (!isNaN(monthNum)) {
+          return monthNum === (mIndex + 1);
+        } else {
+          const itemMonthName = cleanMRaw.substring(0, 3);
+          return itemMonthName === ptMonths[mIndex];
+        }
+      };
+
+      // 1. Custo de Manutenção
+      const targetCustos = custosData.filter(c => matchMonthYear(c.mesAno));
+      const totalCustoRealizado = targetCustos.reduce((acc, c) => acc + (c.custoReal || 0), 0);
+      valuesMap["Custo de Manutenção"] = parseFloat(totalCustoRealizado.toFixed(2));
+
+      // 2. MTTR, MTBF, MTTA, Disponibilidade Inerente
+      const mceFilteredData = indicatorSource.filter(i => i.tam === "MCE");
+      const targetMce = mceFilteredData.filter(i => matchMonthYear(i.mesAno));
+
+      const mceEvents = new Set<string>();
+      const mesMceItems = targetMce.filter(i => {
+        if (mceEvents.has(i.ordemServico)) return false;
+        mceEvents.add(i.ordemServico);
+        return operationalPlates.has(i.placa) && i.dataEntradaOficina && i.dataRetiradaOficina;
+      });
+
+      let totalDowntime = 0, countMce = 0;
+      mesMceItems.forEach(i => {
+        const e = parseDate(i.dataEntradaOficina), s = parseDate(i.dataRetiradaOficina);
+        if (e && s && differenceInDays(s, e) >= 0) {
+          totalDowntime += differenceInDays(s, e);
+          countMce++;
+        }
+      });
+      const mttr = countMce > 0 ? (totalDowntime / countMce) : 0;
+      valuesMap["MTTR"] = parseFloat(mttr.toFixed(1));
+
+      // MTBF
+      const mesMceFiltered = mceFilteredData.filter(i => matchMonthYear(i.mesAno));
+      const plateStats = new Map<string, { downtime: number; count: number }>();
+      mesMceFiltered.forEach(i => {
+        const e = parseDate(i.dataEntradaOficina);
+        const r = parseDate(i.dataRetiradaOficina);
+        const days = (e && r) ? Math.max(0, differenceInDays(r, e)) : 0;
+        
+        const stats = plateStats.get(i.placa) || { downtime: 0, count: 0 };
+        stats.downtime += days;
+        stats.count += 1;
+        plateStats.set(i.placa, stats);
+      });
+
+      let mtbf = 0;
+      if (plateStats.size > 0) {
+        let totalMtbfVal = 0;
+        plateStats.forEach((stats) => {
+          const vMtbf = (30 - stats.downtime) / stats.count;
+          totalMtbfVal += Math.max(0, vMtbf);
+        });
+        mtbf = totalMtbfVal / plateStats.size;
+      }
+      valuesMap["MTBF"] = parseFloat(mtbf.toFixed(1));
+
+      // MTTA
+      const ttaEvents = new Set<string>();
+      const mesIndicatorItems = indicatorSource.filter(i => {
+        if (!matchMonthYear(i.mesAno)) return false;
+        if (ttaEvents.has(i.ordemServico)) return false;
+        ttaEvents.add(i.ordemServico);
+        return operationalPlates.has(i.placa) && i.dataEnvioOS && i.dataAprovacaoOS;
+      });
+
+      let totalTta = 0, countTta = 0;
+      mesIndicatorItems.forEach(i => {
+        const env = parseDate(i.dataEnvioOS), apr = parseDate(i.dataAprovacaoOS);
+        if (env && apr && differenceInDays(apr, env) >= 0) {
+          totalTta += differenceInDays(apr, env);
+          countTta++;
+        }
+      });
+      const mtta = countTta > 0 ? (totalTta / countTta) : 0;
+      valuesMap["MTTA"] = parseFloat(mtta.toFixed(1));
+
+      // Disponibilidade Inerente
+      const dispInerente = (mtbf <= 0 || (mtbf + mttr) <= 0) ? 0 : (mtbf / (mtbf + mttr)) * 100;
+      valuesMap["Disponibilidade Inerente"] = parseFloat(dispInerente.toFixed(1));
+
+      // 3. Dias de Indisponibilidade (Locados)
+      const targetLocados = locados.filter(item => matchMonthYear(item.mesAno));
+      let totalDiasIndisponibilidade = 0;
+      targetLocados.forEach(item => {
+        const cleanPlaca = String(item.placa || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+        if (cleanPlaca.length === 7 && titularPlatesSet.has(cleanPlaca)) {
+          totalDiasIndisponibilidade += (item.diasParados || 0);
+        }
+      });
+      valuesMap["Dias de Indisponibilidade"] = totalDiasIndisponibilidade;
+
+      results[monthKey] = valuesMap;
+    });
+
+    return results;
+  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData]);
+
+  const combinedIndicatorValues = useMemo(() => {
+    let list = [...allIndicatorValues];
+
+    AUTO_INDICATORS_SPECS.forEach(spec => {
+      const ind = combinedIndicators.find(i => 
+        i.name.trim().toLowerCase() === spec.name.trim().toLowerCase() &&
+        i.section === spec.section &&
+        i.subsection === spec.subsection
+      );
+      if (!ind) return;
+
+      list = list.filter(v => v.indicator_id !== ind.id);
+      
+      allAvailableMonths.forEach(monthKey => {
+        const val = allCalculatedAutoValues[monthKey]?.[spec.name] ?? 0;
+        list.push({
+          id: `auto-val-${ind.id}-${monthKey}`,
+          indicator_id: ind.id,
+          month: monthKey,
+          current_value: val,
+          target: ind.target
+        });
+      });
+    });
+
+    return list;
+  }, [allIndicatorValues, combinedIndicators, allAvailableMonths, allCalculatedAutoValues]);
+
+  const indicatorValuesForMonth = useMemo(() => {
+    const targetMonthStr = format(selectedMonth, "yyyy-MM-01");
+    return combinedIndicatorValues.filter(v => v.month === targetMonthStr);
+  }, [combinedIndicatorValues, selectedMonth]);
+
   const indicatorsWithMonthValues = useMemo(() => {
-    return indicators.map((indicator) => {
-      const monthValue = indicatorValues.find((v) => v.indicator_id === indicator.id);
+    return combinedIndicators.map((indicator) => {
+      const monthValue = indicatorValuesForMonth.find((v) => v.indicator_id === indicator.id);
       return {
         ...indicator,
         current_value: monthValue ? monthValue.current_value : 0,
@@ -97,21 +501,21 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         value_id: monthValue?.id,
       };
     });
-  }, [indicators, indicatorValues]);
+  }, [combinedIndicators, indicatorValuesForMonth]);
 
   const allEntries = useMemo(() => {
-    return allIndicatorValues.map(val => {
-      const indicator = indicators.find(i => i.id === val.indicator_id);
+    return combinedIndicatorValues.map(val => {
+      const indicator = combinedIndicators.find(i => i.id === val.indicator_id);
       if (!indicator) return null;
       return {
         ...indicator,
         ...val,
         value_id: val.id,
-        id: indicator.id // When editing, we edit the indicator definition with the month context
+        id: indicator.id
       };
     }).filter(e => e !== null)
     .sort((a, b) => b.month.localeCompare(a.month) || a.name.localeCompare(b.name));
-  }, [allIndicatorValues, indicators]);
+  }, [combinedIndicatorValues, combinedIndicators]);
 
   const getIndicatorsBySection = (sectionId: string, subsection?: string) => {
     return indicatorsWithMonthValues.filter(
@@ -402,41 +806,49 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                     </TableCell>
                                     <TableCell className="py-4 text-right">
                                       <div className="flex items-center justify-end gap-2">
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => handleEditIndicator(indicator)}
-                                          className={cn(
-                                            "h-8 px-3 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
-                                            isFilled 
-                                              ? "text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-white/5" 
-                                              : "text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
-                                          )}
-                                        >
-                                          {isFilled ? "Alterar" : "Lançar"}
-                                        </Button>
+                                        {indicator.is_auto ? (
+                                          <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-none font-black text-[8px] uppercase tracking-wider py-1 px-2.5 rounded-lg">
+                                            Automático
+                                          </Badge>
+                                        ) : (
+                                          <>
+                                            <Button 
+                                              variant="ghost" 
+                                              size="sm" 
+                                              onClick={() => handleEditIndicator(indicator)}
+                                              className={cn(
+                                                "h-8 px-3 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all",
+                                                isFilled 
+                                                  ? "text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-white/5" 
+                                                  : "text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm"
+                                              )}
+                                            >
+                                              {isFilled ? "Alterar" : "Lançar"}
+                                            </Button>
 
-                                        {isFilled && (
-                                          <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => handleDeleteValue(indicator.value_id, indicator.name)}
-                                            className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all"
-                                            title="Excluir lançamento deste mês"
-                                          >
-                                            <CalendarX className="h-4 w-4" />
-                                          </Button>
+                                            {isFilled && (
+                                              <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => handleDeleteValue(indicator.value_id, indicator.name)}
+                                                className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all"
+                                                title="Excluir lançamento deste mês"
+                                              >
+                                                <CalendarX className="h-4 w-4" />
+                                              </Button>
+                                            )}
+
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleDeleteIndicator(indicator.id, indicator.name)}
+                                              className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 pr-1"
+                                              title="Excluir indicador cadastrado"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </>
                                         )}
-
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleDeleteIndicator(indicator.id, indicator.name)}
-                                          className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 pr-1"
-                                          title="Excluir indicador cadastrado"
-                                        >
-                                          <Trash2 className="h-4 w-4" />
-                                        </Button>
                                       </div>
                                     </TableCell>
                                   </TableRow>
@@ -479,26 +891,32 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                     </TableCell>
                                     <TableCell className="py-2 text-right">
                                       <div className="flex items-center justify-end gap-1.5">
-                                        <Button 
-                                          variant="ghost" 
-                                          size="xs"
-                                          onClick={() => {
-                                            setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
-                                            handleEditIndicator(entry);
-                                          }}
-                                          className="h-6 text-[8px] font-black uppercase"
-                                        >
-                                          Ver
-                                        </Button>
-                                        <Button
-                                          variant="ghost"
-                                          size="icon"
-                                          onClick={() => handleDeleteHistoryValue(entry.value_id, entry.name)}
-                                          className="h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md transition-all opacity-0 group-hover:opacity-100"
-                                          title="Excluir este lançamento histórico"
-                                        >
-                                          <Trash2 className="h-3.5 w-3.5" />
-                                        </Button>
+                                        {entry.is_auto ? (
+                                          <span className="text-[8px] font-black uppercase text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded">Auto</span>
+                                        ) : (
+                                          <>
+                                            <Button 
+                                              variant="ghost" 
+                                              size="xs"
+                                              onClick={() => {
+                                                setSelectedMonth(new Date(entry.month + "T12:00:00Z"));
+                                                handleEditIndicator(entry);
+                                              }}
+                                              className="h-6 text-[8px] font-black uppercase"
+                                            >
+                                              Ver
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleDeleteHistoryValue(entry.value_id, entry.name)}
+                                              className="h-6 w-6 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                                              title="Excluir este lançamento histórico"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </>
+                                        )}
                                       </div>
                                     </TableCell>
                                   </TableRow>
