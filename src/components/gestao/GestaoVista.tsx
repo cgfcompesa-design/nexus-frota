@@ -14,7 +14,7 @@ import { PrintDashboard } from "@/components/PrintDashboard";
 import { useIndicatorValues } from "@/hooks/useIndicatorValues";
 import { format, parse, isValid, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes } from "@/hooks/useFleetData";
+import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes, useFuelData, useRegularizacaoData } from "@/hooks/useFleetData";
 import { useLocadosData } from "@/hooks/useLocadosData";
 import { useVeiculosLocadosDisponiveis } from "@/hooks/useDisponibilidadeLocados";
 import { Calendar } from "@/components/ui/calendar";
@@ -94,6 +94,78 @@ const AUTO_INDICATORS_SPECS = [
     order: 6,
     is_auto: true,
     description: "Total de dias de inoperância/indisponibilidade acumulados por veículos locados no mês."
+  },
+  {
+    name: "Litros abastecidos",
+    section: "abastecimento",
+    subsection: "",
+    unit: " L",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 1,
+    is_auto: true,
+    description: "Total de litros abastecidos no mês."
+  },
+  {
+    name: "Valor abastecido",
+    section: "abastecimento",
+    subsection: "",
+    unit: " R$",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 2,
+    is_auto: true,
+    description: "Custo total dos abastecimentos no mês."
+  },
+  {
+    name: "Preço Médio/Litro",
+    section: "abastecimento",
+    subsection: "",
+    unit: " R$",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "line",
+    order: 3,
+    is_auto: true,
+    description: "Preço médio do litro de combustível no mês."
+  },
+  {
+    name: "Autonomia Real Média",
+    section: "abastecimento",
+    subsection: "",
+    unit: " km/L",
+    target: 10,
+    goal_type: "higher",
+    chart_type: "line",
+    order: 4,
+    is_auto: true,
+    description: "Autonomia média real da frota no mês (km/L)."
+  },
+  {
+    name: "KM Médio",
+    section: "abastecimento",
+    subsection: "",
+    unit: " km",
+    target: 0,
+    goal_type: "higher",
+    chart_type: "line",
+    order: 5,
+    is_auto: true,
+    description: "Média de KM rodados por abastecimento no mês."
+  },
+  {
+    name: "Infrações Recebidas no Mês",
+    section: "regularizacao",
+    subsection: "",
+    unit: " uni",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 1,
+    is_auto: true,
+    description: "Quantidade total de infrações recebidas no mês."
   }
 ];
 
@@ -115,8 +187,10 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   const { data: custosDetalhesRows = [], isLoading: isLoadingCustos } = useCustosDetalhes();
   const { data: locados = [], isLoading: isLoadingLocados } = useLocadosData();
   const { data: veiculosDisponiveisData, isLoading: isLoadingVeiculosDisponiveis } = useVeiculosLocadosDisponiveis();
+  const { data: fuelData = [], isLoading: isLoadingFuel } = useFuelData();
+  const { data: regularizacaoData = [], isLoading: isLoadingRegularizacao } = useRegularizacaoData();
 
-  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis;
+  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao;
   
   const formattedMonth = format(selectedMonth, "yyyy-MM-01");
   const { values: indicatorValues, deleteValue } = useIndicatorValues(undefined, formattedMonth);
@@ -290,6 +364,110 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
     return list;
   }, [indicators]);
 
+  const sanitizedFuelData = useMemo(() => {
+    return fuelData.map((f: any) => {
+      // Litros
+      let litros = f._litros;
+      if (typeof litros === "string") {
+        litros = parseFloat(String(litros).replace(/\./g, "").replace(",", "."));
+      }
+      litros = Number(litros) || 0;
+
+      // Total (Custo R$)
+      let total = f._total;
+      if (typeof total === "string") {
+        total = parseFloat(String(total).replace(/\./g, "").replace(",", "."));
+      }
+      total = Number(total) || 0;
+
+      // Autonomia
+      let autReal = f._autReal;
+      if (typeof autReal === "string") {
+        autReal = parseFloat(String(autReal).replace(/\./g, "").replace(",", "."));
+      }
+      autReal = Number(autReal) || 0;
+
+      // KM Rodados
+      let kmRodados = f._kmRodados;
+      if (typeof kmRodados === "string") {
+        kmRodados = parseFloat(String(kmRodados).replace(/\./g, "").replace(",", "."));
+      }
+      kmRodados = Number(kmRodados) || 0;
+
+      // Preço por litro
+      let vlLitro = f._vlLitro;
+      if (typeof vlLitro === "string") {
+        vlLitro = parseFloat(String(vlLitro).replace(/\./g, "").replace(",", "."));
+      }
+      vlLitro = Number(vlLitro) || 0;
+
+      // Date parsing
+      const rawDate = f._dateParsed || f._date || f["DATA TRANSACAO"] || f["DATA"] || "";
+      let d: Date | null = null;
+      if (rawDate instanceof Date) d = rawDate;
+      else if (rawDate) {
+        const s = String(rawDate).trim();
+        const parts = s.split(/[\s/:\-]/);
+        if (parts.length >= 3) {
+          const day = parseInt(parts[0]);
+          const month = parseInt(parts[1]) - 1;
+          const year = parts[2].length === 2 ? 2000 + parseInt(parts[2]) : parseInt(parts[2]);
+          d = new Date(year, month, day);
+        }
+      }
+
+      // Mes/Ano
+      let mesAno = f._monthYear || f["MES/ANO"] || f["M\u00CAS/ANO"] || f["MES ANO"] || f.COL_41 || "";
+      if (!mesAno || mesAno === "N/A" || mesAno === "undefined") {
+        if (d) {
+          const m = (d.getMonth() + 1).toString().padStart(2, '0');
+          const y = d.getFullYear().toString();
+          mesAno = `${m}/${y}`;
+        } else {
+          mesAno = "N/A";
+        }
+      } else {
+        const my = mesAno.toLowerCase();
+        const monthNames: Record<string, string> = { 
+          'jan': '01', 'fev': '02', 'mar': '03', 'abr': '04', 'mai': '05', 'jun': '06', 
+          'jul': '07', 'ago': '08', 'set': '09', 'out': '10', 'nov': '11', 'dez': '12',
+          'janeiro': '01', 'fevereiro': '02', 'março': '03', 'abril': '04', 'maio': '05', 
+          'junho': '06', 'julho': '07', 'agosto': '08', 'setembro': '09', 'outubro': '10', 
+          'novembro': '11', 'dezembro': '12'
+        };
+        const parts = my.split(/[\/\s-]/);
+        if (parts.length >= 2) {
+          let month = "";
+          let year = "";
+          for (const [name, code] of Object.entries(monthNames)) {
+            if (parts[0].startsWith(name)) { month = code; break; }
+          }
+          if (!month && /^\d+$/.test(parts[0])) {
+            month = parts[0].padStart(2, '0');
+          }
+          if (/^\d+$/.test(parts[parts.length - 1])) {
+            year = parts[parts.length - 1];
+            if (year.length === 2) year = "20" + year;
+          }
+          if (month && year) {
+            mesAno = `${month}/${year}`;
+          }
+        }
+      }
+
+      return {
+        ...f,
+        _litros: litros,
+        _total: total,
+        _autReal: autReal,
+        _kmRodados: kmRodados,
+        _vlLitro: vlLitro,
+        _dateParsed: d,
+        _monthYear: mesAno,
+      };
+    });
+  }, [fuelData]);
+
   const allAvailableMonths = useMemo(() => {
     const months = new Set<string>();
     const ptMonths = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -322,6 +500,16 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
     custosData.forEach(c => extractAndAdd(c.mesAno));
     indicatorSource.forEach(i => extractAndAdd(i.mesAno));
     locados.forEach(l => extractAndAdd(l.mesAno));
+    sanitizedFuelData.forEach(f => extractAndAdd(f._monthYear));
+    regularizacaoData.forEach(r => {
+      const dateStr = String(r.__raw?.[8] || "");
+      if (dateStr && dateStr !== "-") {
+        const parts = dateStr.split('/');
+        if (parts.length >= 3) {
+          extractAndAdd(`${parts[1]}/${parts[2]}`);
+        }
+      }
+    });
 
     // Also include current month
     const curYear = new Date().getFullYear();
@@ -329,7 +517,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
     months.add(`${curYear}-${curMonthStr}-01`);
 
     return Array.from(months).sort();
-  }, [custosData, indicatorSource, locados]);
+  }, [custosData, indicatorSource, locados, sanitizedFuelData, regularizacaoData]);
 
   const allCalculatedAutoValues = useMemo(() => {
     const ptMonths = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -452,11 +640,57 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       });
       valuesMap["Dias de Indisponibilidade"] = totalDiasIndisponibilidade;
 
+      // 4. Abastecimento Indicators
+      const targetMonthYearStr = `${String(mIndex + 1).padStart(2, '0')}/${yVal}`;
+      const targetFuel = sanitizedFuelData.filter(f => f._monthYear === targetMonthYearStr);
+
+      const totalCombustivel = targetFuel.reduce((sum, f) => sum + (f._litros || 0), 0);
+      const custoTotal = targetFuel.reduce((sum, f) => sum + (f._total || 0), 0);
+
+      const autonomiaRecords = targetFuel.map(f => f._autReal || 0).filter(v => v > 0);
+      const avgAutonomiaReal = autonomiaRecords.length > 0 
+        ? autonomiaRecords.reduce((a, b) => a + b, 0) / autonomiaRecords.length 
+        : 0;
+
+      const kmRecords = targetFuel.map(f => f._kmRodados || 0).filter(v => v > 0);
+      const avgKmMedio = kmRecords.length > 0 
+        ? kmRecords.reduce((a, b) => a + b, 0) / kmRecords.length 
+        : 0;
+
+      const precoRecords = targetFuel.map(f => f._vlLitro || 0).filter(v => v > 0);
+      const avgPrecoLitro = precoRecords.length > 0 
+        ? precoRecords.reduce((a, b) => a + b, 0) / precoRecords.length 
+        : 0;
+
+      valuesMap["Litros abastecidos"] = parseFloat(totalCombustivel.toFixed(1));
+      valuesMap["Valor abastecido"] = parseFloat(custoTotal.toFixed(2));
+      valuesMap["Preço Médio/Litro"] = parseFloat(avgPrecoLitro.toFixed(3));
+      valuesMap["Autonomia Real Média"] = parseFloat(avgAutonomiaReal.toFixed(2));
+      valuesMap["KM Médio"] = parseFloat(avgKmMedio.toFixed(1));
+
+      // 5. Regularização - Infrações Recebidas no Mês
+      let infractionsCount = 0;
+      regularizacaoData.forEach(item => {
+        const dateStr = String(item.__raw?.[8] || "");
+        if (!dateStr || dateStr === "-") return;
+        try {
+          const parts = dateStr.split('/');
+          if (parts.length >= 3) {
+            const m = parseInt(parts[1]);
+            const y = parseInt(parts[2]);
+            if (m === (mIndex + 1) && y === yVal) {
+              infractionsCount++;
+            }
+          }
+        } catch {}
+      });
+      valuesMap["Infrações Recebidas no Mês"] = infractionsCount;
+
       results[monthKey] = valuesMap;
     });
 
     return results;
-  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData]);
+  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData, sanitizedFuelData, regularizacaoData]);
 
   const combinedIndicatorValues = useMemo(() => {
     let list = [...allIndicatorValues];
