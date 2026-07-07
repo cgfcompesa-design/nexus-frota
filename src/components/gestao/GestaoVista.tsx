@@ -18,6 +18,9 @@ import { useAssets, useHistoricoManutencao, useOrcamentos, useCustosDetalhes, us
 import { useLocadosData } from "@/hooks/useLocadosData";
 import { useVeiculosLocadosDisponiveis } from "@/hooks/useDisponibilidadeLocados";
 import { useControleDocumentosData } from "@/hooks/useControleDocumentos";
+import { useCNHData, calculateCNHStats } from "@/hooks/useCNHData";
+import { useNotificacoes } from "@/hooks/useTelemetryData";
+import { useMachineSupplyAssignments } from "@/hooks/useMachineSupplyAssignments";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -276,6 +279,54 @@ const AUTO_INDICATORS_SPECS = [
     description: "Quantidade de desvios de consumo/autonomia vs. padrão no mês."
   },
   {
+    name: "% de Abastecimentos Irregulares (MAQ)",
+    section: "abastecimento",
+    subsection: "",
+    unit: "%",
+    target: 10,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 7,
+    is_auto: true,
+    description: "Percentual de abastecimentos de máquinas onde o Destino Maquinário é OUTROS."
+  },
+  {
+    name: "Disponibilidade Locados",
+    section: "manutencao",
+    subsection: "Locados",
+    unit: "%",
+    target: 95,
+    goal_type: "higher",
+    chart_type: "gauge",
+    order: 7,
+    is_auto: true,
+    description: "Percentual de disponibilidade da frota de veículos locados no mês."
+  },
+  {
+    name: "CNH Vencida",
+    section: "telemetria",
+    subsection: "",
+    unit: " mot",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 1,
+    is_auto: true,
+    description: "Quantidade de condutores com CNH vencida atualmente."
+  },
+  {
+    name: "Notificações Enviadas via SEI",
+    section: "telemetria",
+    subsection: "",
+    unit: " ntf",
+    target: 0,
+    goal_type: "lower",
+    chart_type: "bar",
+    order: 2,
+    is_auto: true,
+    description: "Quantidade de notificações enviadas via SEI no mês."
+  },
+  {
     name: "Multas Pagas (Centro de Custo)",
     section: "regularizacao",
     subsection: "",
@@ -329,6 +380,9 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   const { data: regularizacaoData = [], isLoading: isLoadingRegularizacao } = useRegularizacaoData();
   const { data: titulosDespesasData = [], isLoading: isLoadingTitulos } = useMaintenanceCostData();
   const { data: controleDocumentos = [], isLoading: isLoadingControleDocs } = useControleDocumentosData();
+  const { data: cnhResult, isLoading: isLoadingCNH } = useCNHData();
+  const { data: notificacoes = [], isLoading: isLoadingNotificacoes } = useNotificacoes();
+  const { data: machineAssignments = [], isLoading: isLoadingMachineAssignments } = useMachineSupplyAssignments();
 
   const [crlvYears, setCrlvYears] = useState<Record<string, string>>({});
 
@@ -343,7 +397,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       .catch(err => console.error("Error fetching CRLV years:", err));
   }, []);
 
-  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao || isLoadingTitulos || isLoadingControleDocs;
+  const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao || isLoadingTitulos || isLoadingControleDocs || isLoadingCNH || isLoadingNotificacoes || isLoadingMachineAssignments;
   
   const formattedMonth = format(safeSelectedMonth, "yyyy-MM-01");
   const { values: indicatorValues, deleteValue } = useIndicatorValues(undefined, formattedMonth);
