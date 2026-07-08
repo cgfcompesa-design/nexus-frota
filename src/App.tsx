@@ -367,14 +367,33 @@ export default function App() {
       }
     }
 
-    // Role based protection for Visualizadores
+    // Role based protection for Visualizadores PÚBLICO EM GERAL
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos', 'pool'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
     }
 
+
+//Quem pode visualizar o aba pool
+
+
+
+// Role based protection for POOL
+if (
+  user &&
+  currentView === 'pool' &&
+  effectiveRole !== 'Master' &&
+  effectiveRole !== 'Gestão'
+) {
+  toast.error("Acesso restrito ao módulo POOL.");
+  return <Home setView={setCurrentView} userRole={effectiveRole} />;
+}
+
+
+
+    
     // Role based protection for LOCADORA
     if (user && effectiveRole === 'LOCADORA') {
       return <CadastroPreventivaPage hideBackButton={true} userProfile={userProfile} />;
