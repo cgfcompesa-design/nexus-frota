@@ -168,7 +168,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       'reg-taxas': Gavel,
       'cadastro-preventiva': ClipboardList,
       'drive': Share2,
-      'pool': Ticket,
+      'pool': Ticket
     };
 
     const rebindIcons = (menuList: MenuItem[]) => {
