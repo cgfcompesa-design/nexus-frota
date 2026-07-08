@@ -28,7 +28,7 @@ import KanbanBoard from './components/kanban/KanbanBoard';
 import GestaoVista from './components/gestao/GestaoVista';
 import DrivePage from './components/drive/DrivePage';
 import ActivityManagement from './components/config/ActivityManagement';
-import PoolDashboard from './components/pool/Pool';
+import PoolDashboard from './pages/Pool.tsx';
 import ChecklistManutencaoPage from './components/maintenance/ChecklistManutencaoPage';
 import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
 import CadastroPreventivaPage from './components/maintenance/CadastroPreventivaPage';
