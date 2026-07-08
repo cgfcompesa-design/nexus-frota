@@ -104,33 +104,30 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
   id: 'manutencao',
   label: 'Manutenção',
   icon: Wrench,
-
-},
-    { 
-      id: 'manutencao', 
-      label: 'Manutenção', 
-      icon: Wrench,
+  subItems: [
+    {
+      id: 'proprios',
+      label: 'Próprios',
+      icon: Car,
       subItems: [
-        { 
-          id: 'proprios', 
-          label: 'Próprios', 
-          icon: Car,
-          subItems: [
-            { id: 'mnt-ctrl-op', label: 'Controle Operacional', icon: ClipboardList },
-            { id: 'mnt-desemp', label: 'Desempenho &\nHistórico', icon: History },
-          ]
-        },
-        { 
-          id: 'locados-parent', 
-          label: 'Locados', 
-          icon: Truck,
-          subItems: [
-            { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
-            { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList },
-          ]
-        },
+        { id: 'mnt-ctrl-op', label: 'Controle Operacional', icon: ClipboardList },
+        { id: 'mnt-desemp', label: 'Desempenho & Histórico', icon: History },
       ]
     },
+    {
+      id: 'locados-parent',
+      label: 'Locados',
+      icon: Truck,
+      subItems: [
+        { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
+        { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList },
+      ]
+    }
+  ]
+},
+
+    
+
     
     { 
       id: 'regularizacao', 
