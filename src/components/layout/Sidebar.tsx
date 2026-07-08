@@ -104,7 +104,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
   label: 'Manutenção',
   icon: Wrench,
 
-}
+},
     { 
       id: 'manutencao', 
       label: 'Manutenção', 
