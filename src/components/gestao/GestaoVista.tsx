@@ -662,8 +662,16 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         }
       }
 
+      const rawPlaca = f._placa || f.PLACA || f.Placa || f.placa || (f as any).COL_2 || (f as any).COL_5 || "";
+      const _placa = String(rawPlaca).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
+
+      const rawTxId = f._txId || f["CODIGO TRANSACAO"] || f["CODIGO_TRANSACAO"] || f["Nº TRANSACAO"] || f["Nº_TRANSACAO"] || f.COL_0 || "";
+      const _txId = String(rawTxId).trim();
+
       return {
         ...f,
+        _placa,
+        _txId,
         _litros: litros,
         _total: total,
         _autReal: autReal,
@@ -732,6 +740,11 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
 
     const titularPlatesSet = new Set(veiculosDisponiveisData?.plates || []);
 
+    const normalizeTxId = (id: any): string => {
+      if (id === null || id === undefined) return "";
+      return String(id).trim().replace(/^0+/, "");
+    };
+
     allAvailableMonths.forEach(monthKey => {
       const dateParts = monthKey.split('-');
       const yVal = parseInt(dateParts[0]);
@@ -760,6 +773,18 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         }
       };
 
+      const matchDayMonthYear = (dateStr: string) => {
+        if (!dateStr) return false;
+        const clean = dateStr.trim().replace(/-/g, "/");
+        const parts = clean.split("/");
+        if (parts.length < 3) return false;
+        const m = parseInt(parts[1]);
+        let y = parseInt(parts[2]);
+        if (isNaN(m) || isNaN(y)) return false;
+        if (y < 100) y += 2000;
+        return m === (mIndex + 1) && y === yVal;
+      };
+
       // 1. Custo de Manutenção
       const targetCustos = custosData.filter(c => matchMonthYear(c.mesAno));
       const validCustos = targetCustos.map(c => c.custoReal || 0).filter(v => v > 0);
@@ -779,40 +804,22 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         return operationalPlates.has(i.placa) && i.dataEntradaOficina && i.dataRetiradaOficina;
       });
 
-      let totalDowntime = 0, countMce = 0;
+      let totalDaysRepair = 0, repairCount = 0;
       mesMceItems.forEach(i => {
-        const e = parseDate(i.dataEntradaOficina), s = parseDate(i.dataRetiradaOficina);
-        if (e && s && differenceInDays(s, e) >= 0) {
-          totalDowntime += differenceInDays(s, e);
-          countMce++;
+        const ent = parseDate(i.dataEntradaOficina), ret = parseDate(i.dataRetiradaOficina);
+        if (ent && ret && differenceInDays(ret, ent) >= 0) {
+          totalDaysRepair += differenceInDays(ret, ent);
+          repairCount++;
         }
       });
-      const mttr = countMce > 0 ? (totalDowntime / countMce) : 0;
+      const mttr = repairCount > 0 ? (totalDaysRepair / repairCount) : 0;
       valuesMap["MTTR"] = parseFloat(mttr.toFixed(1));
 
       // MTBF
-      const mesMceFiltered = mceFilteredData.filter(i => matchMonthYear(i.mesAno));
-      const plateStats = new Map<string, { downtime: number; count: number }>();
-      mesMceFiltered.forEach(i => {
-        const e = parseDate(i.dataEntradaOficina);
-        const r = parseDate(i.dataRetiradaOficina);
-        const days = (e && r) ? Math.max(0, differenceInDays(r, e)) : 0;
-        
-        const stats = plateStats.get(i.placa) || { downtime: 0, count: 0 };
-        stats.downtime += days;
-        stats.count += 1;
-        plateStats.set(i.placa, stats);
-      });
-
-      let mtbf = 0;
-      if (plateStats.size > 0) {
-        let totalMtbfVal = 0;
-        plateStats.forEach((stats) => {
-          const vMtbf = (30 - stats.downtime) / stats.count;
-          totalMtbfVal += Math.max(0, vMtbf);
-        });
-        mtbf = totalMtbfVal / plateStats.size;
-      }
+      const totalVeiculosTam = 14; 
+      const totalTargetDays = 30; 
+      const totalPotentialTime = totalVeiculosTam * totalTargetDays;
+      const mtbf = repairCount > 0 ? (totalPotentialTime - totalDaysRepair) / repairCount : totalPotentialTime;
       valuesMap["MTBF"] = parseFloat(mtbf.toFixed(1));
 
       // MTTA
@@ -849,6 +856,15 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         }
       });
       valuesMap["Dias de Indisponibilidade"] = totalDiasIndisponibilidade;
+
+      // 3.1 Disponibilidade Locados
+      const vCount = veiculosDisponiveisData?.count ?? 0;
+      const totalPotentialDays = vCount * 30;
+      const totalDiasParados = targetLocados.reduce((sum, item) => sum + (item.diasParados || 0), 0);
+      const dispLocados = totalPotentialDays > 0 
+        ? Math.max(0, ((totalPotentialDays - totalDiasParados) / totalPotentialDays) * 100)
+        : 100;
+      valuesMap["Disponibilidade Locados"] = parseFloat(dispLocados.toFixed(1));
 
       // 4. Abastecimento Indicators
       const targetMonthYearStr = `${String(mIndex + 1).padStart(2, "0")}/${yVal}`;
@@ -888,23 +904,14 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
 
       let desviosAutonomiaCount = 0;
       targetFuel.forEach(f => {
-        const placa = String(f._placa || f.PLACA || f.Placa || "").replace(/[^A-Z0-9]/gi, "").toUpperCase();
+        const placa = String(f._placa || "").toUpperCase();
         if (placa.startsWith("MAQ")) return;
 
         const asset = assetsByPlaca.get(placa);
         if (!asset) return;
 
-        const tipoControleVal = asset["TIPO CONTROLE AUTONOMIA"] || 
-                                asset["CONTROLE DE AUTONOMIA"] || 
-                                asset["CONTROLE AUTONOMIA"] || 
-                                asset.TIPO_CONTROLE_AUTONOMIA || 
-                                (asset.__raw && asset.__raw[43]) || 
-                                "";
-        const tc = String(tipoControleVal).trim().toUpperCase();
-        if (tc !== "FROTA" && tc !== "") return;
-
         const autReal = f._autReal || 0;
-        const fuelType = f._fuelType || f["TIPO COMBUSTIVEL"] || f["TIPO COMBUSTÍVEL"] || "";
+        const fuelType = f._fuelType || f["TIPO COMBUSTIVEL"] || f["TIPO COMBUSTÍVEL"] || f["PRODUTO"] || "";
         
         if (autReal > 0) {
           const assetRaw = asset.__raw || [];
@@ -921,8 +928,23 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
           }
         }
       });
-
       valuesMap["Desvio de Consumo vs. Padrão"] = desviosAutonomiaCount;
+
+      // 4.2 % de Abastecimentos Irregulares (MAQ)
+      const maqFuel = targetFuel.filter(f => {
+        const placa = String(f._placa || "").toUpperCase();
+        return placa.startsWith("MAQ") || placa.startsWith("GER");
+      });
+      let irregularCount = 0;
+      maqFuel.forEach(f => {
+        const normTxId = normalizeTxId(f._txId);
+        const a = machineAssignments.find(as => normalizeTxId(as.transactionId) === normTxId);
+        if (a && String(a.machineryDestination).trim().toUpperCase() === "OUTROS") {
+          irregularCount++;
+        }
+      });
+      const pctIrregulares = maqFuel.length > 0 ? (irregularCount / maqFuel.length) * 100 : 0;
+      valuesMap["% de Abastecimentos Irregulares (MAQ)"] = parseFloat(pctIrregulares.toFixed(1));
 
       // 5. Regularização - Infrações Recebidas no Mês
       let infractionsCount = 0;
@@ -958,7 +980,6 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
         }
         return sum + valorTitulo;
       }, 0);
-      
       valuesMap["Multas Pagas (Centro de Custo)"] = parseFloat(totalMultasPagas.toFixed(2));
 
       // 5.2 CRLV Vencidos
@@ -966,37 +987,49 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       controleDocumentos.forEach(doc => {
         const hasAnexo = !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5);
         if (!hasAnexo) {
-          crlvVencidosCount++;
-          return;
-        }
-        
-        let docYear = "2025";
-        if (doc.statusCrlv && doc.statusCrlv.trim().length > 0) {
-          docYear = doc.statusCrlv.trim();
-        } else {
-          const plate = doc.placa.trim().toUpperCase();
-          if (crlvYears[plate]) {
-            docYear = crlvYears[plate];
+          let docYear = "2025";
+          if (doc.statusCrlv && doc.statusCrlv.trim().length > 0) {
+            docYear = doc.statusCrlv.trim();
           } else {
-            const prop = String(doc.propriedade || "").trim().toUpperCase();
-            if (prop.includes("COMPESA") || prop.includes("CS BRASIL")) {
-              docYear = "2026";
+            const plate = doc.placa.trim().toUpperCase();
+            if (crlvYears[plate]) {
+              docYear = crlvYears[plate];
+            } else {
+              const prop = String(doc.propriedade || "").trim().toUpperCase();
+              if (prop.includes("COMPESA") || prop.includes("CS BRASIL")) {
+                docYear = "2026";
+              }
             }
           }
-        }
-        
-        if (docYear !== "2026") {
-          crlvVencidosCount++;
+          
+          if (docYear === "2025") {
+            crlvVencidosCount++;
+          }
         }
       });
-      
       valuesMap["CRLV Vencidos"] = crlvVencidosCount;
+
+      // 6. Telemetria - CNH Vencida
+      const cnhVencidasCount = cnhResult?.records 
+        ? cnhResult.records.filter(r => r.status === "vencida").length 
+        : 0;
+      valuesMap["CNH Vencida"] = cnhVencidasCount;
+
+      // 6.1 Telemetria - Notificações Enviadas via SEI
+      let notifsInMonth = 0;
+      notificacoes.forEach(n => {
+        const dataStr = String(n._data || n.DATA || "").trim();
+        if (dataStr && matchDayMonthYear(dataStr)) {
+          notifsInMonth++;
+        }
+      });
+      valuesMap["Notificações Enviadas via SEI"] = notifsInMonth;
 
       results[monthKey] = valuesMap;
     });
 
     return results;
-  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData, sanitizedFuelData, regularizacaoData, titulosDespesasData, controleDocumentos, crlvYears]);
+  }, [allAvailableMonths, custosData, indicatorSource, operationalPlates, locados, veiculosDisponiveisData, sanitizedFuelData, regularizacaoData, titulosDespesasData, controleDocumentos, crlvYears, machineAssignments, cnhResult, notificacoes]);
 
   const combinedIndicatorValues = useMemo(() => {
     let list = [...allIndicatorValues];
