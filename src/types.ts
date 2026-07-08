@@ -135,7 +135,6 @@ export interface MachineSupplyAssignment {
   userUnit: string;
   updatedBy: string;
   updatedAt: any;
-  sourceDb?: string;
 }
 
 export interface PreventiveMaintenanceData {

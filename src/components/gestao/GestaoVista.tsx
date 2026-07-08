@@ -819,7 +819,8 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       const totalVeiculosTam = 14; 
       const totalTargetDays = 30; 
       const totalPotentialTime = totalVeiculosTam * totalTargetDays;
-      const mtbf = repairCount > 0 ? (totalPotentialTime - totalDaysRepair) / repairCount : totalPotentialTime;
+      const mtbfRaw = repairCount > 0 ? (totalPotentialTime - totalDaysRepair) / repairCount : totalPotentialTime;
+      const mtbf = Math.abs(mtbfRaw);
       valuesMap["MTBF"] = parseFloat(mtbf.toFixed(1));
 
       // MTTA
@@ -843,7 +844,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       valuesMap["MTTA"] = parseFloat(mtta.toFixed(1));
 
       // Disponibilidade Inerente
-      const dispInerente = (mtbf <= 0 || (mtbf + mttr) <= 0) ? 0 : (mtbf / (mtbf + mttr)) * 100;
+      const dispInerente = (repairCount === 0) ? 100 : (mtbf <= 0 || (mtbf + mttr) <= 0) ? 0 : (mtbf / (mtbf + mttr)) * 100;
       valuesMap["Disponibilidade Inerente"] = parseFloat(dispInerente.toFixed(1));
 
       // 3. Dias de Indisponibilidade (Locados)
@@ -1384,9 +1385,20 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                     <TableCell className="py-4 text-right">
                                       <div className="flex items-center justify-end gap-2">
                                         {indicator.is_auto ? (
-                                          <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-none font-black text-[8px] uppercase tracking-wider py-1 px-2.5 rounded-lg">
-                                            Automático
-                                          </Badge>
+                                          <div className="flex items-center gap-2">
+                                            <Badge className="bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 border-none font-black text-[8px] uppercase tracking-wider py-1 px-2.5 rounded-lg">
+                                              Automático
+                                            </Badge>
+                                            <Button 
+                                              variant="ghost" 
+                                              size="sm" 
+                                              onClick={() => handleEditIndicator(indicator)}
+                                              className="h-8 px-3 font-black text-[9px] uppercase tracking-widest rounded-lg transition-all text-indigo-600 hover:bg-indigo-50 dark:text-indigo-400 dark:hover:bg-white/5 border border-indigo-200 dark:border-indigo-800"
+                                              title="Ajustar Meta/Responsável do indicador automático"
+                                            >
+                                              Ajustar
+                                            </Button>
+                                          </div>
                                         ) : (
                                           <>
                                             <Button 

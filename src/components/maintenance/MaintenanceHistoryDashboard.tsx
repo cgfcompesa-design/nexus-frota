@@ -613,18 +613,18 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       plateStats.set(i.placa, stats);
     });
 
-    if (plateStats.size === 0) return { averageDays: 0, count: 0 };
-
     const numMonths = selectedMesAnoIndicadores === "all" 
       ? (new Set(indicatorSource.map(i => i.mesAno)).size || 1)
       : 1;
     const daysBaseTotal = 30 * numMonths;
+
+    if (plateStats.size === 0) return { averageDays: daysBaseTotal, count: 0 };
     
     let totalMtbfVal = 0;
     plateStats.forEach((stats) => {
       // MTBF_v = (Base Dias - Dias Parado) / Falhas
       const vMtbf = (daysBaseTotal - stats.downtime) / stats.count;
-      totalMtbfVal += Math.max(0, vMtbf);
+      totalMtbfVal += Math.abs(vMtbf);
     });
 
     return { averageDays: totalMtbfVal / plateStats.size, count: mceFilteredData.length };
@@ -835,6 +835,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
   const disponibilidadeOperacional = useMemo(() => {
     const mttr = mttrData.averageDays;
     const mtbf = mtbfData.averageDays;
+    if (mttr === 0) return 100;
     if (mtbf <= 0 || (mtbf + mttr) <= 0) return 0;
     return (mtbf / (mtbf + mttr)) * 100;
   }, [mttrData, mtbfData]);
@@ -898,12 +899,12 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
         plateStats.set(i.placa, stats);
       });
 
-      let mtbf = 0;
+      let mtbf = 30;
       if (plateStats.size > 0) {
         let totalMtbfVal = 0;
         plateStats.forEach((stats) => {
           const vMtbf = (30 - stats.downtime) / stats.count;
-          totalMtbfVal += Math.max(0, vMtbf);
+          totalMtbfVal += Math.abs(vMtbf);
         });
         mtbf = totalMtbfVal / plateStats.size;
       }
@@ -927,7 +928,7 @@ export const MaintenanceHistoryDashboard = ({ maintenanceCost }: MaintenanceHist
       const mtta = countTta > 0 ? (totalTta / countTta) : 0;
 
       // Disponibilidade Inerente
-      const disponibilidade = (mtbf <= 0 || (mtbf + mttr) <= 0) ? 0 : (mtbf / (mtbf + mttr)) * 100;
+      const disponibilidade = (mttr === 0) ? 100 : (mtbf <= 0 || (mtbf + mttr) <= 0) ? 0 : (mtbf / (mtbf + mttr)) * 100;
 
       return {
         mesAno,

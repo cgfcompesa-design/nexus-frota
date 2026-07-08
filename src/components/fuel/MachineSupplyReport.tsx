@@ -89,18 +89,6 @@ const normalizeTxId = (id: any): string => {
   return str;
 };
 
-const getPlaca = (f: any): string => {
-  if (!f) return "";
-  const rawPlaca = f._placa || f.PLACA || f.Placa || f.placa || f.COL_2 || f.COL_5 || "";
-  return String(rawPlaca).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
-};
-
-const getTxId = (f: any): string => {
-  if (!f) return "";
-  const rawTxId = f._txId || f["CODIGO TRANSACAO"] || f["COD_TRANSACAO"] || f["N TRANSACAO"] || f["Nº TRANSACAO"] || f.COL_0 || "";
-  return String(rawTxId).trim();
-};
-
 const getRecordMonthYear = (f: any): string => {
   if (!f) return "N/A";
   
@@ -360,7 +348,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
     // Fallback if assets list is empty/loading
     if (units.size === 0) {
       fuel.forEach(f => {
-        const placa = getPlaca(f);
+        const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
         const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
         if (isMaqOrGer) {
           const u = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "").trim();
@@ -391,7 +379,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const fuelTypeOptions = useMemo(() => {
     const types = new Set<string>();
     fuel.forEach(f => {
-      const placa = getPlaca(f);
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (isMaqOrGer) {
         const t = String(f._fuelType || f.COL_13 || "").trim();
@@ -404,7 +392,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const driverOptions = useMemo(() => {
     const drivers = new Set<string>();
     fuel.forEach(f => {
-      const placa = getPlaca(f);
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (isMaqOrGer) {
         const d = String(f._driver || f.COL_11 || "").trim();
@@ -417,7 +405,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const establishmentOptions = useMemo(() => {
     const establishments = new Set<string>();
     fuel.forEach(f => {
-      const placa = getPlaca(f);
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (isMaqOrGer) {
         const e = String(f._posto || f._establishment || f.COL_21 || "").trim();
@@ -440,7 +428,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const filteredFuel = useMemo(() => {
     // If not matching any MAQ/GER first, return empty to speed up
     return fuel.filter(f => {
-      const placa = getPlaca(f);
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase();
       const isMaqOrGer = placa.startsWith("MAQ") || placa.startsWith("GER");
       if (!isMaqOrGer) return false;
 
@@ -477,7 +465,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       const mesAno = getRecordMonthYear(f);
       if (selectedMonths.length > 0 && !selectedMonths.includes(mesAno)) return false;
 
-      const txId = getTxId(f);
+      const txId = String(f.COL_0 || f._txId || "");
       const normTxId = normalizeTxId(txId);
       const assignment = assignments.find(a => normalizeTxId(a.transactionId) === normTxId);
 
@@ -519,8 +507,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       let valA: any = "";
       let valB: any = "";
       
-      const txIdA = getTxId(a);
-      const txIdB = getTxId(b);
+      const txIdA = String(a.COL_0 || a._txId || "");
+      const txIdB = String(b.COL_0 || b._txId || "");
       const normTxIdA = normalizeTxId(txIdA);
       const normTxIdB = normalizeTxId(txIdB);
       const assignA = assignments.find(x => normalizeTxId(x.transactionId) === normTxIdA);
@@ -536,8 +524,8 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
           valB = parseDateString(String(b._date || b.COL_4 || ""));
           break;
         case "placa":
-          valA = getPlaca(a);
-          valB = getPlaca(b);
+          valA = String(a._placa || a.COL_5 || "");
+          valB = String(b._placa || b.COL_5 || "");
           break;
         case "motorista":
           valA = String(a._driver || a.COL_11 || "");
@@ -627,7 +615,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
     const cardMap: Record<string, { name: string; litros: number; custo: number; value: number }> = {};
 
     filteredFuel.forEach(f => {
-      const txId = getTxId(f);
+      const txId = String(f.COL_0 || f._txId || "");
       const normTxId = normalizeTxId(txId);
       const a = assignments.find(as => normalizeTxId(as.transactionId) === normTxId);
       
@@ -697,7 +685,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
       modelMap[model].value += 1;
 
       // 4. Placa
-      const placa = getPlaca(f) || "Desconhecido";
+      const placa = String(f._placa || f.COL_5 || "Desconhecido").toUpperCase().trim();
       if (!plateMap[placa]) {
         plateMap[placa] = { name: placa, litros: 0, custo: 0, value: 0 };
       }
@@ -797,13 +785,13 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
   const handleExport = () => {
     try {
       const dataToExport = filteredFuel.map(f => {
-        const txId = getTxId(f);
+        const txId = String(f.COL_0 || f._txId || "");
         const normTxId = normalizeTxId(txId);
         const a = assignments.find(as => normalizeTxId(as.transactionId) === normTxId);
         return {
           'Transação': txId,
           'Data': f._date || f.COL_4,
-          'Placa': getPlaca(f),
+          'Placa': String(f._placa || f.COL_5).toUpperCase(),
           'Motorista': f._driver || f.COL_11,
           'Combustível': f._fuelType || f.COL_13,
           'Litros': Number(f._litros || f.COL_14),
@@ -1919,7 +1907,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
               </TableHeader>
               <TableBody>
                 {paginatedFuel.map((f, idx) => {
-                  const txId = getTxId(f);
+                  const txId = String(f.COL_0 || f._txId || "");
                   const normTxId = normalizeTxId(txId);
                   const assignment = assignments.find(a => normalizeTxId(a.transactionId) === normTxId);
                   
@@ -1928,7 +1916,7 @@ const MachineSupplyReport = ({ onBack, isEmbedded = false }: { onBack?: () => vo
                       <TableCell className="font-bold text-[11px] sticky left-0 z-10 bg-white dark:bg-slate-900 border-r">{txId}</TableCell>
                       <TableCell className="text-[10px] whitespace-nowrap">{f._date || f.COL_4}</TableCell>
                       <TableCell className="text-[10px] font-black underline decoration-indigo-200">
-                        {getPlaca(f)}
+                        {String(f._placa || f.COL_5).toUpperCase()}
                       </TableCell>
                       <TableCell className="text-[10px] font-medium truncate max-w-[120px]" title={f._driver || f.COL_11}>{f._driver || f.COL_11}</TableCell>
                       <TableCell className="text-[10px] uppercase font-bold">{f._fuelType || f.COL_13}</TableCell>

@@ -57,18 +57,6 @@ const normalizeTxId = (id: any): string => {
   return str;
 };
 
-const getPlaca = (f: any): string => {
-  if (!f) return "";
-  const rawPlaca = f._placa || f.PLACA || f.Placa || f.placa || f.COL_2 || f.COL_5 || "";
-  return String(rawPlaca).toUpperCase().replace(/[^A-Z0-9]/gi, "").trim();
-};
-
-const getTxId = (f: any): string => {
-  if (!f) return "";
-  const rawTxId = f._txId || f["CODIGO TRANSACAO"] || f["COD_TRANSACAO"] || f["N TRANSACAO"] || f["Nº TRANSACAO"] || f.COL_0 || "";
-  return String(rawTxId).trim();
-};
-
 const getRecordMonthYear = (f: any): string => {
   if (!f) return "N/A";
   
@@ -232,13 +220,13 @@ export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) 
 
   const stats = useMemo(() => {
     const maqFuel = filteredFuel.filter(f => {
-      const placa = getPlaca(f);
+      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
       return placa.startsWith("MAQ") || placa.startsWith("GER");
     });
 
     const total = maqFuel.length;
     const completed = maqFuel.filter(f => {
-      const txId = getTxId(f);
+      const txId = String(f.COL_0 || f._txId || "").trim();
       const normTxId = normalizeTxId(txId);
       return assignments.some(a => normalizeTxId(a.transactionId) === normTxId);
     }).length;
@@ -257,7 +245,7 @@ export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) 
       if (!units[unit]) units[unit] = { total: 0, completed: 0, pending: 0 };
       
       units[unit].total++;
-      const txId = getTxId(f);
+      const txId = String(f.COL_0 || f._txId || "").trim();
       const normTxId = normalizeTxId(txId);
       if (assignments.some(a => normalizeTxId(a.transactionId) === normTxId)) {
         units[unit].completed++;

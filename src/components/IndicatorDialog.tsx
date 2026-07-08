@@ -17,8 +17,10 @@ interface IndicatorDialogProps {
 }
 
 import { toast } from "sonner";
+import { useResponsibles } from "@/hooks/useResponsibles";
 
 export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, onClose }: IndicatorDialogProps) => {
+  const { responsibles } = useResponsibles();
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
   const [currentValue, setCurrentValue] = useState("");
@@ -29,6 +31,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
   const [subsection, setSubsection] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [goalType, setGoalType] = useState<"higher" | "lower">("higher");
+  const [responsibleId, setResponsibleId] = useState("");
 
   const isAuto = !!(indicator?.is_auto || (indicator?.id && String(indicator.id).startsWith("auto-")));
 
@@ -43,6 +46,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setSection(indicator.section || "manutencao");
       setSubsection(indicator.subsection || "");
       setGoalType(indicator.goal_type || "higher");
+      setResponsibleId(indicator.responsible_id || "none");
     } else {
       setName("");
       setTarget("");
@@ -53,6 +57,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       setSection("manutencao");
       setSubsection("");
       setGoalType("higher");
+      setResponsibleId("none");
     }
   }, [indicator, open, selectedMonth, isAuto]);
 
@@ -72,6 +77,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       chart_type: chartType,
       goal_type: goalType,
       is_auto: isAuto,
+      responsible_id: (responsibleId === "none" || !responsibleId) ? null : responsibleId,
       updatedAt: serverTimestamp()
     };
 
@@ -193,6 +199,23 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Nome do Indicador</Label>
             <Input value={name} onChange={(e) => setName(e.target.value)} className="bg-slate-800 border-slate-700 h-10" placeholder="Ex: Eficiência de Combustível" disabled={isAuto} />
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Responsável</Label>
+            <Select value={responsibleId} onValueChange={setResponsibleId}>
+              <SelectTrigger className="bg-slate-800 border-slate-700 h-10 text-white">
+                <SelectValue placeholder="Selecione o responsável" />
+              </SelectTrigger>
+              <SelectContent className="bg-slate-900 border-slate-800 text-white">
+                <SelectItem value="none">Sem responsável</SelectItem>
+                {responsibles.map((r) => (
+                  <SelectItem key={r.id} value={r.id}>
+                    {r.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
