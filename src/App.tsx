@@ -28,6 +28,7 @@ import KanbanBoard from './components/kanban/KanbanBoard';
 import GestaoVista from './components/gestao/GestaoVista';
 import DrivePage from './components/drive/DrivePage';
 import ActivityManagement from './components/config/ActivityManagement';
+import PoolDashboard from './components/pool/PoolDashboard';
 import ChecklistManutencaoPage from './components/maintenance/ChecklistManutencaoPage';
 import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
 import CadastroPreventivaPage from './components/maintenance/CadastroPreventivaPage';
@@ -368,7 +369,7 @@ export default function App() {
 
     // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
-      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
+      const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos', 'pool'];
       if (!allowedViews.includes(currentView)) {
         return <Home setView={setCurrentView} userRole={effectiveRole} />;
       }
@@ -383,6 +384,7 @@ export default function App() {
       case 'home': return <Home setView={setCurrentView} userRole={effectiveRole} />;
       case 'drive': return <DrivePage />;
       case 'cadastro-preventiva': return <CadastroPreventivaPage onBack={() => setCurrentView('locados')} userProfile={userProfile} />;
+      case 'pool': return <PoolDashboard />;
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
