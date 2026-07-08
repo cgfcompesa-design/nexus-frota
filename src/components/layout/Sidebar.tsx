@@ -205,8 +205,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
 
 
       
-      return withNoRootPreventiva;
-    }
+      
 
     if (userRole === 'Visualizador') {
       const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'drive'];
