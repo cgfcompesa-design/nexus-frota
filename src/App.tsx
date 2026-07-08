@@ -366,7 +366,7 @@ export default function App() {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
     }
-
+//
     // Role based protection for Visualizadores PÚBLICO EM GERAL
     if (user && effectiveRole === 'Visualizador') {
       const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
