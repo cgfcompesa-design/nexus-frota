@@ -8,6 +8,8 @@ const dbId = (firebaseConfig as any).firestoreDatabaseId;
 
 // Initialize Firestore with specific database ID if provided, otherwise use default
 export const db = (dbId && dbId !== "(default)") ? getFirestore(app, dbId) : getFirestore(app);
+export const dbNexusId = "ai-studio-nexusfrotabi-e9d568ef-497f-45b7-bab8-c15e863d0aad";
+export const dbNexus = getFirestore(app, dbNexusId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 
