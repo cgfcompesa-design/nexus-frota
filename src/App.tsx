@@ -387,7 +387,7 @@ if (
   effectiveRole !== 'Master' &&
   effectiveRole !== 'Gestão'
 ) {
-  toast.error("Acesso restrito ao módulo POOL.");
+  toast.error("Acesso restrito.");
   return <Home setView={setCurrentView} userRole={effectiveRole} />;
 }
 
