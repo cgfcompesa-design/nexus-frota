@@ -356,4 +356,4 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
     </>
   );
 }
-//
+}
