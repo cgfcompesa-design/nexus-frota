@@ -96,7 +96,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
 {
   id: 'pool',
   label: 'POOL - Vouchers',
-  icon: Ticket
+  icon: Ticket,
 },
 
 {
@@ -169,7 +169,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       'reg-infracoes': AlertTriangle,
       'reg-taxas': Gavel,
       'cadastro-preventiva': ClipboardList,
-      'drive': Share2
+      'drive': Share2,
       'pool': Ticket,
     };
 
