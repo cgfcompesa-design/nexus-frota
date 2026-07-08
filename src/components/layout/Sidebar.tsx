@@ -38,6 +38,7 @@ import { useState, useEffect } from 'react';
 
 import logoCgf from '../../assets/images/regenerated_image_1778593500523.png';
 //
+//
 interface SidebarProps {
   currentView: string;
   setView: (view: string) => void;
