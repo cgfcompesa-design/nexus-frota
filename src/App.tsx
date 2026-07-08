@@ -44,7 +44,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import logoCgf from './assets/images/regenerated_image_1778593500523.png';
 
-// Logic hook to keep component lean
+// Logic hook to keep component lean//
 function useAppLogic() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
