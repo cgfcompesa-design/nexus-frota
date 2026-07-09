@@ -399,6 +399,27 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       .catch(err => console.error("Error fetching CRLV years:", err));
   }, []);
 
+  // Auto-delete/exclude "Litros abastecidos" immediately upon load as requested by user
+  useEffect(() => {
+    if (isLoadingIndicators) return;
+    const hasDeletedLitros = indicators.some(
+      ind => ind.name.trim().toLowerCase() === "litros abastecidos" &&
+             ind.section === "abastecimento" &&
+             ind.is_deleted
+    );
+    if (!hasDeletedLitros) {
+      addDoc(collection(db, "indicators"), {
+        name: "Litros abastecidos",
+        section: "abastecimento",
+        subsection: null,
+        is_deleted: true,
+        is_auto: true,
+        createdAt: serverTimestamp(),
+        order: Date.now()
+      }).catch(err => console.error("Error auto-deleting Litros abastecidos:", err));
+    }
+  }, [indicators, isLoadingIndicators]);
+
   const isLoading = isLoadingIndicators || isLoadingAssets || isLoadingOrcamentos || isLoadingCustos || isLoadingLocados || isLoadingVeiculosDisponiveis || isLoadingFuel || isLoadingRegularizacao || isLoadingTitulos || isLoadingControleDocs || isLoadingCNH || isLoadingNotificacoes || isLoadingMachineAssignments;
   
   const formattedMonth = format(safeSelectedMonth, "yyyy-MM-01");
@@ -589,10 +610,16 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       
       if (exists) {
         exists.is_auto = true;
-        exists.unit = spec.unit;
-        exists.target = exists.target || spec.target;
-        exists.goal_type = spec.goal_type;
-        exists.description = spec.description;
+        if (exists.unit === undefined || exists.unit === null) {
+          exists.unit = spec.unit;
+        }
+        if (exists.target === undefined || exists.target === null) {
+          exists.target = spec.target;
+        }
+        if (exists.goal_type === undefined || exists.goal_type === null) {
+          exists.goal_type = spec.goal_type;
+        }
+        exists.description = spec.description || exists.description;
       } else {
         list.push({
           id: `auto-${spec.name.toLowerCase().replace(/\s+/g, '-')}`,
@@ -1430,6 +1457,15 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
                                               title="Ajustar Meta/Responsável do indicador automático"
                                             >
                                               Ajustar
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              onClick={() => handleDeleteIndicator(indicator.id, indicator.name)}
+                                              className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20 rounded-lg transition-all opacity-0 group-hover:opacity-100 focus:opacity-100 pr-1"
+                                              title="Excluir indicador automático"
+                                            >
+                                              <Trash2 className="h-4 w-4" />
                                             </Button>
                                           </div>
                                         ) : (

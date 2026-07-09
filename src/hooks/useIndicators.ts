@@ -23,6 +23,8 @@ export interface Indicator {
   chart_type?: "gauge" | "bar" | "pie" | "number" | "line";
   responsible_id?: string;
   order?: number;
+  is_deleted?: boolean;
+  is_auto?: boolean;
 }
 
 export const useIndicators = () => {
