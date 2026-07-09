@@ -545,13 +545,13 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   }, [assets]);
 
   const combinedIndicators = useMemo(() => {
-    const list = [...indicators];
+    const list = indicators.map(ind => ({ ...ind }));
     
     AUTO_INDICATORS_SPECS.forEach(spec => {
       const exists = list.find(ind => 
         ind.name.trim().toLowerCase() === spec.name.trim().toLowerCase() &&
         ind.section === spec.section &&
-        ind.subsection === spec.subsection
+        (ind.subsection || "") === (spec.subsection || "")
       );
       
       if (exists) {
@@ -1039,7 +1039,7 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       const ind = combinedIndicators.find(i => 
         i.name.trim().toLowerCase() === spec.name.trim().toLowerCase() &&
         i.section === spec.section &&
-        i.subsection === spec.subsection
+        (i.subsection || "") === (spec.subsection || "")
       );
       if (!ind) return;
 

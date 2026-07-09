@@ -82,20 +82,40 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
     };
 
     try {
-      if (indicator?.id && !String(indicator.id).startsWith("auto-")) {
+      let activeIndicatorId = indicator?.id;
+      let isCreatingNew = !activeIndicatorId || String(activeIndicatorId).startsWith("auto-");
+
+      const sub = (subsection === "none" || !subsection) ? null : subsection;
+
+      if (isCreatingNew) {
+        // Double check in Firestore by name, section, and subsection to prevent any duplicate creation
+        const qInds = query(
+          collection(db, "indicators"),
+          where("name", "==", name),
+          where("section", "==", section),
+          where("subsection", "==", sub)
+        );
+        const snapshotInds = await getDocs(qInds);
+        if (!snapshotInds.empty) {
+          activeIndicatorId = snapshotInds.docs[0].id;
+          isCreatingNew = false;
+        }
+      }
+
+      if (!isCreatingNew && activeIndicatorId) {
         // Update indicator definition
-        await updateDoc(doc(db, "indicators", indicator.id), data);
+        await updateDoc(doc(db, "indicators", activeIndicatorId), data);
         
         // Upsert month value
         const q = query(
           collection(db, "indicator_values"), 
-          where("indicator_id", "==", indicator.id),
+          where("indicator_id", "==", activeIndicatorId),
           where("month", "==", monthStr)
         );
         const snapshot = await getDocs(q);
         
         const valueData = {
-          indicator_id: indicator.id,
+          indicator_id: activeIndicatorId,
           month: monthStr,
           target: isNaN(parseFloat(target)) ? 0 : parseFloat(target),
           current_value: isAuto ? 0 : (isNaN(parseFloat(currentValue)) ? 0 : parseFloat(currentValue)),
