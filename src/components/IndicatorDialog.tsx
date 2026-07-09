@@ -77,6 +77,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
       chart_type: chartType,
       goal_type: goalType,
       is_auto: isAuto,
+      is_deleted: false,
       responsible_id: (responsibleId === "none" || !responsibleId) ? null : responsibleId,
       updatedAt: serverTimestamp()
     };
@@ -201,7 +202,7 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
             </div>
             <div className="space-y-2">
               <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Tipo de Gráfico</Label>
-              <Select value={chartType} onValueChange={setChartType} disabled={isAuto}>
+              <Select value={chartType} onValueChange={setChartType}>
                 <SelectTrigger className="bg-slate-800 border-slate-700 h-10">
                   <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
@@ -258,12 +259,12 @@ export const IndicatorDialog = ({ open, onOpenChange, indicator, selectedMonth, 
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Unidade (ex: %, R$, Km, L)</Label>
-            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700 h-10" disabled={isAuto} />
+            <Input value={unit} onChange={(e) => setUnit(e.target.value)} className="bg-slate-800 border-slate-700 h-10" />
           </div>
 
           <div className="space-y-2">
             <Label className="text-xs font-bold uppercase text-slate-500 tracking-widest leading-none">Lógica do Indicador (Meta)</Label>
-            <Select value={goalType} onValueChange={(val: any) => setGoalType(val)} disabled={isAuto}>
+            <Select value={goalType} onValueChange={(val: any) => setGoalType(val)}>
               <SelectTrigger className="bg-slate-800 border-slate-700 h-10 text-white">
                 <SelectValue placeholder="Selecione o critério" />
               </SelectTrigger>

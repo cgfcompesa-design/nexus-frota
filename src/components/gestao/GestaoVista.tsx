@@ -25,6 +25,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { db } from "@/lib/firebase";
+import { collection, addDoc, updateDoc, doc, serverTimestamp } from "firebase/firestore";
 
 const standardizeFuelType = (fuelType: string | undefined): string => {
   if (!fuelType) return "N/A";
@@ -434,7 +436,22 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
       return;
     }
     try {
-      await deleteIndicator(indicatorId);
+      if (indicatorId.startsWith("auto-")) {
+        // Since it's a dynamic automatic indicator, save a doc with is_deleted: true to Firestore
+        const spec = AUTO_INDICATORS_SPECS.find(s => s.name.trim().toLowerCase() === indicatorName.trim().toLowerCase());
+        await addDoc(collection(db, "indicators"), {
+          name: indicatorName,
+          section: spec?.section || "abastecimento",
+          subsection: spec?.subsection || null,
+          is_deleted: true,
+          is_auto: true,
+          createdAt: serverTimestamp(),
+          order: Date.now()
+        });
+      } else {
+        // For standard indicators in Firestore, set is_deleted: true
+        await updateDoc(doc(db, "indicators", indicatorId), { is_deleted: true });
+      }
       toast.success(`Indicador "${indicatorName}" removido permanentemente!`);
     } catch (err) {
       console.error(err);
@@ -545,9 +562,25 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
   }, [assets]);
 
   const combinedIndicators = useMemo(() => {
-    const list = indicators.map(ind => ({ ...ind }));
+    let list = indicators.map(ind => ({ ...ind }));
     
+    // Track deleted automatic indicators by analyzing indicators that exist in Firestore and have is_deleted === true
+    const deletedAutoKeys = new Set(
+      indicators
+        .filter(ind => ind.is_deleted)
+        .map(ind => `${ind.name.trim().toLowerCase()}|${ind.section}|${ind.subsection || ""}`)
+    );
+
+    // Filter out all deleted indicators from the main list
+    list = list.filter(ind => !ind.is_deleted);
+
     AUTO_INDICATORS_SPECS.forEach(spec => {
+      const specKey = `${spec.name.trim().toLowerCase()}|${spec.section}|${spec.subsection || ""}`;
+      if (deletedAutoKeys.has(specKey)) {
+        // This automatic indicator has been explicitly deleted/hidden by the user
+        return;
+      }
+
       const exists = list.find(ind => 
         ind.name.trim().toLowerCase() === spec.name.trim().toLowerCase() &&
         ind.section === spec.section &&
@@ -1600,6 +1633,77 @@ const GestaoVista = ({ onBack }: GestaoVistaProps) => {
             setEditingIndicator(null);
           }}
         />
+
+        {/* Indicadores Excluídos / Ocultados */}
+        {indicators.some(ind => ind.is_deleted) && (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-3xl shadow-xl mt-8">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center">
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 dark:text-white leading-none">
+                    Indicadores Excluídos / Ocultados
+                  </h3>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider mt-1">
+                    Esses indicadores foram removidos das listagens e relatórios
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  if (window.confirm("Deseja restaurar todos os indicadores excluídos?")) {
+                    try {
+                      const deletedInds = indicators.filter(ind => ind.is_deleted);
+                      for (const ind of deletedInds) {
+                        await updateDoc(doc(db, "indicators", ind.id), { is_deleted: false });
+                      }
+                      toast.success("Todos os indicadores foram restaurados!");
+                    } catch (err) {
+                      console.error(err);
+                      toast.error("Erro ao restaurar indicadores.");
+                    }
+                  }
+                }}
+                className="h-8 border-red-100 dark:border-red-950 text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+              >
+                Restaurar Todos
+              </Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {indicators.filter(ind => ind.is_deleted).map(ind => (
+                <Badge
+                  key={ind.id}
+                  variant="outline"
+                  className="bg-slate-50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 text-[10px] font-bold px-3 py-1.5 flex items-center gap-2"
+                >
+                  <span className="font-semibold text-slate-700 dark:text-slate-200">{ind.name}</span>
+                  <span className="text-[8px] font-bold uppercase tracking-widest bg-slate-200/50 dark:bg-slate-850 px-1.5 py-0.5 rounded text-slate-500">
+                    {ind.section}
+                  </span>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await updateDoc(doc(db, "indicators", ind.id), { is_deleted: false });
+                        toast.success(`Indicador "${ind.name}" restaurado com sucesso!`);
+                      } catch (err) {
+                        console.error(err);
+                        toast.error("Erro ao restaurar indicador.");
+                      }
+                    }}
+                    className="text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 font-black uppercase text-[9px] tracking-widest ml-1 border-l border-slate-200 dark:border-slate-800 pl-2"
+                    title="Restaurar"
+                  >
+                    Restaurar
+                  </button>
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
