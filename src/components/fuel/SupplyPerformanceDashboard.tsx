@@ -22,7 +22,11 @@ import {
   Building2,
   TrendingDown,
   Send,
-  ChevronDown
+  ChevronDown,
+  X,
+  Check,
+  Trash2,
+  Plus
 } from "lucide-react";
 import { Asset, FuelData } from "@/types";
 import { 
@@ -213,7 +217,51 @@ export function SupplyPerformanceDashboard({ fuel, assets }: SupplyPerformanceDa
   const [isInconsistencyGroupedByUnit, setIsInconsistencyGroupedByUnit] = useState(false);
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
+  const [excludedPlatesInput, setExcludedPlatesInput] = useState("");
+  const [excludedPlates, setExcludedPlates] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("nexus_fuel_excluded_plates");
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [searchInconsistencyPlaca, setSearchInconsistencyPlaca] = useState("");
   const itemsPerPage = 20;
+
+  const handleConfirmExclusion = () => {
+    if (!excludedPlatesInput.trim()) return;
+    
+    const inputPlates = excludedPlatesInput
+      .split(/[\s,;]+/)
+      .map(p => p.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""))
+      .filter(Boolean);
+      
+    if (inputPlates.length === 0) return;
+    
+    // Merge and deduplicate
+    const newExcluded = Array.from(new Set([...excludedPlates, ...inputPlates]));
+    setExcludedPlates(newExcluded);
+    localStorage.setItem("nexus_fuel_excluded_plates", JSON.stringify(newExcluded));
+    setExcludedPlatesInput("");
+    setCurrentPageInconsistency(1);
+    toast.success(`${inputPlates.length} placa(s) excluída(s) com sucesso.`);
+  };
+
+  const handleRemoveExcludedPlate = (plateToRemove: string) => {
+    const newExcluded = excludedPlates.filter(p => p !== plateToRemove);
+    setExcludedPlates(newExcluded);
+    localStorage.setItem("nexus_fuel_excluded_plates", JSON.stringify(newExcluded));
+    setCurrentPageInconsistency(1);
+    toast.info(`Placa ${plateToRemove} restaurada.`);
+  };
+
+  const handleClearAllExcluded = () => {
+    setExcludedPlates([]);
+    localStorage.removeItem("nexus_fuel_excluded_plates");
+    setCurrentPageInconsistency(1);
+    toast.success("Todas as placas foram restauradas.");
+  };
 
 const rangeLabels: Record<string, string> = {
   "00:00 - 08:00": "Madrugada",
@@ -473,6 +521,29 @@ const rangeLabels: Record<string, string> = {
     });
   }, [filteredFuel, allAssetsMap]);
 
+  // 3.1. Filtros adicionais para retirar placas ou buscar placas nas Inconsistências
+  const filteredInconsistency = useMemo(() => {
+    return inconsistencyAnalysis.filter(inc => {
+      const plate = String(inc.placa || "").toUpperCase().trim();
+      const plateNormalized = plate.replace(/[^A-Z0-9]/g, "");
+      
+      // Se houver placas para excluir, retira-as da lista
+      if (excludedPlates.includes(plateNormalized)) {
+        return false;
+      }
+
+      // Se houver busca por placa, filtra por ela
+      if (searchInconsistencyPlaca) {
+        const term = searchInconsistencyPlaca.toUpperCase().trim().replace(/[^A-Z0-9]/g, "");
+        if (!plateNormalized.includes(term)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [inconsistencyAnalysis, excludedPlates, searchInconsistencyPlaca]);
+
   // 1. Identificar abastecimentos Irregulares (NÃO ESTÃO NO CADASTRO DE ATIVOS)
   const irregularTransactions = useMemo(() => {
     const transactions: any[] = [];
@@ -609,18 +680,18 @@ const rangeLabels: Record<string, string> = {
   }, [filteredFuel]);
 
   // Filtros de busca e Paginação
-  const paginatedInconsistency = inconsistencyAnalysis.slice((currentPageInconsistency - 1) * itemsPerPage, currentPageInconsistency * itemsPerPage);
+  const paginatedInconsistency = filteredInconsistency.slice((currentPageInconsistency - 1) * itemsPerPage, currentPageInconsistency * itemsPerPage);
 
   const groupedInconsistencies = useMemo(() => {
     if (!isInconsistencyGroupedByUnit) return [];
     const grouped: Record<string, any[]> = {};
-    inconsistencyAnalysis.forEach(inc => {
+    filteredInconsistency.forEach(inc => {
       const unidade = inc.unidade || "N/A";
       if (!grouped[unidade]) grouped[unidade] = [];
       grouped[unidade].push(inc);
     });
     return Object.entries(grouped).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [inconsistencyAnalysis, isInconsistencyGroupedByUnit]);
+  }, [filteredInconsistency, isInconsistencyGroupedByUnit]);
 
   const filteredIrregular = irregularTransactions.filter(t => 
     t.placa.includes(searchTermUnknown.toUpperCase()) || 
@@ -811,7 +882,7 @@ Coordenação de Gestão de Frotas - CGF`;
       return;
     }
 
-    const currentInconsistencies = inconsistencyAnalysis.filter(inc => {
+    const currentInconsistencies = filteredInconsistency.filter(inc => {
       const unidade = inc.unidade || "N/A";
       return unidade === groupedInconsistencyGerencia;
     });
@@ -910,7 +981,7 @@ Coordenação de Gestão de Frotas - CGF`;
     });
 
     // Count KM/Time Inconsistencies
-    inconsistencyAnalysis.forEach(inc => {
+    filteredInconsistency.forEach(inc => {
       if (inc.unidade && inc.unidade !== "N/A") {
         counts[inc.unidade] = (counts[inc.unidade] || 0) + 1;
       }
@@ -920,7 +991,7 @@ Coordenação de Gestão de Frotas - CGF`;
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 8); // Top 8 units
-  }, [timeAndDayAnalysis.vehicles, inconsistencyAnalysis]);
+  }, [timeAndDayAnalysis.vehicles, filteredInconsistency]);
 
   const unutilizedStationsRaw = useMemo(() => {
     const PERNAMBUCO_REGIONS: Record<string, string[]> = {
@@ -1648,7 +1719,7 @@ Companhia Pernambucana de Saneamento - COMPESA`;
                   </Button>
                   <Button 
                     onClick={() => setIsGroupedInconsistencyEmailDialogOpen(true)} 
-                    disabled={inconsistencyAnalysis.length === 0}
+                    disabled={filteredInconsistency.length === 0}
                     className="h-7 text-[9px] font-black uppercase bg-amber-600 hover:bg-amber-700 gap-1 text-white border-none"
                   >
                     <Mail className="h-3 w-3" /> Solicitar Justificativa
@@ -1656,6 +1727,111 @@ Companhia Pernambucana de Saneamento - COMPESA`;
                </div>
             </div>
           </CardHeader>
+          
+          {/* BARRA DE FILTROS DE INCONSISTÊNCIAS */}
+          <div className="px-6 py-3 bg-slate-50/50 dark:bg-slate-800/10 border-b border-slate-100 dark:border-slate-800/60 flex flex-col gap-4">
+            <div className="flex flex-col md:flex-row md:items-end gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider block mb-1">
+                  Excluir Placas da Lista (separadas por vírgula ou espaço)
+                </label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Input 
+                      placeholder="Digite placas para excluir (ex: MNE0014, KJG2124)..."
+                      value={excludedPlatesInput}
+                      onChange={(e) => setExcludedPlatesInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleConfirmExclusion();
+                        }
+                      }}
+                      className="h-8 bg-white dark:bg-slate-900 text-xs border-slate-200 dark:border-slate-800 pr-8 font-medium"
+                    />
+                    {excludedPlatesInput && (
+                      <button 
+                        onClick={() => setExcludedPlatesInput("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  <Button 
+                    onClick={handleConfirmExclusion}
+                    disabled={!excludedPlatesInput.trim()}
+                    className="h-8 text-xs font-bold px-3 bg-amber-500 hover:bg-amber-600 text-white gap-1"
+                  >
+                    <Check className="h-3.5 w-3.5" /> Confirmar Exclusão
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="w-full md:w-64">
+                <label className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-500 tracking-wider block mb-1">
+                  Buscar por Placa
+                </label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                  <Input 
+                    placeholder="Digite a placa..."
+                    value={searchInconsistencyPlaca}
+                    onChange={(e) => {
+                      setSearchInconsistencyPlaca(e.target.value);
+                      setCurrentPageInconsistency(1);
+                    }}
+                    className="h-8 pl-8 bg-white dark:bg-slate-900 text-xs border-slate-200 dark:border-slate-800 font-medium"
+                  />
+                </div>
+              </div>
+              
+              <div className="flex items-end justify-between md:justify-end gap-2 text-right">
+                <div>
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Divergências Exibidas</span>
+                  <span className="text-xs font-black text-slate-600 dark:text-slate-300">
+                    {filteredInconsistency.length} de {inconsistencyAnalysis.length}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* LISTA DE PLACAS EXCLUÍDAS */}
+            {excludedPlates.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                <span className="text-[9px] font-black uppercase text-red-500 dark:text-red-400 tracking-wider">
+                  Placas Excluídas ({excludedPlates.length}):
+                </span>
+                <div className="flex flex-wrap gap-1.5 flex-1 items-center">
+                  {excludedPlates.map((plate) => (
+                    <Badge 
+                      key={plate} 
+                      variant="outline" 
+                      className="bg-red-50/50 dark:bg-red-950/20 text-red-700 dark:text-red-400 border-red-100 dark:border-red-900/40 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1"
+                    >
+                      {plate}
+                      <button 
+                        onClick={() => handleRemoveExcludedPlate(plate)}
+                        className="text-red-400 hover:text-red-600 dark:hover:text-red-200 transition-colors"
+                        title="Restaurar placa"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={handleClearAllExcluded}
+                    className="h-5 text-[9px] font-black text-slate-500 hover:text-red-600 px-2 gap-1"
+                  >
+                    <Trash2 className="h-3 w-3" /> Restaurar Todas
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-x-auto">
             <ScrollArea className="h-[450px] w-full">
               {!isInconsistencyGroupedByUnit ? (
@@ -1779,10 +1955,10 @@ Companhia Pernambucana de Saneamento - COMPESA`;
             </ScrollArea>
           </div>
           <div className="flex items-center justify-between p-3 border-t bg-slate-50/30 rounded-b-xl">
-             <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageInconsistency} de {Math.ceil(inconsistencyAnalysis.length/itemsPerPage)}</span>
+             <span className="text-[8px] font-black text-slate-400 uppercase">Pág. {currentPageInconsistency} de {Math.ceil(filteredInconsistency.length/itemsPerPage)}</span>
              <div className="flex gap-1">
                <Button variant="ghost" size="icon" className="h-6 w-6" disabled={currentPageInconsistency === 1} onClick={() => setCurrentPageInconsistency(p => p - 1)}><Filter className="h-3 w-3 rotate-90" /></Button>
-               <Button variant="ghost" size="icon" className="h-6 w-6" disabled={currentPageInconsistency >= Math.ceil(inconsistencyAnalysis.length/itemsPerPage)} onClick={() => setCurrentPageInconsistency(p => p + 1)}><Filter className="h-3 w-3 -rotate-90" /></Button>
+               <Button variant="ghost" size="icon" className="h-6 w-6" disabled={currentPageInconsistency >= Math.ceil(filteredInconsistency.length/itemsPerPage)} onClick={() => setCurrentPageInconsistency(p => p + 1)}><Filter className="h-3 w-3 -rotate-90" /></Button>
              </div>
           </div>
         </Card>
