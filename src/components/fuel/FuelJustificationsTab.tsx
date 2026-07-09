@@ -62,6 +62,8 @@ import { cn } from "@/lib/utils";
 import { exportToExcel } from "@/lib/exportToExcel";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TicketTelemetriaAnalysisTab } from "./TicketTelemetriaAnalysisTab";
 
 // Helper functions (same as in the snippet provided by the user)
 const getTankCapacityFromAsset = (
@@ -467,7 +469,20 @@ export function FuelJustificationsTab() {
   // No page-blocking loading screen to keep tabs accessible immediately
 
   return (
-    <div className="space-y-6">
+    <Tabs defaultValue="justificativas-principal" className="space-y-6 w-full">
+      <div className="border-b border-slate-200 dark:border-slate-800 pb-1">
+        <TabsList className="grid grid-cols-2 max-w-[420px] h-10 p-1 bg-slate-100 dark:bg-slate-800 rounded-lg">
+          <TabsTrigger value="justificativas-principal" className="text-xs font-black uppercase tracking-wider py-1.5 px-3 rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm">
+            Retorno Justificativas
+          </TabsTrigger>
+          <TabsTrigger value="ticket-telemetria" className="text-xs font-black uppercase tracking-wider py-1.5 px-3 rounded-md data-[state=active]:bg-white dark:data-[state=active]:bg-slate-900 data-[state=active]:shadow-sm">
+            Análise Ticket X Telemetria
+          </TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent value="justificativas-principal" className="space-y-6 mt-0">
+        <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Retorno das Gerências</h1>
@@ -1054,5 +1069,11 @@ export function FuelJustificationsTab() {
         </DialogContent>
       </Dialog>
     </div>
+      </TabsContent>
+
+      <TabsContent value="ticket-telemetria" className="space-y-6 mt-0">
+        <TicketTelemetriaAnalysisTab />
+      </TabsContent>
+    </Tabs>
   );
 }
