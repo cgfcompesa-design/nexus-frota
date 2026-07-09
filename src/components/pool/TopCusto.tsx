@@ -1,127 +1,85 @@
-import { DollarSign } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { VehicleRankingItem } from "./poolAnalytics";
 
-interface Item{
-
-    placa:string;
-
-    custo:number;
-
+interface TopCustoProps {
+  data: VehicleRankingItem[];
 }
 
-interface Props{
+export const TopCusto = ({ data }: TopCustoProps) => {
+  const top10 = data.slice(0, 10);
+  const maxCost = top10.length > 0 ? top10[0].totalCost : 1;
 
-    dados:Item[];
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+    }).format(value);
+  };
 
-}
-
-export default function TopCusto({
-
-    dados
-
-}:Props){
-
-    const maior=Math.max(
-
-        ...dados.map(x=>x.custo),
-
-        1
-
-    );
-
-    return(
-
-        <div className="bg-white rounded-xl border shadow-sm">
-
-            <div className="flex items-center gap-2 p-5 border-b">
-
-                <DollarSign className="text-red-600"/>
-
-                <h2 className="font-semibold text-lg">
-
-                    Top 10 Custo Operacional
-
-                </h2>
-
-            </div>
-
-            <div className="p-5 space-y-4">
-
-                {
-
-                    dados.map((item,index)=>{
-
-                        const percentual=(item.custo/maior)*100;
-
-                        return(
-
-                            <div key={item.placa}>
-
-                                <div className="flex justify-between mb-1">
-
-                                    <div className="flex gap-3">
-
-                                        <span className="font-semibold text-gray-500">
-
-                                            #{index+1}
-
-                                        </span>
-
-                                        <span>
-
-                                            {item.placa}
-
-                                        </span>
-
-                                    </div>
-
-                                    <span className="font-semibold">
-
-                                        {item.custo.toLocaleString(
-
-                                            "pt-BR",
-
-                                            {
-
-                                                style:"currency",
-
-                                                currency:"BRL"
-
-                                            }
-
-                                        )}
-
-                                    </span>
-
-                                </div>
-
-                                <div className="bg-gray-200 rounded-full h-3">
-
-                                    <div
-
-                                        className="bg-red-600 rounded-full h-3 transition-all"
-
-                                        style={{
-
-                                            width:`${percentual}%`
-
-                                        }}
-
-                                    />
-
-                                </div>
-
-                            </div>
-
-                        )
-
-                    })
-
-                }
-
-            </div>
-
+  return (
+    <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
+      <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
+        <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+          Veículos de Maior Custo de Pool
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-4 space-y-6">
+        <div className="space-y-4">
+          {top10.map((item, idx) => {
+            const percentage = (item.totalCost / maxCost) * 100;
+            return (
+              <div key={item.placa} className="space-y-1">
+                <div className="flex justify-between text-xs font-bold text-slate-600 dark:text-slate-400">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-5 w-5 rounded bg-slate-100 dark:bg-slate-800 text-[10px] flex items-center justify-center font-black text-slate-500">
+                      {idx + 1}
+                    </span>
+                    <span className="font-mono bg-slate-100 dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded text-[10px] uppercase font-black tracking-wider">
+                      {item.placa}
+                    </span>
+                    <span className="text-slate-500 font-medium truncate max-w-[120px] md:max-w-xs">{item.modelo}</span>
+                  </span>
+                  <span>{formatCurrency(item.totalCost)} <span className="font-medium text-slate-400 dark:text-slate-500">({item.count} corridas)</span></span>
+                </div>
+                <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-rose-500 dark:bg-rose-400 rounded-full transition-all duration-500" 
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+              </div>
+            );
+          })}
         </div>
 
-    )
-
-}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800">
+          <Table>
+            <TableHeader>
+              <TableRow className="border-slate-100 dark:border-slate-800 hover:bg-transparent">
+                <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Placa</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider">Modelo</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider text-right">Corridas</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider text-right">Custo Médio</TableHead>
+                <TableHead className="text-[10px] font-black uppercase text-slate-500 tracking-wider text-right">Custo Total</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {data.slice(0, 15).map((item) => (
+                <TableRow key={item.placa} className="border-slate-100 dark:border-slate-800">
+                  <TableCell className="font-mono font-black text-indigo-600 dark:text-indigo-400 text-xs py-3">{item.placa}</TableCell>
+                  <TableCell className="font-bold text-xs text-slate-800 dark:text-slate-200 py-3">{item.modelo}</TableCell>
+                  <TableCell className="text-xs text-slate-600 dark:text-slate-400 text-right py-3">{item.count}</TableCell>
+                  <TableCell className="text-xs text-slate-600 dark:text-slate-400 text-right py-3">
+                    {formatCurrency(item.count > 0 ? item.totalCost / item.count : 0)}
+                  </TableCell>
+                  <TableCell className="font-bold text-xs text-slate-800 dark:text-slate-200 text-right py-3">{formatCurrency(item.totalCost)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};

@@ -30,15 +30,13 @@ import {
   Files,
   Home as HomeIcon,
   Share2,
-  TrendingUp,
-  Ticket
+  TrendingUp
 } from 'lucide-react';
 import { auth } from '../../lib/firebase';
 import { useState, useEffect } from 'react';
 
 import logoCgf from '../../assets/images/regenerated_image_1778593500523.png';
-//
-//
+
 interface SidebarProps {
   currentView: string;
   setView: (view: string) => void;
@@ -92,43 +90,31 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         { id: 'nexus-fuelcontrol', label: 'Nexus FuelControl', icon: Cpu },
       ]
     },
-
-
-{
-  id: 'pool',
-  label: 'POOL - Vouchers',
-  icon: Ticket,
-},
-
-{
-  id: 'manutencao',
-  label: 'Manutenção',
-  icon: Wrench,
-  subItems: [
-    {
-      id: 'proprios',
-      label: 'Próprios',
-      icon: Car,
+    { 
+      id: 'manutencao', 
+      label: 'Manutenção', 
+      icon: Wrench,
       subItems: [
-        { id: 'mnt-ctrl-op', label: 'Controle Operacional', icon: ClipboardList },
-        { id: 'mnt-desemp', label: 'Desempenho & Histórico', icon: History },
+        { 
+          id: 'proprios', 
+          label: 'Próprios', 
+          icon: Car,
+          subItems: [
+            { id: 'mnt-ctrl-op', label: 'Controle Operacional', icon: ClipboardList },
+            { id: 'mnt-desemp', label: 'Desempenho &\nHistórico', icon: History },
+          ]
+        },
+        { 
+          id: 'locados-parent', 
+          label: 'Locados', 
+          icon: Truck,
+          subItems: [
+            { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
+            { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList },
+          ]
+        },
       ]
     },
-    {
-      id: 'locados-parent',
-      label: 'Locados',
-      icon: Truck,
-      subItems: [
-        { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
-        { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList },
-      ]
-    }
-  ]
-},
-
-    
-
-    
     { 
       id: 'regularizacao', 
       label: 'Regularização', 
@@ -138,6 +124,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         { id: 'reg-taxas', label: 'Controle de Taxas\ne Inspeções', icon: Gavel },
       ]
     },
+    { id: 'pool', label: 'POOL', icon: Car },
     { id: 'drive', label: 'Drive de Informações', icon: Share2 },
   ];
 
@@ -167,8 +154,8 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
       'reg-infracoes': AlertTriangle,
       'reg-taxas': Gavel,
       'cadastro-preventiva': ClipboardList,
-      'drive': Share2,
-      'pool': Ticket
+      'pool': Car,
+      'drive': Share2
     };
 
     const rebindIcons = (menuList: MenuItem[]) => {
@@ -182,28 +169,36 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
     rebindIcons(items);
 
     if (userRole === 'Gestão') {
-
-  const withNoRootPreventiva = items.filter(
-    item => item.id !== 'cadastro-preventiva' && item.id !== 'users'
-  );
-
-  const pool = withNoRootPreventiva.find(item => item.id === 'pool');
-
-  if (!pool) {
-    withNoRootPreventiva.push({
-      id: 'pool',
-      label: 'POOL - Vouchers',
-      icon: Ticket
-    });
-  }
-
-  return withNoRootPreventiva;
-}
-
-
-
-      
-      
+      const withNoRootPreventiva = items.filter(item => item.id !== 'cadastro-preventiva' && item.id !== 'users');
+      const abast = withNoRootPreventiva.find(item => item.id === 'abastecimento');
+      if (abast && abast.subItems) {
+        abast.subItems = abast.subItems.filter(si => si.id !== 'abast-precos');
+      }
+      const mnt = withNoRootPreventiva.find(item => item.id === 'manutencao');
+      if (mnt) {
+        mnt.subItems = [
+          { 
+            id: 'proprios', 
+            label: 'Próprios', 
+            icon: Car,
+            subItems: [
+              { id: 'mnt-ctrl-op', label: 'Controle Operacional', icon: ClipboardList },
+              { id: 'mnt-desemp', label: 'Desempenho &\nHistórico', icon: History }
+            ]
+          },
+          { 
+            id: 'locados-parent', 
+            label: 'Locados', 
+            icon: Truck,
+            subItems: [
+              { id: 'locados', label: 'Dashboard Locados', icon: BarChart3 },
+              { id: 'cadastro-preventiva', label: 'Controle Preventiva', icon: ClipboardList }
+            ]
+          }
+        ];
+      }
+      return withNoRootPreventiva;
+    }
 
     if (userRole === 'Visualizador') {
       const allowed = ['resumo', 'cco', 'abastecimento', 'manutencao', 'drive'];
@@ -225,14 +220,11 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
     }
 
     if (userRole === 'Master') {
-  const abast = items.find(item => item.id === 'abastecimento');
-
-  if (abast && abast.subItems) {
-    abast.subItems = abast.subItems.filter(si => si.id !== 'abast-precos');
-  }
-
-  return items;
-}
+      const abast = items.find(item => item.id === 'abastecimento');
+      if (abast && abast.subItems) {
+        abast.subItems = abast.subItems.filter(si => si.id !== 'abast-precos');
+      }
+    }
 
     return items;
   };
@@ -240,7 +232,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
   const filteredMenuItems = getFilteredItems();
 
   const renderMenuItem = (item: MenuItem, depth = 0) => {
-    const hasSubItems = item.subItems && item.subItems.length > 0
+    const hasSubItems = item.subItems && item.subItems.length > 0;
     const isExpanded = expandedMenus[item.id];
     const isSelected = currentView === item.id;
 
@@ -353,4 +345,3 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
     </>
   );
 }
-

@@ -28,11 +28,11 @@ import KanbanBoard from './components/kanban/KanbanBoard';
 import GestaoVista from './components/gestao/GestaoVista';
 import DrivePage from './components/drive/DrivePage';
 import ActivityManagement from './components/config/ActivityManagement';
-import PoolDashboard from './pages/Pool';
 import ChecklistManutencaoPage from './components/maintenance/ChecklistManutencaoPage';
 import ResponderChecklistPage from './components/maintenance/ResponderChecklistPage';
 import CadastroPreventivaPage from './components/maintenance/CadastroPreventivaPage';
 import { NexusFuelControlPage } from './components/fuel/NexusFuelControlPage';
+import Pool from './components/pool/Pool';
 import { checkAndSeedAllData } from './lib/initialSeeds';
 import { useAssets, useFuelData, useAutonomiaData, useAutonomiaPadraoData, useMaintenanceData, useMaintenanceCostData } from './hooks/useFleetData';
 import { LoadingState } from './components/dashboard/LoadingState';
@@ -44,7 +44,7 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import logoCgf from './assets/images/regenerated_image_1778593500523.png';
 
-// Logic hook to keep component lean////
+// Logic hook to keep component lean
 function useAppLogic() {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
@@ -366,8 +366,8 @@ export default function App() {
         return <Home setView={setCurrentView} userRole="Visualizador" />;
       }
     }
-//
-    // Role based protection for Visualizadores PÚBLICO EM GERAL
+
+    // Role based protection for Visualizadores
     if (user && effectiveRole === 'Visualizador') {
       const allowedViews = ['home', 'cco', 'abast-dash', 'mnt-ctrl-op', 'locados', 'abast-maquinas', 'drive', 'responder-checklist', 'resumo', 'abast-precos'];
       if (!allowedViews.includes(currentView)) {
@@ -375,25 +375,6 @@ export default function App() {
       }
     }
 
-
-//Quem pode visualizar o aba pool
-
-
-
-// Role based protection for POOL
-if (
-  user &&
-  currentView === 'pool' &&
-  effectiveRole !== 'Master' &&
-  effectiveRole !== 'Gestão'
-) {
-  toast.error("Acesso restrito.");
-  return <Home setView={setCurrentView} userRole={effectiveRole} />;
-}
-
-
-
-    
     // Role based protection for LOCADORA
     if (user && effectiveRole === 'LOCADORA') {
       return <CadastroPreventivaPage hideBackButton={true} userProfile={userProfile} />;
@@ -403,7 +384,6 @@ if (
       case 'home': return <Home setView={setCurrentView} userRole={effectiveRole} />;
       case 'drive': return <DrivePage />;
       case 'cadastro-preventiva': return <CadastroPreventivaPage onBack={() => setCurrentView('locados')} userProfile={userProfile} />;
-      case 'pool': return <PoolDashboard />;
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
@@ -421,6 +401,12 @@ if (
       case 'reg-infracoes': return <RegularizacaoDashboard />;
       case 'reg-taxas': return <TaxasInspecoesDashboard />;
       case 'reg-docs': return <RegularizacaoDocumentosPage />;
+      case 'pool': {
+        if (effectiveRole !== 'Master' && effectiveRole !== 'Gestão') {
+          return <Overview />;
+        }
+        return <Pool />;
+      }
       case 'mnt-ctrl-op': return <MaintenanceDashboardPage userRole={effectiveRole} />;
       case 'mnt-desemp': return <MaintenanceDesempenhoView />;
       case 'locados': return <LocadosDashboard />;
