@@ -34,8 +34,8 @@ export default function FuelStationsView({ onBack }: FuelStationsViewProps) {
   }, [stations, searchTerm, selectedCity]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
@@ -56,7 +56,7 @@ export default function FuelStationsView({ onBack }: FuelStationsViewProps) {
         </div>
 
         <div className="flex gap-4">
-          <div className="bg-white dark:bg-slate-900 px-6 py-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6">
+          <div className="bg-white dark:bg-slate-900 px-6 py-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6 w-full justify-around md:w-auto">
             <div className="text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total de Postos</p>
               <p className="text-lg font-black text-indigo-600">{stations.length}</p>
@@ -70,9 +70,9 @@ export default function FuelStationsView({ onBack }: FuelStationsViewProps) {
         </div>
       </div>
 
-      <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
-        <CardHeader className="p-8 border-b border-slate-100 dark:border-slate-800">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl md:rounded-[2.5rem] overflow-hidden">
+        <CardHeader className="p-4 sm:p-6 md:p-8 border-b border-slate-100 dark:border-slate-800">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
             <div className="relative group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
               <Input 
@@ -100,7 +100,8 @@ export default function FuelStationsView({ onBack }: FuelStationsViewProps) {
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
             <Table>
               <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
                 <TableRow className="border-none hover:bg-transparent">
@@ -161,6 +162,69 @@ export default function FuelStationsView({ onBack }: FuelStationsViewProps) {
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden max-h-[600px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="p-5 animate-pulse space-y-4">
+                  <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-2/3" />
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-1/4" />
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-5/6" />
+                  <div className="h-8 bg-slate-100 dark:bg-slate-800 rounded w-full" />
+                </div>
+              ))
+            ) : filteredStations.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 font-bold uppercase text-xs">
+                Nenhum posto encontrado.
+              </div>
+            ) : (
+              filteredStations.map((station) => (
+                <div key={station.id} className="p-5 space-y-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                  {/* Estabelecimento */}
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Estabelecimento</span>
+                    <span className="text-sm font-black text-slate-800 dark:text-white tracking-tighter uppercase block">
+                      {station.estabelecimentoRaw}
+                    </span>
+                    <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1 mt-0.5">
+                      <Fuel size={10} /> {station.fields["Rede Preferencial / Conveniada"] || "Rede Credenciada"}
+                    </span>
+                  </div>
+
+                  {/* Cidade */}
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cidade</span>
+                    <Badge className="bg-emerald-500/10 text-emerald-600 border-none font-black text-[10px] uppercase">
+                      {station.cidade}
+                    </Badge>
+                  </div>
+
+                  {/* Endereço */}
+                  <div>
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Endereço</span>
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase leading-relaxed block">
+                      {station.enderecoRaw}
+                    </span>
+                  </div>
+
+                  {/* Localização (Link) */}
+                  <div className="pt-1">
+                    <a 
+                      href={station.mapsLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center justify-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2.5 rounded-xl transition-all font-black text-[10px] uppercase tracking-widest w-full text-center"
+                    >
+                      <MapPin size={12} />
+                      Ver no Maps
+                      <ExternalLink size={10} />
+                    </a>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </CardContent>
       </Card>
