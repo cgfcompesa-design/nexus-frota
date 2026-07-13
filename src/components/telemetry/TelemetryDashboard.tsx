@@ -50,13 +50,20 @@ export default function TelemetryDashboard() {
   const [activeTab, setActiveTab] = useState<"notifications" | "drivers" | "performance" | "live">("notifications");
   const [timelineView, setTimelineView] = useState<"severity" | "type">("severity");
   
-  const { data: realtimeData = [], isLoading: loadingRT, isError: isErrorRT, refetch: refetchRT } = useTelemetryRealtime();
-  const { data: notificacoes = [], isLoading: loadingNtf, isError: isErrorNtf, refetch: refetchNtf } = useNotificacoes();
-  const { data: telemetryHistory = [], isLoading: loadingHist, isError: isErrorHist, refetch: refetchHist } = useTelemetryHistory();
-  const { data: assets = [], isLoading: loadingAssets, isError: isErrorAssets, refetch: refetchAssets } = useAssets();
+  const { data: realtimeData = [], isLoading: loadingRT, isError: isErrorRT, error: errorRT, refetch: refetchRT } = useTelemetryRealtime();
+  const { data: notificacoes = [], isLoading: loadingNtf, isError: isErrorNtf, error: errorNtf, refetch: refetchNtf } = useNotificacoes();
+  const { data: telemetryHistory = [], isLoading: loadingHist, isError: isErrorHist, error: errorHist, refetch: refetchHist } = useTelemetryHistory();
+  const { data: assets = [], isLoading: loadingAssets, isError: isErrorAssets, error: errorAssets, refetch: refetchAssets } = useAssets();
 
   const loading = loadingRT || loadingNtf || loadingHist || loadingAssets;
   const isError = isErrorRT || isErrorNtf || isErrorHist || isErrorAssets;
+
+  useEffect(() => {
+    if (isErrorRT) console.error("Telemetry Realtime Query Error:", errorRT);
+    if (isErrorNtf) console.error("Notificacoes Query Error:", errorNtf);
+    if (isErrorHist) console.error("Telemetry History Query Error:", errorHist);
+    if (isErrorAssets) console.error("Assets Query Error:", errorAssets);
+  }, [isErrorRT, isErrorNtf, isErrorHist, isErrorAssets, errorRT, errorNtf, errorHist, errorAssets]);
 
   const refetchAll = () => {
     refetchRT();
@@ -370,14 +377,40 @@ export default function TelemetryDashboard() {
 
   if (isError) {
     return (
-      <div className="h-[600px] flex flex-col items-center justify-center space-y-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-12">
-        <div className="w-20 h-20 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-full flex items-center justify-center shadow-lg shadow-rose-200/50">
+      <div className="h-[600px] flex flex-col items-center justify-center space-y-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 overflow-y-auto">
+        <div className="w-20 h-20 bg-rose-50 dark:bg-rose-900/20 text-rose-600 rounded-full flex items-center justify-center shadow-lg shadow-rose-200/50 shrink-0">
           <AlertTriangle size={40} />
         </div>
         <div className="text-center space-y-2">
           <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">Erro de Conexão</h2>
           <p className="text-slate-500 max-w-md mx-auto font-medium">Ops! Não conseguimos conectar com os servidores de telemetria da Compesa. Isso pode ser um problema temporário na rede ou no servidor.</p>
         </div>
+        
+        {/* Diagnostic details */}
+        <div className="max-w-xl w-full bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 text-left space-y-2">
+          <p className="text-xs font-black text-slate-400 uppercase tracking-wider">Informações de Diagnóstico:</p>
+          {isErrorRT && (
+            <div className="text-xs">
+              <span className="font-bold text-rose-600">Tempo Real:</span> <code className="font-mono bg-rose-50 dark:bg-rose-950/20 p-1 rounded">{errorRT instanceof Error ? errorRT.message : String(errorRT)}</code>
+            </div>
+          )}
+          {isErrorNtf && (
+            <div className="text-xs">
+              <span className="font-bold text-rose-600">Notificações:</span> <code className="font-mono bg-rose-50 dark:bg-rose-950/20 p-1 rounded">{errorNtf instanceof Error ? errorNtf.message : String(errorNtf)}</code>
+            </div>
+          )}
+          {isErrorHist && (
+            <div className="text-xs">
+              <span className="font-bold text-rose-600">Histórico/Deslocamento:</span> <code className="font-mono bg-rose-50 dark:bg-rose-950/20 p-1 rounded">{errorHist instanceof Error ? errorHist.message : String(errorHist)}</code>
+            </div>
+          )}
+          {isErrorAssets && (
+            <div className="text-xs">
+              <span className="font-bold text-rose-600">Ativos da Frota:</span> <code className="font-mono bg-rose-50 dark:bg-rose-950/20 p-1 rounded">{errorAssets instanceof Error ? errorAssets.message : String(errorAssets)}</code>
+            </div>
+          )}
+        </div>
+
         <div className="flex gap-4">
           <Button onClick={() => window.location.reload()} variant="outline" className="rounded-2xl border-2 font-black uppercase tracking-widest text-xs h-12 px-8">
             Recarregar App
