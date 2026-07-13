@@ -387,7 +387,7 @@ export default function App() {
       case 'resumo': return <Overview />;
       case 'telemetria': return <TelemetryDashboard />;
       case 'abast-dash': return <FuelDashboardsPage setView={setCurrentView} />;
-      case 'nexus-fuelcontrol': return <NexusFuelControlPage userProfile={userProfile} onBack={() => setCurrentView('home')} />;
+      case 'nexus-fuelcontrol': return <NexusFuelControlPage userProfile={userProfile} onBack={() => setCurrentView('home')} onShowAlerts={() => setShowAlerts(true)} />;
       case 'abast-maquinas': return <MachineSupplyReport onBack={() => setCurrentView('abast-dash')} />;
       case 'kanban': return <KanbanBoard onBack={() => setCurrentView('home')} />;
       case 'gestao-vista': return <GestaoVista onBack={() => setCurrentView('home')} />;

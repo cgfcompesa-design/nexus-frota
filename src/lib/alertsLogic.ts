@@ -74,6 +74,7 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
     
     const date = parseBrazilianDate(nextDateRaw);
     const diff = daysDiffFromToday(date);
+    const criticidadeItem = item["CRITICIDADE"] || item.COL_12 || info.criticidade;
 
     if (diff !== null) {
       if (diff < 0 || diff <= 30) {
@@ -86,6 +87,7 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
           tipo: diff < 0 ? 'Vencido' : 'A Vencer',
           categoria: 'Manutenção',
           ...info,
+          criticidade: criticidadeItem,
           infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item["OBS"] || item["OBSERVAÇÃO"] || item.COL_4
         });
       }
@@ -95,7 +97,6 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
     if (info.propriedade === 'Próprio') {
       const odoRestante = parseOdoRestante(item["ODÔMETRO RESTANTE"] || item["ODOMETRO RESTANTE"] || item.COL_16);
       if (odoRestante !== null) {
-        const criticidadeItem = item["CRITICIDADE"] || item.COL_22 || info.criticidade;
         const atividade = item["TIPO PREVENTIVA"] || item["TIPO_PREVENTIVA"] || item["SERVIÇO"] || item["SERVICO"] || item["ATIVIDADE"] || item.COL_2 || "Geral";
         
         if (odoRestante < 0) {

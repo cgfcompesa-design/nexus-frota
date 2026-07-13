@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { AlertTriangle, Clock, Share2, Mail, CheckCircle2, Copy } from "lucide-react";
+import { AlertTriangle, Clock, Share2, Mail, CheckCircle2, Copy, Maximize2, Minimize2 } from "lucide-react";
 import { 
   useMaintenanceData, 
   useControleOperacional, 
@@ -122,12 +122,22 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   const [propFilter, setPropFilter] = useState<'all' | 'proprio' | 'locado'>('all');
   const [catFilter, setCatFilter] = useState<'all' | 'manutencao' | 'taxas'>('all');
   const [selectedGerencia, setSelectedGerencia] = useState<string>('all');
+  const [comparisonFilter, setComparisonFilter] = useState<'all' | 'time' | 'km'>('all');
+  const [selectedCriticidade, setSelectedCriticidade] = useState<string>('all');
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   const allGerencias = useMemo(() => {
     const list = sortedAlerts
       .map(a => a.gerencia)
       .filter((g): g is string => !!g && g.trim() !== "");
     return Array.from(new Set(list)).sort();
+  }, [sortedAlerts]);
+
+  const allCriticidades = useMemo(() => {
+    const list = sortedAlerts
+      .map(a => a.criticidade)
+      .filter((c): c is string => !!c && c.trim() !== "");
+    return Array.from(new Set(list)).map(c => String(c).toUpperCase().trim()).sort();
   }, [sortedAlerts]);
 
   const propriosBase = useMemo(() => sortedAlerts.filter(a => a.propriedade === 'Próprio' && a.categoria !== 'Infrações'), [sortedAlerts]);
@@ -139,27 +149,33 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
       const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
       const matchCat = catFilter === 'all' ? true : (catFilter === 'manutencao' ? a.categoria === 'Manutenção' : a.categoria === 'Taxas');
       const matchGerencia = selectedGerencia === 'all' ? true : String(a.gerencia || "").toUpperCase().trim() === selectedGerencia.toUpperCase().trim();
-      return matchStatus && matchCat && matchGerencia;
+      const matchComp = comparisonFilter === 'all' ? true : (comparisonFilter === 'time' ? !a.isKM : !!a.isKM);
+      const matchCrit = selectedCriticidade === 'all' ? true : String(a.criticidade || "").toUpperCase().trim() === selectedCriticidade.toUpperCase().trim();
+      return matchStatus && matchCat && matchGerencia && matchComp && matchCrit;
     });
-  }, [propriosBase, statusFilter, catFilter, selectedGerencia]);
+  }, [propriosBase, statusFilter, catFilter, selectedGerencia, comparisonFilter, selectedCriticidade]);
 
   const locados = useMemo(() => {
     return locadosBase.filter(a => {
       const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
       const matchCat = catFilter === 'all' ? true : (catFilter === 'manutencao' ? a.categoria === 'Manutenção' : a.categoria === 'Taxas');
       const matchGerencia = selectedGerencia === 'all' ? true : String(a.gerencia || "").toUpperCase().trim() === selectedGerencia.toUpperCase().trim();
-      return matchStatus && matchCat && matchGerencia;
+      const matchComp = comparisonFilter === 'all' ? true : (comparisonFilter === 'time' ? !a.isKM : !!a.isKM);
+      const matchCrit = selectedCriticidade === 'all' ? true : String(a.criticidade || "").toUpperCase().trim() === selectedCriticidade.toUpperCase().trim();
+      return matchStatus && matchCat && matchGerencia && matchComp && matchCrit;
     });
-  }, [locadosBase, statusFilter, catFilter, selectedGerencia]);
+  }, [locadosBase, statusFilter, catFilter, selectedGerencia, comparisonFilter, selectedCriticidade]);
 
   const infracoes = useMemo(() => {
     return infracoesBase.filter(a => {
       const matchStatus = statusFilter === 'all' ? true : (statusFilter === 'vencido' ? a.tipo === 'Vencido' : a.tipo === 'A Vencer');
       const matchProp = propFilter === 'all' ? true : (propFilter === 'proprio' ? a.propriedade === 'Próprio' : a.propriedade === 'Locado');
       const matchGerencia = selectedGerencia === 'all' ? true : String(a.gerencia || "").toUpperCase().trim() === selectedGerencia.toUpperCase().trim();
-      return matchStatus && matchProp && matchGerencia;
+      const matchComp = comparisonFilter === 'all' ? true : (comparisonFilter === 'time' ? !a.isKM : !!a.isKM);
+      const matchCrit = selectedCriticidade === 'all' ? true : String(a.criticidade || "").toUpperCase().trim() === selectedCriticidade.toUpperCase().trim();
+      return matchStatus && matchProp && matchGerencia && matchComp && matchCrit;
     });
-  }, [infracoesBase, statusFilter, propFilter, selectedGerencia]);
+  }, [infracoesBase, statusFilter, propFilter, selectedGerencia, comparisonFilter, selectedCriticidade]);
 
   const handleCopyWhatsApp = () => {
     try {
@@ -237,7 +253,9 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[850px] max-h-[95vh] h-[800px] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10 shadow-2xl">
+      <DialogContent className={isFullscreen 
+        ? "w-screen h-screen max-w-none max-h-none flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-none rounded-none" 
+        : "sm:max-w-[850px] max-h-[95vh] h-[800px] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10 shadow-2xl"}>
         <DialogHeader className="p-6 pb-2 shrink-0 border-b border-slate-200 dark:border-white/5">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
@@ -254,7 +272,16 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
               </div>
             </div>
             
-            <div className="flex space-x-2">
+            <div className="flex space-x-2 items-center">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsFullscreen(!isFullscreen)}
+                className="h-8 text-[9px] font-black uppercase tracking-widest bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 transition-all"
+              >
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 mr-1.5" /> : <Maximize2 className="w-3.5 h-3.5 mr-1.5" />}
+                {isFullscreen ? "Minimizar" : "Tela Cheia"}
+              </Button>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -292,6 +319,8 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
               setPropFilter('all');
               setCatFilter('all');
               setSelectedGerencia('all');
+              setComparisonFilter('all');
+              setSelectedCriticidade('all');
             }} 
             className="flex-1 flex flex-col min-h-0 overflow-hidden"
           >
@@ -394,6 +423,31 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                   </>
                 )}
 
+                {/* New Comparison / Comparativo filters (Calendar vs. KM/Horímetro) */}
+                <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1" />
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Comparação:</span>
+                <button 
+                  type="button"
+                  onClick={() => setComparisonFilter('all')}
+                  className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${comparisonFilter === 'all' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                >
+                  Todas
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setComparisonFilter('time')}
+                  className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${comparisonFilter === 'time' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                >
+                  Tempo (Calendário)
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => setComparisonFilter('km')}
+                  className={`px-2.5 py-1 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all ${comparisonFilter === 'km' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-200/50 dark:bg-slate-900/50 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
+                >
+                  KM / Horímetro
+                </button>
+
                 <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1" />
                 <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Gerência:</span>
                 <select
@@ -406,9 +460,23 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                     <option key={g} value={g}>{g}</option>
                   ))}
                 </select>
+
+                {/* New Criticidade filter */}
+                <div className="h-4 w-[1px] bg-slate-200 dark:bg-white/10 mx-1" />
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Criticidade:</span>
+                <select
+                  value={selectedCriticidade}
+                  onChange={(e) => setSelectedCriticidade(e.target.value)}
+                  className="px-2 py-1 text-[9px] bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 font-bold uppercase rounded-lg border border-slate-200 dark:border-white/10 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer max-w-[130px]"
+                >
+                  <option value="all">TODAS ({allCriticidades.length})</option>
+                  {allCriticidades.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </div>
               
-              {(statusFilter !== 'all' || catFilter !== 'all' || propFilter !== 'all' || selectedGerencia !== 'all') && (
+              {(statusFilter !== 'all' || catFilter !== 'all' || propFilter !== 'all' || selectedGerencia !== 'all' || comparisonFilter !== 'all' || selectedCriticidade !== 'all') && (
                 <button 
                   type="button"
                   onClick={() => {
@@ -416,6 +484,8 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
                     setCatFilter('all');
                     setPropFilter('all');
                     setSelectedGerencia('all');
+                    setComparisonFilter('all');
+                    setSelectedCriticidade('all');
                   }}
                   className="text-[9px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-amber-100 transition-colors"
                 >
