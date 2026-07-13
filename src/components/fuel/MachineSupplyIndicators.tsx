@@ -35,13 +35,22 @@ import {
   TrendingUp,
   Loader2,
   FilterX,
-  BellRing
+  BellRing,
+  Eye
 } from "lucide-react";
 import { FuelData } from "@/types";
 import { useMachineSupplyAssignments } from "@/hooks/useMachineSupplyAssignments";
 import { useContactsData } from "@/hooks/useContactsData";
 import { toast } from "sonner";
 import { exportToExcelMultiSheet } from "@/lib/exportToExcel";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
 
 interface MachineSupplyIndicatorsProps {
   fuel: FuelData[];
@@ -181,6 +190,8 @@ export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) 
   const { getEmailsByGerencia } = useContactsData();
   const [searchTerm, setSearchTerm] = useState("");
   const [showPendingOnly, setShowPendingOnly] = useState(true);
+  const [selectedUnitPending, setSelectedUnitPending] = useState<string | null>(null);
+  const [showAllPending, setShowAllPending] = useState(false);
 
   // Mês e ano para filtro
   const currentMonthIdx = new Date().getMonth(); // 0-11
@@ -236,6 +247,23 @@ export const MachineSupplyIndicators = ({ fuel }: MachineSupplyIndicatorsProps) 
 
     return { total, completed, pending, percent, maqFuel };
   }, [filteredFuel, assignments]);
+
+  const pendingRecords = useMemo(() => {
+    return stats.maqFuel.filter(f => {
+      const txId = String(f.COL_0 || f._txId || "").trim();
+      const normTxId = normalizeTxId(txId);
+      return !assignments.some(a => normalizeTxId(a.transactionId) === normTxId);
+    });
+  }, [stats.maqFuel, assignments]);
+
+  const pendingRecordsForUnit = useMemo(() => {
+    if (showAllPending) return pendingRecords;
+    if (!selectedUnitPending) return [];
+    return pendingRecords.filter(f => {
+      const unit = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "N/A").trim();
+      return unit === selectedUnitPending;
+    });
+  }, [pendingRecords, selectedUnitPending, showAllPending]);
 
   const unitStats = useMemo(() => {
     const units: Record<string, { total: number; completed: number; pending: number }> = {};
@@ -380,6 +408,20 @@ Coordenação de Gestão de Frotas - CGF`;
 
           <Button
             size="sm"
+            onClick={() => {
+              if (pendingRecords.length === 0) {
+                toast.info("Nenhuma pendência identificada para o período selecionado.");
+                return;
+              }
+              setShowAllPending(true);
+            }}
+            className="h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-[10px] font-black uppercase tracking-widest gap-2 shadow-lg shadow-indigo-100 dark:shadow-none"
+          >
+            <Eye size={14} /> Ver Todos os Faltantes ({pendingRecords.length})
+          </Button>
+
+          <Button
+            size="sm"
             onClick={handleExport}
             className="h-9 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-[10px] font-black uppercase tracking-widest gap-2 shadow-lg shadow-emerald-100 dark:shadow-none"
           >
@@ -390,13 +432,19 @@ Coordenação de Gestão de Frotas - CGF`;
 
       {/* Mini Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
-          <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total MAQ/GER ({selectedMonth}/{selectedYear})</p>
+        <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md relative group">
+          <div className="flex items-start justify-between mb-1">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Total MAQ/GER ({selectedMonth}/{selectedYear})</p>
+            <span className="text-[9px] text-indigo-500 font-bold cursor-help bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded uppercase tracking-wider">Origem</span>
+          </div>
           <div className="flex items-end justify-between">
             <h4 className="text-2xl font-black text-slate-800 dark:text-white leading-none">{stats.total}</h4>
             <div className="h-8 w-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
               <Building2 size={16} />
             </div>
+          </div>
+          <div className="absolute hidden group-hover:block bg-slate-800 dark:bg-slate-950 text-white text-[9px] p-3 rounded-xl shadow-xl -bottom-36 left-0 right-0 z-50 border border-slate-700 leading-relaxed font-bold uppercase tracking-wider">
+            Esse número é extraído da planilha de abastecimentos importada para o período de {selectedMonth}/{selectedYear}. Ele conta quantos registros possuem a placa iniciando com <span className="text-amber-400">MAQ</span> ou <span className="text-amber-400">GER</span> (máquinas/equipamentos).
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm transition-all hover:shadow-md">
@@ -474,8 +522,18 @@ Coordenação de Gestão de Frotas - CGF`;
                   <TableCell className="text-[10px] font-black text-center text-emerald-600 bg-emerald-50/30 dark:bg-emerald-900/10">
                     {u.completed}
                   </TableCell>
-                  <TableCell className="text-[10px] font-black text-center text-rose-600 bg-rose-50/30 dark:bg-rose-900/10">
-                    {u.pending}
+                  <TableCell 
+                    className={`text-[10px] font-black text-center text-rose-600 bg-rose-50/30 dark:bg-rose-900/10 ${u.pending > 0 ? 'cursor-pointer hover:bg-rose-100/50 hover:underline transition-all' : ''}`}
+                    onClick={() => {
+                      if (u.pending > 0) {
+                        setSelectedUnitPending(u.name);
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-1">
+                      {u.pending}
+                      {u.pending > 0 && <Eye size={11} className="text-rose-400 animate-pulse" />}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-3">
@@ -520,6 +578,108 @@ Coordenação de Gestão de Frotas - CGF`;
           </Table>
         </div>
       </div>
+
+      {/* Dialog para visualização de dados faltantes */}
+      <Dialog 
+        open={!!selectedUnitPending || showAllPending} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedUnitPending(null);
+            setShowAllPending(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto rounded-3xl p-6">
+          <DialogHeader>
+            <DialogTitle className="text-sm font-black uppercase tracking-wider flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-rose-500" />
+              {showAllPending 
+                ? `Todas as transações com dados faltantes (${selectedMonth}/${selectedYear})` 
+                : `Abastecimentos com dados faltantes - Unidade: ${selectedUnitPending}`}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">
+              As transações abaixo (placa iniciando com MAQ ou GER) não possuem o preenchimento de informações complementares (Destino do Maquinário, Modelo, Tombamento) no sistema.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-4">
+            <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
+              <div className="max-h-[50vh] overflow-y-auto">
+                <Table>
+                  <TableHeader className="bg-slate-100 dark:bg-slate-800 sticky top-0 z-10">
+                    <TableRow>
+                      <TableHead className="text-[9px] font-black uppercase py-3">Data</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase">Placa</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase">Unidade</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase">Condutor</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-center">Litros</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-right">Valor (R$)</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase">Posto / Estabelecimento</TableHead>
+                      <TableHead className="text-[9px] font-black uppercase text-center">ID Transação</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingRecordsForUnit.map((f, i) => {
+                      const placa = String(f._placa || f.COL_5 || "").toUpperCase().trim();
+                      const txId = String(f.COL_0 || f._txId || "").trim();
+                      const driver = String(f._driver || f.COL_11 || "").trim() || "N/A";
+                      const dateVal = f._date || f.COL_4;
+                      const formattedDate = (() => {
+                        if (!dateVal) return "-";
+                        if (dateVal instanceof Date) return dateVal.toLocaleDateString("pt-BR");
+                        const dStr = String(dateVal).trim();
+                        if (/^\d+(\.\d+)?$/.test(dStr)) {
+                          const excelNum = parseFloat(dStr);
+                          const date = new Date((excelNum - 25569) * 86400 * 1000);
+                          return isNaN(date.getTime()) ? dStr : date.toLocaleDateString("pt-BR");
+                        }
+                        return dStr;
+                      })();
+                      const unit = String(f.COL_29 || f.UNIDADE || f.GERÊNCIA || f.GERENCIA || f._unit || "N/A").trim();
+                      const liters = Number(f._litros !== undefined && f._litros !== null ? f._litros : f.COL_14 || 0);
+                      const cost = Number(f.COL_19 !== undefined && f.COL_19 !== null && String(f.COL_19).trim() !== "" ? f.COL_19 : f._total || f["VALOR EMISSAO"] || f.VALOR || f.TOTAL || (Number(f.COL_14 || f._litros || 0) * Number(f.COL_15 || f._vlLitro || 0)) || 0);
+                      const establishment = String(f._posto || f._establishment || f.COL_21 || "N/A").trim();
+
+                      return (
+                        <TableRow key={`${txId}-${i}`} className="hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-colors border-b border-slate-100 dark:border-slate-800 last:border-0">
+                          <TableCell className="text-[9px] font-bold py-3">{formattedDate}</TableCell>
+                          <TableCell className="text-[9px] font-black text-slate-700 dark:text-slate-300">{placa}</TableCell>
+                          <TableCell className="text-[9px] font-bold text-slate-500 uppercase">{unit}</TableCell>
+                          <TableCell className="text-[9px] font-bold text-slate-600 uppercase max-w-[120px] truncate" title={driver}>{driver}</TableCell>
+                          <TableCell className="text-[9px] font-bold text-center">{liters.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</TableCell>
+                          <TableCell className="text-[9px] font-black text-right text-rose-600">{cost.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</TableCell>
+                          <TableCell className="text-[9px] font-bold text-slate-500 uppercase max-w-[150px] truncate" title={establishment}>{establishment}</TableCell>
+                          <TableCell className="text-[9px] font-mono text-center text-slate-400 font-bold">{txId}</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    {pendingRecordsForUnit.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center py-8 text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                          Nenhum registro pendente para este filtro.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="flex justify-between items-center sm:justify-between">
+            <span className="text-[9px] font-black uppercase text-slate-400">Total: {pendingRecordsForUnit.length} abastecimentos pendentes</span>
+            <Button 
+              onClick={() => {
+                setSelectedUnitPending(null);
+                setShowAllPending(false);
+              }}
+              className="h-9 rounded-xl bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 dark:text-slate-900 text-white text-[10px] font-black uppercase tracking-widest"
+            >
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
