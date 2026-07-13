@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MetricCard } from "../dashboard/MetricCard";
 import { ChartCard } from "../dashboard/ChartCard";
@@ -82,9 +82,15 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
   const [selectedCriticidade, setSelectedCriticidade] = useState("all");
   const [selectedTam, setSelectedTam] = useState("all");
   const [selectedDiasFilter, setSelectedDiasFilter] = useState("all");
+  const [selectedPlanoFilter, setSelectedPlanoFilter] = useState<"all" | "atividades" | "os_unicas">("all");
   
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Reset page when any filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDiretoria, selectedGerencia, selectedCriticidade, selectedTam, selectedDiasFilter, selectedPlanoFilter]);
   const itemsPerPage = 50;
 
   const filterOptions = useMemo(() => {
@@ -279,12 +285,31 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
     };
   }, [filteredData]);
 
+  const tableFilteredData = useMemo(() => {
+    let result = filteredData;
+    if (selectedPlanoFilter === "atividades") {
+      result = result.filter(item => item.numMp && item.numMp.trim() !== "");
+    } else if (selectedPlanoFilter === "os_unicas") {
+      const seenOrders = new Set<string>();
+      result = result.filter(item => {
+        const isPlan = item.numMp && item.numMp.trim() !== "";
+        if (!isPlan) return false;
+        const os = String(item.numOrdem || "").trim();
+        if (!os) return false;
+        if (seenOrders.has(os)) return false;
+        seenOrders.add(os);
+        return true;
+      });
+    }
+    return result;
+  }, [filteredData, selectedPlanoFilter]);
+
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
-    return filteredData.slice(start, start + itemsPerPage);
-  }, [filteredData, currentPage]);
+    return tableFilteredData.slice(start, start + itemsPerPage);
+  }, [tableFilteredData, currentPage]);
 
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const totalPages = Math.ceil(tableFilteredData.length / itemsPerPage) || 1;
 
   return (
     <div className="space-y-6">
@@ -359,6 +384,7 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
               setSelectedCriticidade("all");
               setSelectedTam("all");
               setSelectedDiasFilter("all");
+              setSelectedPlanoFilter("all");
             }} className="h-9 px-3 text-[10px] font-black uppercase">Limpar</Button>
           </div>
         </CardContent>
@@ -497,18 +523,22 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
           <MetricCard 
             title="Atividades Planejadas" 
             value={stats.planoAtividadesCount} 
-            description="Total de registros de plano (Nº MP preenchido)"
-            icon={<ClipboardList className="h-4 w-4 text-emerald-600" />}
+            description="Total de registros de plano (Nº MP preenchido) - Clique para filtrar"
+            icon={<ClipboardList className="h-4 w-4" />}
             colorScheme="success"
             centered
+            isActive={selectedPlanoFilter === "atividades"}
+            onClick={() => setSelectedPlanoFilter(prev => prev === "atividades" ? "all" : "atividades")}
           />
           <MetricCard 
             title="OS de Plano Únicas" 
             value={stats.planoOsUnicasCount} 
-            description="OS do plano de manutenção (sem duplicatas)"
-            icon={<History className="h-4 w-4 text-emerald-600" />}
+            description="OS do plano de manutenção (sem duplicatas) - Clique para filtrar"
+            icon={<History className="h-4 w-4" />}
             colorScheme="success"
             centered
+            isActive={selectedPlanoFilter === "os_unicas"}
+            onClick={() => setSelectedPlanoFilter(prev => prev === "os_unicas" ? "all" : "os_unicas")}
           />
         </div>
 
@@ -570,7 +600,24 @@ export function BacklogDashboard({ data }: BacklogDashboardProps) {
       <Card className="border-none shadow-sm dark:bg-slate-900 overflow-hidden">
         <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-sm font-black uppercase tracking-tighter">Resumo Detalhado das Ordens</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-sm font-black uppercase tracking-tighter">Resumo Detalhado das Ordens</CardTitle>
+              {selectedPlanoFilter !== "all" && (
+                <Badge variant="secondary" className="bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 animate-pulse rounded-full flex items-center gap-1">
+                  Filtrando: {selectedPlanoFilter === "atividades" ? "Atividades Planejadas" : "OS de Plano Únicas"}
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlanoFilter("all");
+                    }}
+                    className="hover:text-emerald-900 dark:hover:text-emerald-100 ml-1 font-black cursor-pointer text-xs"
+                    title="Remover filtro"
+                  >
+                    ×
+                  </button>
+                </Badge>
+              )}
+            </div>
             <CardDescription className="text-[10px] font-bold uppercase">Acompanhamento completo de pendências (Página {currentPage} de {totalPages})</CardDescription>
           </div>
           <div className="flex gap-2">
