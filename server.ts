@@ -12,11 +12,15 @@ function fetchUrlBinary(urlStr: string, redirectsRemaining = 5): Promise<Buffer>
     if (redirectsRemaining <= 0) {
       return reject(new Error("Too many redirects"));
     }
-    const options = {
+    const isAutoVision = urlStr.includes("autovisionweb.ddns.com.br");
+    const options: any = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     };
+    if (isAutoVision) {
+      options.rejectUnauthorized = false;
+    }
     https.get(urlStr, options, (res) => {
       const statusCode = res.statusCode || 0;
       if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
@@ -191,14 +195,23 @@ async function startServer() {
 
       const mapped = rawData.map((item: any) => {
         const placa = String(item.placa || item.frota || "").trim().toUpperCase();
+        
+        let isIgnOn = false;
+        if (typeof item.ignicao === "boolean") {
+          isIgnOn = item.ignicao;
+        } else if (item.ignicao !== undefined && item.ignicao !== null) {
+          const ignStr = String(item.ignicao).toUpperCase().trim();
+          isIgnOn = ignStr === "LIGADA" || ignStr === "1" || ignStr === "TRUE" || ignStr === "ON";
+        }
+
         return {
           Placa: placa,
           Unidade: String(item.cliente || item.setor || "COMPESA").trim(),
           "Data/Hora": formatDateTime(item.data),
           Velocidade: Number(item.velocidade || 0),
           Odometro: item.odometro !== undefined && item.odometro !== null ? String(item.odometro) : "-",
-          Ignicao: item.ignicao ? "1" : "0",
-          Antifurto: "-",
+          Ignicao: isIgnOn ? "1" : "0",
+          Antifurto: String(item.antifurto || "-").trim(),
           Condutor: String(item.condutor || "N/A").trim(),
           Tensao: Number(item.tensao || 0),
           latitude: Number(item.latitude || 0),
