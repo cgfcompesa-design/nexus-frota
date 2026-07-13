@@ -44,9 +44,10 @@ import { motion } from "motion/react";
 import { Button } from "@/components/ui/button";
 import { DriversRelation } from "./DriversRelation";
 import RankingView from "./RankingView";
+import { TelemetryLiveTab } from "./TelemetryLiveTab";
 
 export default function TelemetryDashboard() {
-  const [activeTab, setActiveTab] = useState<"notifications" | "drivers" | "performance">("notifications");
+  const [activeTab, setActiveTab] = useState<"notifications" | "drivers" | "performance" | "live">("notifications");
   const [timelineView, setTimelineView] = useState<"severity" | "type">("severity");
   
   const { data: realtimeData = [], isLoading: loadingRT, isError: isErrorRT, refetch: refetchRT } = useTelemetryRealtime();
@@ -697,8 +698,14 @@ export default function TelemetryDashboard() {
             >
               <Trophy size={14} /> Performance
             </button>
+            <button
+              onClick={() => setActiveTab("live")}
+              className={`px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2 ${activeTab === "live" ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+            >
+              <Activity size={14} /> Transmissões Live
+            </button>
           </div>
-          {activeTab !== "drivers" && activeTab !== "performance" && (
+          {activeTab !== "drivers" && activeTab !== "performance" && activeTab !== "live" && (
             <button 
               onClick={handleExportRealtime}
               className="flex items-center space-x-2 bg-slate-900 dark:bg-indigo-600 text-white px-5 py-2.5 rounded-xl shadow-lg font-black text-[10px] uppercase tracking-wider hover:bg-slate-800 transition-all active:scale-95"
@@ -710,6 +717,7 @@ export default function TelemetryDashboard() {
         </div>
       </div>
 
+      {activeTab === "live" && <TelemetryLiveTab />}
       {activeTab === "performance" && <RankingView />}
       {activeTab === "drivers" && (
         <div className="space-y-8">
