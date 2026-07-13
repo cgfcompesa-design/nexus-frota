@@ -724,16 +724,14 @@ export async function fetchTelemetryHistory(): Promise<any[]> {
 }
 
 export async function fetchTelemetryRealtime(): Promise<any[]> {
-  try {
-    const response = await fetch('/api/telemetry-realtime');
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    return await response.json();
-  } catch (err) {
-    console.error("Error in fetchTelemetryRealtime:", err);
-    return [];
+  const response = await fetch(`/api/telemetry-realtime?t=${Date.now()}`, {
+    cache: 'no-store'
+  });
+  if (!response.ok) {
+    const errText = await response.text().catch(() => "");
+    throw new Error(`HTTP error! status: ${response.status}. Details: ${errText}`);
   }
+  return await response.json();
 }
 
 export async function fetchRegularizacaoData(): Promise<any[]> {

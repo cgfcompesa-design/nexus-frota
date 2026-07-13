@@ -32,7 +32,7 @@ import { exportToExcel } from "../../lib/exportToExcel";
 import { toast } from "sonner";
 
 export function TelemetryLiveTab() {
-  const { data: rawRealtimeData = [], isLoading, isError, refetch } = useTelemetryRealtime();
+  const { data: rawRealtimeData = [], isLoading, isError, error, refetch } = useTelemetryRealtime();
   
   // Local state for filters
   const [searchTerm, setSearchTerm] = useState("");
@@ -379,6 +379,11 @@ export function TelemetryLiveTab() {
                 <div>
                   <h4 className="text-sm font-black uppercase tracking-tight text-slate-800 dark:text-slate-100">Erro de Sincronização</h4>
                   <p className="text-xs text-slate-400 mt-1">Não foi possível recuperar dados da API AutoVision.</p>
+                  {error && (
+                    <p className="text-[10px] font-mono text-rose-500 bg-rose-50 dark:bg-rose-950/20 p-2 rounded-lg mt-2 max-w-md mx-auto">
+                      {error instanceof Error ? error.message : String(error)}
+                    </p>
+                  )}
                 </div>
                 <Button onClick={refetch} className="bg-rose-600 hover:bg-rose-700 font-black uppercase tracking-wider text-[10px] rounded-xl px-4 py-2">
                   Tentar Novamente

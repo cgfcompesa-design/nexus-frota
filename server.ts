@@ -155,6 +155,7 @@ async function startServer() {
   let isTelemetryFetching = false;
 
   app.get("/api/telemetry-realtime", async (req, res) => {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     // If cache is fresh (less than 30 seconds), return cached data
     if (telemetryCache.length > 0 && Date.now() - lastTelemetryFetchTime < 30 * 1000) {
       return res.json(telemetryCache);
