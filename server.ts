@@ -145,6 +145,90 @@ async function startServer() {
     res.json({ success: true, years: crlvYearsCache });
   });
 
+  // In-memory cache for Telemetry data
+  let telemetryCache: any[] = [];
+  let lastTelemetryFetchTime = 0;
+  let isTelemetryFetching = false;
+
+  app.get("/api/telemetry-realtime", async (req, res) => {
+    // If cache is fresh (less than 30 seconds), return cached data
+    if (telemetryCache.length > 0 && Date.now() - lastTelemetryFetchTime < 30 * 1000) {
+      return res.json(telemetryCache);
+    }
+
+    // If already fetching, return cache if available to prevent blocking
+    if (isTelemetryFetching && telemetryCache.length > 0) {
+      return res.json(telemetryCache);
+    }
+
+    isTelemetryFetching = true;
+    try {
+      console.log("[SERVER] Fetching live telemetry from AutoVision...");
+      const apiUrl = "https://www.autovisionweb.ddns.com.br/service/compesa/telemetria/?partialToken=a97a82ef6e98f32bd8914462d2d7850c";
+      
+      const buffer = await fetchUrlBinary(apiUrl);
+      const jsonText = buffer.toString("utf-8");
+      const rawData = JSON.parse(jsonText);
+      
+      if (!Array.isArray(rawData)) {
+        throw new Error("Invalid response format: expected array");
+      }
+
+      const formatDateTime = (val: string) => {
+        if (!val) return "-";
+        try {
+          // "2025-02-25 19:10:28" -> "25/02/2025 19:10:28"
+          const parts = val.trim().split(" ");
+          if (parts.length === 2) {
+            const dateParts = parts[0].split("-");
+            if (dateParts.length === 3) {
+              return `${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${parts[1]}`;
+            }
+          }
+          return val;
+        } catch { return val; }
+      };
+
+      const mapped = rawData.map((item: any) => {
+        const placa = String(item.placa || item.frota || "").trim().toUpperCase();
+        return {
+          Placa: placa,
+          Unidade: String(item.cliente || item.setor || "COMPESA").trim(),
+          "Data/Hora": formatDateTime(item.data),
+          Velocidade: Number(item.velocidade || 0),
+          Odometro: item.odometro !== undefined && item.odometro !== null ? String(item.odometro) : "-",
+          Ignicao: item.ignicao ? "1" : "0",
+          Antifurto: "-",
+          Condutor: String(item.condutor || "N/A").trim(),
+          Tensao: Number(item.tensao || 0),
+          latitude: Number(item.latitude || 0),
+          longitude: Number(item.longitude || 0),
+          tipo: String(item.tipo || "").trim(),
+          marca: String(item.marca || "").trim(),
+          modelo: String(item.modelo || "").trim(),
+          ano: String(item.ano || "").trim(),
+          setor: String(item.setor || "").trim(),
+          matricula: String(item.matricula || "").trim(),
+          email: String(item.email || "").trim(),
+          __raw: item
+        };
+      });
+
+      telemetryCache = mapped;
+      lastTelemetryFetchTime = Date.now();
+      isTelemetryFetching = false;
+      res.json(mapped);
+    } catch (err: any) {
+      console.error("[SERVER] Error fetching telemetry from AutoVision:", err.message);
+      isTelemetryFetching = false;
+      // If we have cached data, return it as fallback
+      if (telemetryCache.length > 0) {
+        return res.json(telemetryCache);
+      }
+      res.status(500).json({ error: "Failed to fetch telemetry data", details: err.message });
+    }
+  });
+
   app.get("/api/fuel-data", async (req, res) => {
     try {
       const url = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTNyx3mdkh9hF027_l61y7O7dwYr_gF5ofFwi0mzRY0eNQuKCu3KR3peiCn7Q_832YRjaxR3rqxQGaB/pub?output=xlsx';

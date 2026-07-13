@@ -724,56 +724,16 @@ export async function fetchTelemetryHistory(): Promise<any[]> {
 }
 
 export async function fetchTelemetryRealtime(): Promise<any[]> {
-  const rows = await fetchCsv(TELEMETRIA_REALTIME_URL);
-  if (rows.length <= 1) return [];
-
-  const dataRows = rows.slice(1);
-  
-  return dataRows.map(row => {
-    if (!row[0]) return null;
-
-    const formatDateTime = (val: string) => {
-      if (!val) return "-";
-      try {
-        const d = new Date(val);
-        if (!isNaN(d.getTime())) {
-          const day = String(d.getDate()).padStart(2, '0');
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const year = d.getFullYear();
-          const hours = String(d.getHours()).padStart(2, '0');
-          const minutes = String(d.getMinutes()).padStart(2, '0');
-          const seconds = String(d.getSeconds()).padStart(2, '0');
-          return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-        }
-        return val;
-      } catch { return val; }
-    };
-
-    const parseNum = (val: string) => {
-      if (!val) return 0;
-      const cleaned = String(val).replace(/[^\d.,-]/g, '').replace(',', '.');
-      const num = parseFloat(cleaned);
-      return isNaN(num) ? 0 : num;
-    };
-
-    const latitude = parseNum(row[13]); // Column N
-    const longitude = parseNum(row[14]); // Column O
-
-    return {
-      Placa: row[3],
-      Unidade: row[1],
-      "Data/Hora": formatDateTime(row[8]),
-      Velocidade: parseNum(row[11]),
-      Odometro: row[12] || "-",
-      Ignicao: String(row[9] || "").toUpperCase().trim() === "LIGADA" ? "1" : "0", // Column J
-      Antifurto: row[15] || "-",
-      Condutor: row[16] || "N/A",
-      Tensao: parseNum(row[10]),
-      latitude,
-      longitude,
-      __raw: row
-    };
-  }).filter(Boolean);
+  try {
+    const response = await fetch('/api/telemetry-realtime');
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    return await response.json();
+  } catch (err) {
+    console.error("Error in fetchTelemetryRealtime:", err);
+    return [];
+  }
 }
 
 export async function fetchRegularizacaoData(): Promise<any[]> {
