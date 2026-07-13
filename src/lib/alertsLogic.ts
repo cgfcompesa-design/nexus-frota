@@ -13,7 +13,25 @@ export interface AlertItem {
   criticidade: string;
   propriedade: 'Próprio' | 'Locado';
   infoAdicional?: string;
+  isKM?: boolean;
 }
+
+const parseOdoRestante = (val: any): number | null => {
+  if (val === null || val === undefined || String(val).trim() === "") return null;
+  const cleanStr = String(val).replace(/[^\d.,-]/g, '').trim();
+  if (!cleanStr) return null;
+  const lastComma = cleanStr.lastIndexOf(',');
+  const lastDot = cleanStr.lastIndexOf('.');
+  let res;
+  if (lastComma > lastDot) {
+    res = parseFloat(cleanStr.replace(/\./g, '').replace(',', '.'));
+  } else if (lastDot > lastComma) {
+    res = parseFloat(cleanStr.replace(/,/g, ''));
+  } else {
+    res = parseFloat(cleanStr.replace(',', '.'));
+  }
+  return isNaN(res) ? null : res;
+};
 
 const getSharedAssetInfo = (placa: string, assets: any[]) => {
   const normalizedTarget = placa.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -47,7 +65,8 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
     if (!placa || placa.length < 5) return;
 
     const info = getSharedAssetInfo(placa, assets);
-    // Keys often observed in the google sheets for preventive
+    
+    // Time-based alerts
     const nextDateRaw = item["PRÓXIMA REVISÃO"] || item["PROXIMA REVISAO"] || item.COL_14 ||
                         item["DATA PROGRAMADA"] || item["PREVISÃO"] || item["PREVISAO"] || 
                         item["DATA VALIDADE"] || item["VALIDADE"] || item["DATA"] || 
@@ -61,7 +80,7 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
         alerts.push({
           id: `mnt-prev-${idx}-${placa}`,
           placa,
-          descricao: `Manutenção Preventiva ${diff < 0 ? 'Vencida' : 'a Vencer'}: ${item["SERVIÇO"] || item["SERVICO"] || item["ATIVIDADE"] || item.COL_2 || "Geral"}`,
+          descricao: `Manutenção Preventiva ${diff < 0 ? 'Vencida' : 'a Vencer'}: ${item["TIPO PREVENTIVA"] || item["TIPO_PREVENTIVA"] || item["SERVIÇO"] || item["SERVICO"] || item["ATIVIDADE"] || item.COL_2 || "Geral"}`,
           vencimento: String(nextDateRaw),
           dias: Math.abs(diff),
           tipo: diff < 0 ? 'Vencido' : 'A Vencer',
@@ -69,6 +88,45 @@ export function processMaintenanceAlerts(maintenanceData: any[], controleData: a
           ...info,
           infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item["OBS"] || item["OBSERVAÇÃO"] || item.COL_4
         });
+      }
+    }
+
+    // KM-based alerts for "Próprios"
+    if (info.propriedade === 'Próprio') {
+      const odoRestante = parseOdoRestante(item["ODÔMETRO RESTANTE"] || item["ODOMETRO RESTANTE"] || item.COL_16);
+      if (odoRestante !== null) {
+        const criticidadeItem = item["CRITICIDADE"] || item.COL_22 || info.criticidade;
+        const atividade = item["TIPO PREVENTIVA"] || item["TIPO_PREVENTIVA"] || item["SERVIÇO"] || item["SERVICO"] || item["ATIVIDADE"] || item.COL_2 || "Geral";
+        
+        if (odoRestante < 0) {
+          alerts.push({
+            id: `mnt-prev-km-${idx}-${placa}`,
+            placa,
+            descricao: `Manutenção Preventiva Vencida por KM: ${atividade}`,
+            vencimento: `Excedido em ${Math.abs(Math.round(odoRestante)).toLocaleString('pt-BR')} km`,
+            dias: Math.abs(Math.round(odoRestante)),
+            tipo: 'Vencido',
+            categoria: 'Manutenção',
+            ...info,
+            criticidade: criticidadeItem,
+            isKM: true,
+            infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item["OBS"] || item["OBSERVAÇÃO"] || item.COL_4
+          });
+        } else if (odoRestante < 1000) {
+          alerts.push({
+            id: `mnt-prev-km-${idx}-${placa}`,
+            placa,
+            descricao: `Manutenção Preventiva a Vencer por KM: ${atividade}`,
+            vencimento: `Restam ${Math.round(odoRestante).toLocaleString('pt-BR')} km`,
+            dias: Math.round(odoRestante),
+            tipo: 'A Vencer',
+            categoria: 'Manutenção',
+            ...info,
+            criticidade: criticidadeItem,
+            isKM: true,
+            infoAdicional: item["GERÊNCIA"] || item["GERENCIA"] || item["OBS"] || item["OBSERVAÇÃO"] || item.COL_4
+          });
+        }
       }
     }
   });
@@ -231,9 +289,10 @@ export function formatWhatsAppMessage(alerts: AlertItem[]): string {
         const critIcon = v.criticidade === 'ALTA' || v.criticidade === 'A' ? '🔴' : 
                          v.criticidade === 'MÉDIA' || v.criticidade === 'MEDIA' || v.criticidade === 'B' ? '🟡' : '⚪';
         
+        const unit = v.isKM ? 'km' : 'd';
         section += `${icon} ${critIcon} ${v.placa}: ${v.descricao}\n`;
         section += `   └ Gerência: ${v.gerencia} | Crit: ${v.criticidade}\n`;
-        section += `   └ Vcto: ${v.vencimento} (${v.tipo === 'Vencido' ? 'Atraso' : 'Faltam'} ${v.dias}d)\n`;
+        section += `   └ Vcto: ${v.vencimento} (${v.tipo === 'Vencido' ? 'Atraso' : 'Faltam'} ${v.dias}${unit})\n`;
       });
     });
     return section + "\n";
@@ -279,10 +338,11 @@ export function formatEmailBody(alerts: AlertItem[]): string {
     
     catItems.forEach(v => {
       const typeStr = v.tipo === 'Vencido' ? 'VENCIDO' : 'A VENCER';
+      const unit = v.isKM ? 'km' : 'dias';
       body += `Placa: ${v.placa}\r\n`;
       body += `Descrição: ${v.descricao}\r\n`;
       body += `Gerência: ${v.gerencia} | Criticidade: ${v.criticidade}\r\n`;
-      body += `Vencimento: ${v.vencimento} (${typeStr} - ${v.dias} dias)\r\n`;
+      body += `Vencimento: ${v.vencimento} (${typeStr} - ${v.dias} ${unit})\r\n`;
       if (v.infoAdicional) body += `Obs: ${v.infoAdicional}\r\n`;
       body += "\r\n";
     });

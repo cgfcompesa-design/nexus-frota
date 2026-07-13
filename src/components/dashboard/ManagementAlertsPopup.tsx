@@ -494,7 +494,10 @@ function AlertList({ alerts }: { alerts: AlertItem[] }) {
                 </div>
                 <div className="text-right">
                   <div className={`text-[10px] font-black uppercase tracking-widest ${alert.tipo === 'Vencido' ? 'text-rose-500' : 'text-amber-500'}`}>
-                    {alert.tipo === 'Vencido' ? `Vencido há ${alert.dias} dias` : `Vence em ${alert.dias} dias`}
+                    {alert.tipo === 'Vencido' 
+                      ? (alert.isKM ? `Vencido há ${alert.dias.toLocaleString('pt-BR')} km` : `Vencido há ${alert.dias} dias`) 
+                      : (alert.isKM ? `Vence em ${alert.dias.toLocaleString('pt-BR')} km` : `Vence em ${alert.dias} dias`)
+                    }
                   </div>
                   <div className="flex items-center justify-end mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                     <Clock className="w-2.5 h-2.5 mr-1" /> {alert.vencimento}
