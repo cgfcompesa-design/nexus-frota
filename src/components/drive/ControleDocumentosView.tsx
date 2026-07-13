@@ -160,62 +160,62 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-6 md:space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
         <div className="flex items-center gap-4">
           <Button 
             variant="ghost" 
             size="icon" 
             onClick={onBack}
-            className="rounded-full hover:bg-white dark:hover:bg-slate-800"
+            className="rounded-full hover:bg-white dark:hover:bg-slate-800 shrink-0"
           >
             <ChevronLeft />
           </Button>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">
+            <h1 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">
               Regularização - Documentos Obrigatórios
             </h1>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+            <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">
               Controle de validade e anexos de documentos da frota
             </p>
           </div>
         </div>
 
-        <div className="flex flex-wrap lg:flex-nowrap items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 w-full lg:w-auto">
           <Button 
             variant="outline" 
             size="sm" 
             onClick={fetchYearsMap} 
             disabled={isRefreshingYears}
-            className="rounded-xl h-10 border-slate-200 text-slate-700 dark:border-slate-800 text-xs font-bold"
+            className="rounded-xl h-12 sm:h-10 border-slate-200 text-slate-700 dark:border-slate-800 text-xs font-bold w-full sm:w-auto"
           >
             <RefreshCw className={cn("h-3.5 w-3.5 mr-1.5", isRefreshingYears && "animate-spin")} />
             Sincronizar Anos
           </Button>
 
-          <div className="bg-white dark:bg-slate-900 px-6 py-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center gap-6 h-12">
+          <div className="bg-white dark:bg-slate-900 px-6 py-2 rounded-2xl border border-slate-100 dark:border-slate-800 shadow-sm flex items-center justify-around gap-4 md:gap-6 h-12 w-full sm:w-auto">
             <div className="text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total</p>
-              <p className="text-lg font-black text-indigo-600">{stats.total}</p>
+              <p className="text-sm md:text-lg font-black text-indigo-600">{stats.total}</p>
             </div>
             <div className="w-px h-8 bg-slate-100 dark:bg-slate-800" />
             <div className="text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Vigentes</p>
-              <p className="text-lg font-black text-emerald-500">{stats.ok}</p>
+              <p className="text-sm md:text-lg font-black text-emerald-500">{stats.ok}</p>
             </div>
             <div className="w-px h-8 bg-slate-100 dark:bg-slate-800" />
             <div className="text-center">
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pendentes</p>
-              <p className="text-lg font-black text-rose-500">{stats.pendente}</p>
+              <p className="text-sm md:text-lg font-black text-rose-500">{stats.pendente}</p>
             </div>
           </div>
         </div>
       </div>
 
-      <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
-        <CardHeader className="p-8 border-b border-slate-100 dark:border-slate-800">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="relative group md:col-span-1">
+      <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl md:rounded-[2.5rem] overflow-hidden">
+        <CardHeader className="p-4 sm:p-6 md:p-8 border-b border-slate-100 dark:border-slate-800">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
+            <div className="relative group sm:col-span-2 md:col-span-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
               <Input 
                 placeholder="BUSCAR PLACA / GERÊNCIA..." 
@@ -226,9 +226,9 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
             </div>
 
             <div className="flex items-center gap-3 bg-slate-50 px-4 rounded-2xl">
-              <Filter size={16} className="text-slate-400" />
+              <Filter size={16} className="text-slate-400 shrink-0" />
               <select 
-                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700"
+                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700 dark:bg-slate-50"
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
               >
@@ -239,9 +239,9 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
             </div>
 
             <div className="flex items-center gap-3 bg-slate-50 px-4 rounded-2xl">
-              <Filter size={16} className="text-slate-400" />
+              <Filter size={16} className="text-slate-400 shrink-0" />
               <select 
-                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700"
+                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700 dark:bg-slate-50"
                 value={yearFilter}
                 onChange={(e) => setYearFilter(e.target.value)}
               >
@@ -253,9 +253,9 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
             </div>
 
             <div className="flex items-center gap-3 bg-slate-50 px-4 rounded-2xl">
-              <Filter size={16} className="text-slate-400" />
+              <Filter size={16} className="text-slate-400 shrink-0" />
               <select 
-                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700"
+                className="bg-transparent border-none w-full h-12 font-bold text-[10px] uppercase tracking-widest focus:ring-0 text-slate-700 dark:bg-slate-50"
                 value={propriedadeFilter}
                 onChange={(e) => setPropriedadeFilter(e.target.value)}
               >
@@ -266,14 +266,15 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
               </select>
             </div>
 
-            <Button className="h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2">
+            <Button className="h-12 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black uppercase tracking-widest gap-2 w-full sm:col-span-2 md:col-span-1">
               <Download size={18} /> Exportar Relatório
             </Button>
           </div>
         </CardHeader>
 
         <CardContent className="p-0">
-          <div className="overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto max-h-[600px] overflow-y-auto custom-scrollbar">
             <Table>
               <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50 sticky top-0 z-10 backdrop-blur-md">
                 <TableRow className="border-none hover:bg-transparent">
@@ -333,6 +334,118 @@ export default function ControleDocumentosView({ onBack }: ControleDocumentosVie
                 )}
               </TableBody>
             </Table>
+          </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden max-h-[600px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+            {isLoading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="p-5 animate-pulse space-y-4">
+                  <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-1/3" />
+                  <div className="h-3 bg-slate-100 dark:bg-slate-800 rounded w-2/3" />
+                  <div className="h-16 bg-slate-100 dark:bg-slate-800 rounded w-full" />
+                </div>
+              ))
+            ) : filteredDocs.length === 0 ? (
+              <div className="p-8 text-center text-slate-400 font-bold uppercase text-xs">
+                Nenhum documento encontrado.
+              </div>
+            ) : (
+              filteredDocs.map((doc, idx) => {
+                const year = getDocYear(doc);
+                const hasCrlv = !!(doc.anexoCrlv && doc.anexoCrlv.trim().length > 5);
+                const renderMobileLink = (url: string | undefined, label: string) => {
+                  const hasDoc = !!(url && url.trim().length > 5);
+                  if (!hasDoc) {
+                    return (
+                      <div className="flex items-center gap-1.5 px-2.5 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/40 text-slate-400 font-bold text-[9px] uppercase border border-slate-100/30 dark:border-slate-800/30">
+                        <AlertCircle size={10} className="text-slate-300 shrink-0" />
+                        <span className="truncate">{label}</span>
+                      </div>
+                    );
+                  }
+                  return (
+                    <a 
+                      href={url} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="flex items-center justify-between gap-1.5 px-2.5 py-2 rounded-xl bg-indigo-50/70 hover:bg-indigo-100 dark:bg-indigo-950/20 dark:hover:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400 font-bold text-[9px] uppercase border border-indigo-100/30 dark:border-indigo-900/30 transition-colors"
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <FileText size={10} className="shrink-0" />
+                        {label}
+                      </span>
+                      <ExternalLink size={8} className="shrink-0 text-indigo-400" />
+                    </a>
+                  );
+                };
+
+                return (
+                  <div key={`${doc.placa}-${idx}`} className="p-5 space-y-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                    {/* Header: Placa & Status Indicator */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Veículo</span>
+                        <span className="text-sm font-black text-slate-800 dark:text-white tracking-tighter uppercase">
+                          {doc.placa}
+                        </span>
+                      </div>
+                      <div className="text-right flex flex-col items-end">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Status CRLV</span>
+                        <div className="flex items-center gap-1.5">
+                          {getStatusBadge(doc, year)}
+                          <span className={cn(
+                            "text-[10px] font-black uppercase tracking-tight",
+                            hasCrlv 
+                              ? (year === "2026" ? "text-emerald-600 dark:text-emerald-400" : "text-blue-600 dark:text-blue-400") 
+                              : "text-rose-600 dark:text-rose-400"
+                          )}>
+                            {hasCrlv ? `OK (${year})` : "Pendente"}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Localização & Propriedade */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Localização</span>
+                        <span className="text-[11px] font-black text-slate-700 dark:text-slate-300 uppercase block tracking-tight">
+                          {doc.gerencia}
+                        </span>
+                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block mt-0.5">
+                          {doc.diretoria}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Propriedade</span>
+                        <Badge variant="outline" className={cn(
+                          "border-none font-black text-[10px] uppercase tracking-wide px-2.5 py-1 block w-fit",
+                          doc.propriedade?.toUpperCase().includes("COMPESA")
+                            ? "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+                            : "bg-slate-500/10 text-slate-600 dark:text-slate-400"
+                        )}>
+                          {doc.propriedade || "—"}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Anexos Grid */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Documentos Obrigatórios</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        {renderMobileLink(doc.anexoCrlv, "CRLV")}
+                        {renderMobileLink(doc.anexoCsv, "CSV")}
+                        {renderMobileLink(doc.anexoTacografo, "Tacógrafo")}
+                        {renderMobileLink(doc.anexoCivCipp, "CIV/CIPP")}
+                        {renderMobileLink(doc.anexoCarroceriaInmetro, "Inmetro")}
+                        {renderMobileLink(doc.anexoAet, "AET")}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
         </CardContent>
       </Card>

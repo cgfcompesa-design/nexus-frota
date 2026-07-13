@@ -290,22 +290,22 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button onClick={onBack} variant="ghost" size="icon" className="rounded-2xl hover:bg-white transition-all shadow-sm border border-slate-200">
+    <div className="space-y-4 md:space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3 md:gap-4">
+          <Button onClick={onBack} variant="ghost" size="icon" className="rounded-2xl hover:bg-white transition-all shadow-sm border border-slate-200 shrink-0">
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">
+            <h1 className="text-xl md:text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter italic">
               Estimativa de Crédito Extra
             </h1>
             <div className="flex flex-col gap-1">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+              <p className="text-[10px] md:text-xs font-bold text-slate-500 uppercase tracking-widest">
                 Cálculo baseado em autonomia e histórico de deslocamento
               </p>
               {pricePeriod && (
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] flex items-center gap-2">
+                <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-[0.1em] flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   Base de Preços: {pricePeriod.start} até {pricePeriod.end}
                 </p>
@@ -315,23 +315,23 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
         </div>
         
         {filteredAssetsData.length > 0 && (
-          <Button onClick={handleExport} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl gap-2 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-100">
+          <Button onClick={handleExport} className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl gap-2 font-black uppercase text-[10px] tracking-widest shadow-lg shadow-emerald-100 w-full sm:w-auto">
             <Download className="h-4 w-4" />
             Exportar Estimativa
           </Button>
         )}
       </div>
 
-      <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] overflow-hidden">
-        <CardHeader className="border-b border-slate-100 dark:border-slate-800 p-8">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="space-y-3">
+      <Card className="border-none shadow-2xl shadow-slate-200/50 dark:shadow-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-3xl md:rounded-[2.5rem] overflow-hidden">
+        <CardHeader className="border-b border-slate-100 dark:border-slate-800 p-4 sm:p-6 md:p-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+            <div className="space-y-2 md:space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <Building2 size={12} className="text-indigo-500" />
                 Diretoria
               </Label>
               <Select value={selectedDiretoria} onValueChange={setSelectedDiretoria}>
-                <SelectTrigger className="rounded-2xl h-12 bg-slate-50 border-none shadow-inner font-bold text-slate-700">
+                <SelectTrigger className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800/40 border-none shadow-inner font-bold text-slate-700 dark:text-slate-200">
                   <SelectValue placeholder="Selecione a Diretoria" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -341,13 +341,13 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
               </Select>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <UserCircle size={12} className="text-indigo-500" />
                 Gerência
               </Label>
               <Select value={selectedGerencia} onValueChange={setSelectedGerencia}>
-                <SelectTrigger className="rounded-2xl h-12 bg-slate-50 border-none shadow-inner font-bold text-slate-700">
+                <SelectTrigger className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800/40 border-none shadow-inner font-bold text-slate-700 dark:text-slate-200">
                   <SelectValue placeholder="Selecione a Gerência" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
@@ -357,7 +357,7 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
               </Select>
             </div>
 
-            <div className="space-y-3">
+            <div className="space-y-2 md:space-y-3 sm:col-span-2 md:col-span-1">
               <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <Search size={12} className="text-indigo-500" />
                 Buscar Placa
@@ -368,7 +368,7 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
                   value={searchPlaca}
                   onChange={(e) => setSearchPlaca(e.target.value)}
                   placeholder="Digite a placa..."
-                  className="rounded-2xl h-12 bg-slate-50 border-none shadow-inner font-bold text-slate-700 uppercase pl-10 focus-visible:ring-indigo-500 text-xs"
+                  className="rounded-2xl h-12 bg-slate-50 dark:bg-slate-800/40 border-none shadow-inner font-bold text-slate-700 dark:text-slate-200 uppercase pl-10 focus-visible:ring-indigo-500 text-xs"
                 />
               </div>
             </div>
@@ -376,7 +376,8 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
         </CardHeader>
         
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
               <Table>
                 <TableHeader className="bg-slate-50/50 dark:bg-slate-800/50">
                   <TableRow className="border-none hover:bg-transparent">
@@ -571,17 +572,159 @@ export default function ExtraCreditEstimation({ onBack }: { onBack: () => void }
               </TableBody>
             </Table>
           </div>
+
+          {/* Mobile Cards View */}
+          <div className="block md:hidden max-h-[600px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+            {filteredAssetsData.length === 0 ? (
+              <div className="py-20 text-center">
+                <div className="flex flex-col items-center justify-center gap-3">
+                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center">
+                    <Search className="w-8 h-8 text-slate-300" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest italic">Nenhum ativo encontrado</h3>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    Tente buscar por outra placa ou selecionar uma diretoria/gerência
+                  </p>
+                </div>
+              </div>
+            ) : (
+              filteredAssetsData.map(v => {
+                const estimativeValue = estimations[v.placa] || "";
+                const estimativeNum = parseNum(estimativeValue);
+                
+                const city = selectedCities[v.placa];
+                const cityPrices = city ? pricesByCityAndType[city] : null;
+
+                const pricePadrao = cityPrices?.[v.combustivelPadrao] || avgPricesByType[v.combustivelPadrao] || globalAvgPrice;
+                
+                const secondaryFuel = v.combustivelPadrao === "GNV" ? "ETANOL" : v.combustivelSecundario;
+                const priceSecundario = cityPrices?.[secondaryFuel] || avgPricesByType[secondaryFuel] || globalAvgPrice;
+
+                let calculatedBRL = 0;
+                let formulaLabel = "";
+
+                if (v.combustivelPadrao === "GNV") {
+                  const costGNV = v.autonomia > 0 ? (estimativeNum / v.autonomia) * pricePadrao : 0;
+                  const effectiveSecAutonomia = v.autonomiaSecundaria > 0 ? v.autonomiaSecundaria : (v.autonomia * 0.7);
+                  const costEtanol = effectiveSecAutonomia > 0 ? (estimativeNum / effectiveSecAutonomia) * priceSecundario : 0;
+                  
+                  calculatedBRL = costGNV + costEtanol;
+                  formulaLabel = `(GNV: R$ ${costGNV.toFixed(2)} + ETANOL: R$ ${costEtanol.toFixed(2)})`;
+                } else {
+                  calculatedBRL = v.autonomia > 0 ? (estimativeNum / v.autonomia) * pricePadrao : 0;
+                }
+
+                return (
+                  <div key={v.placa} className="p-5 space-y-4 hover:bg-slate-50/50 dark:hover:bg-slate-800/20 transition-colors">
+                    {/* Header: Placa & Titularidade */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Ativo</span>
+                        <span className="text-base font-black text-slate-800 dark:text-white uppercase tracking-tighter">
+                          {v.placa}
+                        </span>
+                      </div>
+                      <Badge variant="outline" className="text-[8px] font-black uppercase tracking-widest border-slate-200 text-slate-500">
+                        {v.titularidade}
+                      </Badge>
+                    </div>
+
+                    {/* Cidade de Lotação Selector */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Cidade de Lotação</span>
+                      <Select 
+                        value={selectedCities[v.placa] || ""} 
+                        onValueChange={(val) => handleCityChange(v.placa, val)}
+                      >
+                        <SelectTrigger className="w-full rounded-xl h-10 font-bold text-[10px] bg-slate-50 dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 shadow-sm">
+                          <SelectValue placeholder="Selecione a Cidade" />
+                        </SelectTrigger>
+                        <SelectContent className="rounded-xl">
+                          {allCities.map(c => (
+                            <SelectItem key={c} value={c} className="text-[10px] font-bold uppercase">{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Specifications */}
+                    <div className="p-3 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl space-y-2">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-slate-400 uppercase">Modelo</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-300 uppercase">{v.modelo}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[9px]">
+                        <div className="flex flex-col gap-0.5">
+                          <span className="font-black text-indigo-600 dark:text-indigo-400 uppercase">Principal: {v.combustivelPadrao}</span>
+                          <span className="font-bold text-slate-400">Autonomia: {v.autonomia} km/l</span>
+                        </div>
+                        {v.combustivelSecundario !== "N/A" && (
+                          <div className="flex flex-col gap-0.5">
+                            <span className="font-black text-slate-600 dark:text-slate-400 uppercase">Secundário: {v.combustivelSecundario}</span>
+                            <span className="font-bold text-slate-400">Autonomia Sec: {v.autonomiaSecundaria} km/l</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* History of Displacement */}
+                    <div className="space-y-1.5">
+                      <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Histo. Deslocamento (Últ. 3 Meses)</span>
+                      <div className="grid grid-cols-3 gap-2 bg-indigo-50/5 p-2 rounded-xl text-center border border-indigo-100/10">
+                        {last3Months.map(m => (
+                          <div key={m} className="flex flex-col gap-0.5">
+                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{m}</span>
+                            <span className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                              {v.monthSums[m].toLocaleString('pt-BR', { maximumFractionDigits: 0 })} <span className="text-[8px] opacity-50">km</span>
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Estimativa Manual & Cálculo */}
+                    <div className="grid grid-cols-2 gap-4 items-center pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Estimativa Manual</span>
+                        <div className="relative">
+                          <Input
+                            value={estimativeValue}
+                            onChange={(e) => handleInputChange(v.placa, e.target.value)}
+                            placeholder="0.00"
+                            className="h-10 rounded-xl text-center font-black border-2 border-amber-100 focus:border-amber-400 bg-white dark:bg-slate-900 transition-all shadow-sm text-xs"
+                          />
+                        </div>
+                        <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70 block mt-0.5 text-center">Desloc/Hrs Est.</span>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1">Cálculo Estimado</span>
+                        <div className="text-lg font-black tracking-tighter text-indigo-600 dark:text-indigo-400 flex items-center justify-end gap-1">
+                          <span className="text-[10px]">R$</span>
+                          {calculatedBRL.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                        {formulaLabel && <span className="text-[7px] font-black text-amber-600 uppercase block leading-none mb-1">{formulaLabel}</span>}
+                        <span className="text-[8px] font-bold text-slate-400 block">
+                          Preço base ({v.combustivelPadrao}): {pricePadrao.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </CardContent>
       </Card>
       
       {filteredAssetsData.length > 0 && (
-        <div className="flex justify-end gap-8 p-8 bg-indigo-600 rounded-[2rem] text-white shadow-2xl shadow-indigo-200 items-center">
-          <div className="flex flex-col">
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 p-6 md:p-8 bg-indigo-600 rounded-3xl md:rounded-[2rem] text-white shadow-2xl shadow-indigo-200/40">
+          <div className="flex flex-col text-center sm:text-left">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Total Geral Estimativo</span>
-            <span className="text-sm font-bold opacity-60">Soma de todos os ativos filtrados</span>
+            <span className="text-xs md:text-sm font-bold opacity-60">Soma de todos os ativos filtrados</span>
           </div>
-          <div className="text-4xl font-black tracking-tighter flex items-center gap-2 italic">
-            <span className="text-xl mt-2 not-italic">R$</span>
+          <div className="text-3xl md:text-4xl font-black tracking-tighter flex items-center justify-center gap-2 italic">
+            <span className="text-lg md:text-xl mt-1 md:mt-2 not-italic">R$</span>
             {filteredAssetsData.reduce((sum, v) => {
               const estimativeValue = estimations[v.placa] || "0";
               const estimativeNum = parseNum(estimativeValue);

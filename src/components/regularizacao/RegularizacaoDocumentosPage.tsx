@@ -291,7 +291,8 @@ export default function RegularizacaoDocumentosPage() {
           </CardHeader>
         <CardContent>
             <ScrollArea className="h-[600px]">
-              <div className="overflow-x-auto">
+              {/* Desktop View Table */}
+              <div className="hidden md:block overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -344,6 +345,78 @@ export default function RegularizacaoDocumentosPage() {
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+
+              {/* Mobile Responsive Cards View */}
+              <div className="block md:hidden divide-y divide-slate-100 dark:divide-slate-800">
+                {filtered.map((doc, idx) => (
+                  <div key={`${doc.placa}-${idx}`} className="p-4 space-y-4">
+                    {/* Header: Placa & Propriedade */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Veículo</span>
+                        <span className="font-mono font-black text-sm uppercase tracking-tighter text-slate-800 dark:text-white">
+                          {doc.placa}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1 text-right">Propriedade</span>
+                        {doc.propriedade && (
+                          <Badge variant={doc.propriedade === "COMPESA" ? "default" : "outline"} className="font-bold text-[9px] uppercase px-2 py-0.5">
+                            {doc.propriedade}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Localização details stacked */}
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Gerência</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{doc.gerencia || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Diretoria</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{doc.diretoria || "—"}</span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-0.5">Coordenação</span>
+                        <span className="font-medium text-slate-700 dark:text-slate-300">{doc.coordenacao || "—"}</span>
+                      </div>
+                    </div>
+
+                    {/* Documentos Obrigatórios (Anexos) Grid */}
+                    <div className="space-y-2 pt-2 border-t border-slate-50 dark:border-slate-800/40">
+                      <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block">Documentos Obrigatórios</span>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100/30 dark:border-slate-800/30">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">CRLV</span>
+                          <AttachmentCell url={doc.anexoCrlv} label="CRLV" />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100/30 dark:border-slate-800/30">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">CSV</span>
+                          <AttachmentCell url={doc.anexoCsv} label="CSV" />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100/30 dark:border-slate-800/30">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">Tacógrafo</span>
+                          <AttachmentCell url={doc.anexoTacografo} label="Tacógrafo" />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100/30 dark:border-slate-800/30">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">CIV/CIPP</span>
+                          <AttachmentCell url={doc.anexoCivCipp} label="CIV/CIPP" />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100/30 dark:border-slate-800/30">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">Carroceria</span>
+                          <AttachmentCell url={doc.anexoCarroceriaInmetro} label="Carroceria" />
+                        </div>
+                        <div className="flex flex-col gap-1 p-2 rounded-xl bg-slate-50 dark:bg-slate-800/20 border border-slate-100/30 dark:border-slate-800/30">
+                          <span className="text-[9px] font-black text-slate-400 uppercase">AET</span>
+                          <AttachmentCell url={doc.anexoAet || ""} label="AET" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </ScrollArea>
             {filtered.length > 500 && (
