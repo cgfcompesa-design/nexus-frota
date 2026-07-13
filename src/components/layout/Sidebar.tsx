@@ -124,7 +124,7 @@ export default function Sidebar({ currentView, setView, user }: SidebarProps) {
         { id: 'reg-taxas', label: 'Controle de Taxas\ne Inspeções', icon: Gavel },
       ]
     },
-    { id: 'pool', label: 'pool', icon: Car },
+    { id: 'pool', label: 'Pool', icon: Car },
     { id: 'drive', label: 'Drive de Informações', icon: Share2 },
   ];
 

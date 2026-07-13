@@ -531,6 +531,19 @@ export default function App() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {(effectiveRole === 'Master' || effectiveRole === 'Gestão') && (
+                <button 
+                  onClick={() => setShowAlerts(true)}
+                  className="p-2 transition-all text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg flex items-center justify-center relative"
+                  title="Alertas de Gestão"
+                >
+                  <ShieldAlert size={18} className="animate-pulse" />
+                  <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                  </span>
+                </button>
+              )}
               <button 
                 onClick={() => setCurrentView('drive')}
                 className="p-2 transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg"
@@ -594,6 +607,19 @@ export default function App() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
+            {(effectiveRole === 'Master' || effectiveRole === 'Gestão') && (
+              <button 
+                onClick={() => setShowAlerts(true)}
+                className="p-2 transition-all text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg flex items-center justify-center relative"
+                title="Alertas de Gestão"
+              >
+                <ShieldAlert size={18} className="animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                </span>
+              </button>
+            )}
             <button 
               onClick={() => setCurrentView('drive')}
               className="p-2 transition-all text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg"

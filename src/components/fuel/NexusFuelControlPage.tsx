@@ -2334,21 +2334,6 @@ export function NexusFuelControlPage({ userProfile, onBack, onShowAlerts }: Nexu
           </div>
         </div>
       )}
-
-      {/* Floating Alerts Button for GESTÃO/MASTER */}
-      {(userRole === "Master" || userRole === "Gestão") && onShowAlerts && (
-        <div className="fixed bottom-6 right-6 z-40">
-          <button
-            type="button"
-            onClick={onShowAlerts}
-            className="flex items-center gap-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold uppercase tracking-widest text-[10px] px-5 py-3 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 animate-pulse border border-rose-500/25"
-            title="Abrir Alertas de Gestão"
-          >
-            <ShieldAlert size={14} className="text-white animate-bounce" />
-            <span>Alertas de Gestão</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }

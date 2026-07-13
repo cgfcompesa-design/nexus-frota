@@ -254,7 +254,7 @@ export default function ManagementAlertsPopup({ isOpen, onClose }: { isOpen: boo
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className={isFullscreen 
-        ? "w-screen h-screen max-w-none max-h-none flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-none rounded-none" 
+        ? "!w-screen !h-screen !max-w-none !max-h-none !top-0 !left-0 !translate-x-0 !translate-y-0 !p-0 !gap-0 !rounded-none flex flex-col bg-slate-50 dark:bg-slate-950 border-none" 
         : "sm:max-w-[850px] max-h-[95vh] h-[800px] overflow-hidden flex flex-col p-0 bg-slate-50 dark:bg-slate-950 border-white/10 shadow-2xl"}>
         <DialogHeader className="p-6 pb-2 shrink-0 border-b border-slate-200 dark:border-white/5">
           <div className="flex items-center justify-between">
