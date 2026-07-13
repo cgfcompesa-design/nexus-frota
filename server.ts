@@ -12,15 +12,11 @@ function fetchUrlBinary(urlStr: string, redirectsRemaining = 5): Promise<Buffer>
     if (redirectsRemaining <= 0) {
       return reject(new Error("Too many redirects"));
     }
-    const isAutoVision = urlStr.includes("autovisionweb.ddns.com.br");
-    const options: any = {
+    const options = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     };
-    if (isAutoVision) {
-      options.rejectUnauthorized = false;
-    }
     https.get(urlStr, options, (res) => {
       const statusCode = res.statusCode || 0;
       if (statusCode >= 300 && statusCode < 400 && res.headers.location) {
@@ -147,100 +143,6 @@ async function startServer() {
       fetchCrlvYearsFromDocs();
     }
     res.json({ success: true, years: crlvYearsCache });
-  });
-
-  // In-memory cache for Telemetry data
-  let telemetryCache: any[] = [];
-  let lastTelemetryFetchTime = 0;
-  let isTelemetryFetching = false;
-
-  app.get("/api/telemetry-realtime", async (req, res) => {
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    // If cache is fresh (less than 30 seconds), return cached data
-    if (telemetryCache.length > 0 && Date.now() - lastTelemetryFetchTime < 30 * 1000) {
-      return res.json(telemetryCache);
-    }
-
-    // If already fetching, return cache if available to prevent blocking
-    if (isTelemetryFetching && telemetryCache.length > 0) {
-      return res.json(telemetryCache);
-    }
-
-    isTelemetryFetching = true;
-    try {
-      console.log("[SERVER] Fetching live telemetry from AutoVision...");
-      const apiUrl = "https://www.autovisionweb.ddns.com.br/service/compesa/telemetria/?partialToken=a97a82ef6e98f32bd8914462d2d7850c";
-      
-      const buffer = await fetchUrlBinary(apiUrl);
-      const jsonText = buffer.toString("utf-8");
-      const rawData = JSON.parse(jsonText);
-      
-      if (!Array.isArray(rawData)) {
-        throw new Error("Invalid response format: expected array");
-      }
-
-      const formatDateTime = (val: string) => {
-        if (!val) return "-";
-        try {
-          // "2025-02-25 19:10:28" -> "25/02/2025 19:10:28"
-          const parts = val.trim().split(" ");
-          if (parts.length === 2) {
-            const dateParts = parts[0].split("-");
-            if (dateParts.length === 3) {
-              return `${dateParts[2]}/${dateParts[1]}/${dateParts[0]} ${parts[1]}`;
-            }
-          }
-          return val;
-        } catch { return val; }
-      };
-
-      const mapped = rawData.map((item: any) => {
-        const placa = String(item.placa || item.frota || "").trim().toUpperCase();
-        
-        let isIgnOn = false;
-        if (typeof item.ignicao === "boolean") {
-          isIgnOn = item.ignicao;
-        } else if (item.ignicao !== undefined && item.ignicao !== null) {
-          const ignStr = String(item.ignicao).toUpperCase().trim();
-          isIgnOn = ignStr === "LIGADA" || ignStr === "1" || ignStr === "TRUE" || ignStr === "ON";
-        }
-
-        return {
-          Placa: placa,
-          Unidade: String(item.cliente || item.setor || "COMPESA").trim(),
-          "Data/Hora": formatDateTime(item.data),
-          Velocidade: Number(item.velocidade || 0),
-          Odometro: item.odometro !== undefined && item.odometro !== null ? String(item.odometro) : "-",
-          Ignicao: isIgnOn ? "1" : "0",
-          Antifurto: String(item.antifurto || "-").trim(),
-          Condutor: String(item.condutor || "N/A").trim(),
-          Tensao: Number(item.tensao || 0),
-          latitude: Number(item.latitude || 0),
-          longitude: Number(item.longitude || 0),
-          tipo: String(item.tipo || "").trim(),
-          marca: String(item.marca || "").trim(),
-          modelo: String(item.modelo || "").trim(),
-          ano: String(item.ano || "").trim(),
-          setor: String(item.setor || "").trim(),
-          matricula: String(item.matricula || "").trim(),
-          email: String(item.email || "").trim(),
-          __raw: item
-        };
-      });
-
-      telemetryCache = mapped;
-      lastTelemetryFetchTime = Date.now();
-      isTelemetryFetching = false;
-      res.json(mapped);
-    } catch (err: any) {
-      console.error("[SERVER] Error fetching telemetry from AutoVision:", err.message);
-      isTelemetryFetching = false;
-      // If we have cached data, return it as fallback
-      if (telemetryCache.length > 0) {
-        return res.json(telemetryCache);
-      }
-      res.status(500).json({ error: "Failed to fetch telemetry data", details: err.message });
-    }
   });
 
   app.get("/api/fuel-data", async (req, res) => {
