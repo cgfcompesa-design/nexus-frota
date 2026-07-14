@@ -501,9 +501,10 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     }
   };
 
-  const handleShareWhatsApp = () => {
+  const handleCopyWhatsApp = async () => {
     const now = new Date();
-    const formattedDate = now.toLocaleString('pt-BR');
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const formattedDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
     const gerenciaInfo = selectedGerencia !== "all" ? selectedGerencia : (selectedDiretoria !== "all" ? selectedDiretoria : "Geral");
     
     let message = `☑ *Relatório CGF - Status Operacional*\n`;
@@ -514,17 +515,24 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     const naoOperacionaisList: string[] = [];
     const parcialList: string[] = [];
 
+    const cleanValue = (val: any, fallback = "") => {
+      if (val === undefined || val === null) return fallback;
+      const s = String(val).trim();
+      if (s.toLowerCase() === "null" || s.toLowerCase() === "undefined") return fallback;
+      return s;
+    };
+
     filteredMaintenance.forEach(item => {
       const v = item.__raw || [];
-      const placa = String(v[0] || "");
+      const placa = cleanValue(v[0]).toUpperCase();
       if (!/^[A-Z]{3}[0-9][A-Z0-9][0-9]{2}$/i.test(placa)) return;
 
-      const tipo = String(v[9] || "");
-      const statusOp = String(v[1] || "");
-      const statusMan = String(v[2] || "");
-      const local = String(v[3] || "");
-      const prazo = String(v[4] || "");
-      const descricao = String(v[5] || "");
+      const tipo = cleanValue(v[9]);
+      const statusOp = cleanValue(v[1]);
+      const statusMan = cleanValue(v[2], "N/A");
+      const local = cleanValue(v[3]);
+      const prazo = cleanValue(v[4]);
+      const descricao = cleanValue(v[5]);
 
       message += `*Placa:* ${placa}\n`;
       message += `*Tipo:* ${tipo}\n`;
@@ -553,8 +561,39 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
     if (naoOperacionaisList.length > 0) message += `🔴 *Não Operacionais:* ${naoOperacionaisList.join(", ")}\n`;
     if (parcialList.length > 0) message += `🔵 *Parcial – Jato:* ${parcialList.join(", ")}\n`;
 
-    const encodedMessage = encodeURIComponent(message);
-    window.open(`https://wa.me/?text=${encodedMessage}`, '_blank');
+    const copyToClipboard = async (text: string) => {
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(text);
+          return true;
+        }
+      } catch (err) {
+        console.warn("navigator.clipboard failed, falling back", err);
+      }
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        return successful;
+      } catch (err) {
+        console.error("Fallback copy failed", err);
+        return false;
+      }
+    };
+
+    const copied = await copyToClipboard(message);
+    if (copied) {
+      toast.success("Relatório copiado para a área de transferência! Cole no WhatsApp.");
+    } else {
+      toast.error("Erro ao copiar o relatório.");
+    }
   };
 
   const handleGenerateReportPDF = () => {
@@ -655,11 +694,11 @@ export const MaintenanceDashboard = ({ maintenance, maintenanceCost, preventiveM
       <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
         <div className="flex gap-2">
           <Button 
-            onClick={handleShareWhatsApp}
+            onClick={handleCopyWhatsApp}
             variant="outline" 
             className="gap-2 font-black uppercase text-[10px] h-9 border-emerald-200 hover:bg-emerald-50 text-emerald-700 dark:border-emerald-800/30 dark:hover:bg-emerald-900/10"
           >
-            <MessageCircle className="h-4 w-4" /> WhatsApp
+            <Copy className="h-4 w-4" /> Copiar para WhatsApp
           </Button>
           <Button 
             onClick={handleGenerateReportPDF}

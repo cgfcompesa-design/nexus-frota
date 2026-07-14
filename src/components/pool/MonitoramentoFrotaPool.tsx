@@ -1,67 +1,54 @@
 import React, { useState, useMemo } from "react";
 import { useAssets, useFuelData } from "@/hooks/useFleetData";
-import { usePoolData } from "@/services/poolService";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, PieChart, Pie, Cell } from "recharts";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from "recharts";
 import { 
   Car, 
   Fuel, 
   AlertTriangle, 
-  Search, 
-  ArrowRight, 
   Gauge, 
-  TrendingUp, 
   Activity, 
-  Layers, 
   CheckCircle,
-  FileSpreadsheet,
-  AlertOctagon,
   RefreshCw,
-  HelpCircle,
-  Calendar
+  Calendar,
+  Users,
+  DollarSign,
+  TrendingUp,
+  AlertCircle
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+
+// The 7 Pool plates explicitly listed (including SJD3G34, making exactly the 7 CGF/POOL plates)
+const POOL_PLATES = ["PGO0878", "PCN9620", "PCN9300", "SJE0D66", "SJD3G72", "SJD3G34", "SJD3G64"];
+const POOL_PLATES_SET = new Set(POOL_PLATES);
 
 export function MonitoramentoFrotaPool() {
   const { data: assets = [], isLoading: isLoadingAssets, refetch: refetchAssets } = useAssets();
   const { data: fuel = [], isLoading: isLoadingFuel, refetch: refetchFuel } = useFuelData();
-  const { data: trips = [], isLoading: isLoadingTrips, refetch: refetchTrips } = usePoolData();
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterType, setFilterType] = useState<"all" | "desvio" | "regular" | "inconsistente">("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
 
-  const isLoading = isLoadingAssets || isLoadingFuel || isLoadingTrips;
+  const isLoading = isLoadingAssets || isLoadingFuel;
 
-  // 1. Filter Assets for CGF/POOL (column F COORDENACAO contains "CGF/POOL")
+  // Filter Assets for CGF/POOL plates
   const poolAssets = useMemo(() => {
     return assets.filter(a => {
-      const coord = String(
-        a.COORDENACAO || 
-        a["COORDENAÇÃO"] || 
-        a.COORDENACAO_FROTAS || 
-        (a.__raw && a.__raw[5]) || 
-        ""
-      ).toUpperCase();
-      return coord.includes("CGF/POOL") || coord.includes("CGF-POOL");
+      const p = String(a.PLACA || "").toUpperCase().trim();
+      return POOL_PLATES_SET.has(p);
     });
   }, [assets]);
 
-  // Set of pool asset plates
-  const poolAssetPlates = useMemo(() => {
-    return new Set(poolAssets.map(a => String(a.PLACA || "").toUpperCase().trim()).filter(Boolean));
-  }, [poolAssets]);
-
-  // Get unique months/years sorted across both trips and fuel
+  // Get unique months/years sorted across fuel data
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
-    trips.forEach(t => { if (t.monthYear) months.add(t.monthYear); });
-    fuel.forEach(f => { if (f._monthYear) months.add(f._monthYear); });
+    fuel.forEach(f => { 
+      if (f._monthYear) {
+        months.add(f._monthYear); 
+      }
+    });
     
     return Array.from(months).sort((a, b) => {
       const partsA = a.split("/");
@@ -72,45 +59,39 @@ export function MonitoramentoFrotaPool() {
       if (y1 !== y2) return y1 - y2;
       return m1 - m2;
     });
-  }, [trips, fuel]);
+  }, [fuel]);
 
   // Automatically select the latest month once loaded
   useMemo(() => {
-    if (availableMonths.length > 0 && selectedMonth === "all" && (trips.length > 0 || fuel.length > 0)) {
+    if (availableMonths.length > 0 && selectedMonth === "all" && fuel.length > 0) {
       const latest = availableMonths[availableMonths.length - 1];
       setSelectedMonth(latest);
     }
-  }, [availableMonths, trips, fuel]);
+  }, [availableMonths, fuel, selectedMonth]);
 
-  // 2. Filter fuel data to only transactions of CGF/POOL plates
+  // Filter fuel data to only transactions of pool plates
   const poolFuel = useMemo(() => {
     return fuel.filter(f => {
       const p = String(f._placa || f.PLACA || "").toUpperCase().trim();
-      const matchPlate = poolAssetPlates.has(p);
+      const matchPlate = POOL_PLATES_SET.has(p);
       if (!matchPlate) return false;
       if (selectedMonth === "all") return true;
       return f._monthYear === selectedMonth;
     });
-  }, [fuel, poolAssetPlates, selectedMonth]);
+  }, [fuel, selectedMonth]);
 
-  // 3. Filter trips/corridas to only those belonging to pool plates (column O)
-  const poolTrips = useMemo(() => {
-    return trips.filter(t => {
-      const p = String(t.placa || "").toUpperCase().trim();
-      const matchPlate = poolAssetPlates.has(p);
-      if (!matchPlate) return false;
-      if (selectedMonth === "all") return true;
-      return t.monthYear === selectedMonth;
-    });
-  }, [trips, poolAssetPlates, selectedMonth]);
-
-  // 4. Precalculate vehicle-specific stats
+  // Precalculate vehicle-specific stats
   const vehicleStats = useMemo(() => {
     const map = new Map<string, { totalLitros: number; totalGasto: number; txCount: number; kmTotal: number; kms: number[] }>();
     
+    // Initialize with all 7 plates to guarantee they are monitored
+    POOL_PLATES.forEach(p => {
+      map.set(p, { totalLitros: 0, totalGasto: 0, txCount: 0, kmTotal: 0, kms: [] });
+    });
+
     poolFuel.forEach(f => {
       const p = String(f._placa || f.PLACA || "").toUpperCase().trim();
-      if (!p) return;
+      if (!p || !POOL_PLATES_SET.has(p)) return;
       
       const current = map.get(p) || { totalLitros: 0, totalGasto: 0, txCount: 0, kmTotal: 0, kms: [] };
       current.totalLitros += f._litros || 0;
@@ -129,7 +110,7 @@ export function MonitoramentoFrotaPool() {
     return map;
   }, [poolFuel]);
 
-  // 5. Compute "Desvios" following standard models
+  // Compute "Desvios" following standard models
   const desvios = useMemo(() => {
     const list: any[] = [];
     
@@ -139,6 +120,8 @@ export function MonitoramentoFrotaPool() {
 
       const asset = poolAssets.find(a => String(a.PLACA || "").toUpperCase().trim() === p);
       if (!asset) return;
+
+      const driver = String(f._driver || f.MOTORISTA || "NÃO IDENTIFICADO").trim().toUpperCase();
 
       // Desvio de Autonomia
       const autReal = f._autReal || 0;
@@ -155,7 +138,8 @@ export function MonitoramentoFrotaPool() {
             data: f._date || f["DATA TRANSACAO"] || "N/A",
             valor: `${autReal.toFixed(2)} Km/L`,
             referencia: `${autRef} Km/L`,
-            severity: diffPercent > 50 ? "high" : "medium"
+            severity: diffPercent > 50 ? "high" : "medium",
+            motorista: driver
           });
         }
       }
@@ -174,7 +158,8 @@ export function MonitoramentoFrotaPool() {
           data: f._date || f["DATA TRANSACAO"] || "N/A",
           valor: `${litros}L`,
           referencia: `${lim}L`,
-          severity: excesso > 15 ? "high" : "medium"
+          severity: excesso > 15 ? "high" : "medium",
+          motorista: driver
         });
       }
 
@@ -190,7 +175,8 @@ export function MonitoramentoFrotaPool() {
           data: f._date || f["DATA TRANSACAO"] || "N/A",
           valor: `${km} km`,
           referencia: "> 10 km",
-          severity: "high"
+          severity: "high",
+          motorista: driver
         });
       } else if (km > 0) {
         const vStat = vehicleStats.get(p);
@@ -207,7 +193,8 @@ export function MonitoramentoFrotaPool() {
               data: f._date || f["DATA TRANSACAO"] || "N/A",
               valor: `${km} km`,
               referencia: `${avgKm.toFixed(0)} km`,
-              severity: "medium"
+              severity: "medium",
+              motorista: driver
             });
           }
         }
@@ -217,123 +204,130 @@ export function MonitoramentoFrotaPool() {
     return list;
   }, [poolFuel, poolAssets, vehicleStats]);
 
-  // 6. Auditoria / Comparação de Placas: Relatório_corrida (Trips) vs Base Abastecimento
-  const platesComparison = useMemo(() => {
-    // Collect all plates that are in assets, trips or fuel
-    const allUniquePlates = new Set<string>();
-    
-    poolAssets.forEach(a => {
-      const p = String(a.PLACA || "").toUpperCase().trim();
-      if (p) allUniquePlates.add(p);
+  // Rankings and Stats for Visual Management (Gestão à Vista)
+
+  // 1. Ranking de Desvios por Veículo (Placa)
+  const rankingDesviosVeiculo = useMemo(() => {
+    const counts: Record<string, { total: number; high: number; medium: number }> = {};
+    POOL_PLATES.forEach(p => {
+      counts[p] = { total: 0, high: 0, medium: 0 };
     });
 
-    const activeTrips = selectedMonth === "all" ? trips : trips.filter(t => t.monthYear === selectedMonth);
-    const activeFuel = selectedMonth === "all" ? fuel : fuel.filter(f => f._monthYear === selectedMonth);
-
-    activeTrips.forEach(t => {
-      const p = String(t.placa || "").toUpperCase().trim();
-      if (p) allUniquePlates.add(p);
+    desvios.forEach(d => {
+      const p = String(d.placa).toUpperCase().trim();
+      if (counts[p]) {
+        counts[p].total += 1;
+        if (d.severity === "high") {
+          counts[p].high += 1;
+        } else {
+          counts[p].medium += 1;
+        }
+      }
     });
 
-    activeFuel.forEach(f => {
-      const p = String(f._placa || f.PLACA || "").toUpperCase().trim();
-      if (p) allUniquePlates.add(p);
-    });
-
-    const list: any[] = [];
-
-    allUniquePlates.forEach(p => {
-      const asset = assets.find(a => String(a.PLACA || "").toUpperCase().trim() === p);
-      const isCgfPoolAsset = poolAssets.some(a => String(a.PLACA || "").toUpperCase().trim() === p);
-      
-      const tripCount = activeTrips.filter(t => String(t.placa || "").toUpperCase().trim() === p).length;
-      
-      const fuelTxs = activeFuel.filter(f => String(f._placa || f.PLACA || "").toUpperCase().trim() === p);
-      const fuelCount = fuelTxs.length;
-      const totalLitros = fuelTxs.reduce((sum, f) => sum + (f._litros || 0), 0);
-      const totalCostFuel = fuelTxs.reduce((sum, f) => sum + (f._total || 0), 0);
-      
-      // Skip non-pool plates that had no activity in this period to keep lists clean
-      if (!isCgfPoolAsset && tripCount === 0 && fuelCount === 0) {
-        return;
-      }
-
-      let status: "regular" | "desvio" | "inconsistente" = "regular";
-      const alerts: string[] = [];
-
-      // Logic rules for audit
-      if (tripCount > 0 && fuelCount === 0 && isCgfPoolAsset) {
-        status = "desvio";
-        alerts.push("Corrida s/ Abastecimento registrado");
-      }
-      if (fuelCount > 0 && tripCount === 0 && isCgfPoolAsset) {
-        status = "inconsistente";
-        alerts.push("Abastecimento s/ Corrida cadastrada");
-      }
-      if (tripCount > 0 && asset && !isCgfPoolAsset) {
-        status = "inconsistente";
-        alerts.push("Veículo de outra coordenação rodando no Pool");
-      }
-
-      const hasDirectDesvio = desvios.some(d => d.placa === p);
-      if (hasDirectDesvio && status === "regular") {
-        status = "desvio";
-        alerts.push("Possui desvios técnicos (autonomia, litros ou km)");
-      }
-
-      list.push({
-        placa: p,
-        modelo: asset?.MODELO || (isCgfPoolAsset ? "Pool Vehicle" : "Voucher/Táxi"),
-        coordenacao: asset ? (asset.COORDENACAO || asset["COORDENAÇÃO"] || asset.GERENCIA || "Cadastrado") : "VOUCHER/TÁXI",
-        tripCount,
-        fuelCount,
-        totalLitros,
-        totalCostFuel,
-        status,
-        alerts
-      });
-    });
-
-    return list;
-  }, [poolAssets, assets, trips, fuel, desvios, selectedMonth]);
-
-  // Filter and search logic
-  const filteredComparison = useMemo(() => {
-    return platesComparison.filter(item => {
-      const matchSearch = 
-        item.placa.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        item.modelo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.coordenacao.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.alerts.some(a => a.toLowerCase().includes(searchTerm.toLowerCase()));
-
-      if (filterType === "all") return matchSearch;
-      return matchSearch && item.status === filterType;
-    });
-  }, [platesComparison, searchTerm, filterType]);
-
-  // Rankings data
-  const rankingMaiorGastoLitros = useMemo(() => {
-    const list = Array.from(vehicleStats.entries()).map(([placa, stats]) => {
+    return Object.entries(counts).map(([placa, stats]) => {
       const asset = poolAssets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa);
       return {
         placa,
-        modelo: asset?.MODELO || "Pool Vehicle",
+        modelo: asset?.MODELO || "Mobi",
+        total: stats.total,
+        high: stats.high,
+        medium: stats.medium
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [desvios, poolAssets]);
+
+  // 2. Ranking de Maior Gasto por Veículo (Placa)
+  const rankingGastoVeiculo = useMemo(() => {
+    return Array.from(POOL_PLATES_SET).map(placa => {
+      const stats = vehicleStats.get(placa) || { totalLitros: 0, totalGasto: 0, txCount: 0 };
+      const asset = poolAssets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa);
+      return {
+        placa,
+        modelo: asset?.MODELO || "Mobi",
+        totalGasto: stats.totalGasto,
+        totalLitros: stats.totalLitros,
+        txCount: stats.txCount
+      };
+    }).sort((a, b) => b.totalGasto - a.totalGasto);
+  }, [vehicleStats, poolAssets]);
+
+  // 3. Ranking de Desvios por Motorista
+  const rankingDesviosMotorista = useMemo(() => {
+    const counts: Record<string, { total: number; high: number; medium: number }> = {};
+
+    desvios.forEach(d => {
+      const driver = String(d.motorista || "NÃO IDENTIFICADO").trim().toUpperCase();
+      if (!counts[driver]) {
+        counts[driver] = { total: 0, high: 0, medium: 0 };
+      }
+      counts[driver].total += 1;
+      if (d.severity === "high") {
+        counts[driver].high += 1;
+      } else {
+        counts[driver].medium += 1;
+      }
+    });
+
+    return Object.entries(counts).map(([motorista, stats]) => {
+      return {
+        motorista,
+        total: stats.total,
+        high: stats.high,
+        medium: stats.medium
+      };
+    }).sort((a, b) => b.total - a.total);
+  }, [desvios]);
+
+  // Max Single Abastecimento transaction
+  const maxSingleAbast = useMemo(() => {
+    return poolFuel.reduce((max, f) => Math.max(max, f._total || 0), 0);
+  }, [poolFuel]);
+
+  // Charts data
+
+  // Chart 1: Maior Consumo por Veículo (Litros)
+  const rankingMaiorConsumoVeiculo = useMemo(() => {
+    const list = Array.from(POOL_PLATES_SET).map(placa => {
+      const stats = vehicleStats.get(placa) || { totalLitros: 0, totalGasto: 0, txCount: 0 };
+      const asset = poolAssets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa);
+      return {
+        placa,
+        modelo: asset?.MODELO || "Mobi",
         totalLitros: stats.totalLitros,
         totalGasto: stats.totalGasto
       };
     });
-    return list.sort((a, b) => b.totalLitros - a.totalLitros).slice(0, 7);
+    return list.sort((a, b) => b.totalLitros - a.totalLitros);
   }, [vehicleStats, poolAssets]);
 
+  // Chart 2: Maior Gasto por Motorista (R$)
+  const rankingMaiorGastoMotorista = useMemo(() => {
+    const map = new Map<string, number>();
+    poolFuel.forEach(f => {
+      const driver = String(f._driver || f.MOTORISTA || "NÃO IDENTIFICADO").trim().toUpperCase();
+      const current = map.get(driver) || 0;
+      map.set(driver, current + (f._total || 0));
+    });
+    return Array.from(map.entries())
+      .map(([motorista, totalGasto]) => ({ motorista, totalGasto }))
+      .sort((a, b) => b.totalGasto - a.totalGasto)
+      .slice(0, 5); // top 5
+  }, [poolFuel]);
+
+  // Chart 3: Mais Usados (Abastecimentos Realizados)
   const rankingMaisUsados = useMemo(() => {
-    const list = platesComparison.map(item => ({
-      placa: item.placa,
-      modelo: item.modelo,
-      tripCount: item.tripCount,
-      fuelCount: item.fuelCount
-    }));
-    return list.sort((a, b) => b.tripCount - a.tripCount).slice(0, 7);
-  }, [platesComparison]);
+    const list = Array.from(POOL_PLATES_SET).map(placa => {
+      const stats = vehicleStats.get(placa) || { totalLitros: 0, totalGasto: 0, txCount: 0 };
+      const asset = poolAssets.find(a => String(a.PLACA || "").toUpperCase().trim() === placa);
+      return {
+        placa,
+        modelo: asset?.MODELO || "Mobi",
+        count: stats.txCount
+      };
+    });
+    return list.sort((a, b) => b.count - a.count);
+  }, [vehicleStats, poolAssets]);
 
   const statsCount = useMemo(() => {
     const desviosAut = desvios.filter(d => d.tipo === "Autonomia").length;
@@ -342,6 +336,10 @@ export function MonitoramentoFrotaPool() {
 
     const totalLitros = poolFuel.reduce((sum, f) => sum + (f._litros || 0), 0);
     const totalGasto = poolFuel.reduce((sum, f) => sum + (f._total || 0), 0);
+    const totalAbast = poolFuel.length;
+
+    const precoMedioLitro = totalLitros > 0 ? totalGasto / totalLitros : 0;
+    const gastoMedioAbast = totalAbast > 0 ? totalGasto / totalAbast : 0;
 
     return {
       desviosAut,
@@ -350,16 +348,16 @@ export function MonitoramentoFrotaPool() {
       totalDesvios: desvios.length,
       totalLitros,
       totalGasto,
-      veiculosAtivos: poolAssets.length,
-      abastecimentosCount: poolFuel.length,
-      corridasCount: poolTrips.length
+      veiculosAtivos: 7, // exactly the 7 pool plates monitored
+      abastecimentosCount: totalAbast,
+      precoMedioLitro,
+      gastoMedioAbast
     };
-  }, [desvios, poolFuel, poolAssets, poolTrips]);
+  }, [desvios, poolFuel]);
 
   const handleSyncAll = () => {
     refetchAssets();
     refetchFuel();
-    refetchTrips();
   };
 
   if (isLoading) {
@@ -375,13 +373,17 @@ export function MonitoramentoFrotaPool() {
           <Skeleton className="h-28 w-full" />
           <Skeleton className="h-28 w-full" />
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Skeleton className="h-80 w-full" />
           <Skeleton className="h-80 w-full" />
           <Skeleton className="h-80 w-full" />
         </div>
       </div>
     );
   }
+
+  // Find max desvios vehicle to highlight in visual management
+  const maxDesviosVehicle = rankingDesviosVeiculo[0];
 
   return (
     <div className="space-y-6">
@@ -393,7 +395,7 @@ export function MonitoramentoFrotaPool() {
             Monitoramento Frota POOL
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-1">
-            Gestão operacional, auditoria de abastecimentos, verificação de conformidade e cruzamento de dados com corridas
+            Gestão operacional, auditoria de abastecimentos, verificação de conformidade e controle de consumo das 7 placas do POOL
           </p>
         </div>
 
@@ -428,7 +430,7 @@ export function MonitoramentoFrotaPool() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm border-l-4 border-l-indigo-600">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400">
               <Car className="h-5 w-5" />
@@ -436,18 +438,18 @@ export function MonitoramentoFrotaPool() {
             <div>
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Veículos POOL</span>
               <span className="text-xl font-black text-slate-800 dark:text-white">{statsCount.veiculosAtivos}</span>
-              <span className="text-[9px] font-medium text-slate-400 block">Cadastrados em CGF/POOL</span>
+              <span className="text-[9px] font-medium text-slate-400 block">Ativos em CGF/POOL</span>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm border-l-4 border-l-emerald-600">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 dark:text-emerald-400">
               <Fuel className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Litros / Custo</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Volume Abastecido</span>
               <span className="text-base font-black text-slate-800 dark:text-white">
                 {statsCount.totalLitros.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L
               </span>
@@ -458,13 +460,13 @@ export function MonitoramentoFrotaPool() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm border-l-4 border-l-amber-500">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 text-amber-600 dark:text-amber-400">
               <AlertTriangle className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Desvios de Abastecimento</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Alertas de Desvio</span>
               <span className="text-xl font-black text-slate-800 dark:text-white">{statsCount.totalDesvios}</span>
               <span className="text-[9px] font-medium text-amber-600 block">
                 {statsCount.desviosAut} Autonomia | {statsCount.desviosLit} Tanque
@@ -473,49 +475,301 @@ export function MonitoramentoFrotaPool() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm">
+        <Card className="bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 shadow-sm border-l-4 border-l-purple-600">
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-lg bg-purple-50 dark:bg-purple-950/30 text-purple-600 dark:text-purple-400">
               <Activity className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Corridas do Mês</span>
-              <span className="text-xl font-black text-slate-800 dark:text-white">{statsCount.corridasCount}</span>
-              <span className="text-[9px] font-medium text-slate-400 block">Registradas no Relatório</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Abastecimentos</span>
+              <span className="text-xl font-black text-slate-800 dark:text-white">{statsCount.abastecimentosCount}</span>
+              <span className="text-[9px] font-medium text-slate-400 block">Transações do Período</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Visual Management Panel (Painel de Custos & Rankings) */}
+      <div className="space-y-6">
+        
+        {/* Painel de Custos (Full width on desktop) */}
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-white flex items-center gap-2">
+                  <DollarSign className="h-5 w-5 text-emerald-600" />
+                  Painel de Custos e Consumo de Combustível (Frota POOL)
+                </CardTitle>
+                <CardDescription className="text-[11px] font-medium text-slate-500">
+                  Resumo de custos consolidados, médias de preço por litro e detalhamento individual dos 7 veículos
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 w-fit">
+                Gestão à Vista
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-6 space-y-6">
+            {/* Costs Metrics Cards inside the panel */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Preço Médio por Litro</span>
+                <span className="text-lg font-black text-slate-800 dark:text-white mt-1">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(statsCount.precoMedioLitro)}
+                </span>
+                <span className="text-[9px] text-slate-500 mt-1">Média ponderada do Pool</span>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Méd. por Abastecimento</span>
+                <span className="text-lg font-black text-slate-800 dark:text-white mt-1">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(statsCount.gastoMedioAbast)}
+                </span>
+                <span className="text-[9px] text-slate-500 mt-1">Ticket médio por transação</span>
+              </div>
+
+              <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-lg border border-slate-100 dark:border-slate-800 flex flex-col justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Maior Abastecimento Único</span>
+                <span className="text-lg font-black text-rose-600 dark:text-rose-400 mt-1">
+                  {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(maxSingleAbast)}
+                </span>
+                <span className="text-[9px] text-slate-500 mt-1">Pico máximo registrado</span>
+              </div>
+            </div>
+
+            {/* Cost table of the 7 plates */}
+            <div>
+              <h4 className="text-xs font-black uppercase text-slate-600 dark:text-slate-400 mb-3 tracking-wider flex items-center gap-1.5">
+                <TrendingUp className="h-4 w-4 text-indigo-500" />
+                Custos Detalhados por Placa Ativa
+              </h4>
+              <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-lg">
+                <Table>
+                  <TableHeader className="bg-slate-50 dark:bg-slate-950">
+                    <TableRow>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider py-2.5">Placa</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider py-2.5">Modelo</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider py-2.5 text-center">Transações</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider py-2.5 text-right">Volume (L)</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider py-2.5 text-right">Custo Total</TableHead>
+                      <TableHead className="text-[10px] font-black uppercase tracking-wider py-2.5 text-right">Preço Médio/L</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rankingGastoVeiculo.map((v) => {
+                      const avgPrice = v.totalLitros > 0 ? v.totalGasto / v.totalLitros : 0;
+                      return (
+                        <TableRow key={v.placa} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/5 transition-colors">
+                          <TableCell className="font-mono text-xs font-black py-2.5 text-slate-800 dark:text-slate-100">
+                            {v.placa}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600 dark:text-slate-300 font-bold py-2.5">
+                            {v.modelo}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-700 dark:text-slate-300 font-bold py-2.5 text-center">
+                            {v.txCount}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-600 dark:text-slate-300 font-medium py-2.5 text-right">
+                            {v.totalLitros.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} L
+                          </TableCell>
+                          <TableCell className="text-xs font-black py-2.5 text-slate-800 dark:text-slate-100 text-right">
+                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v.totalGasto)}
+                          </TableCell>
+                          <TableCell className="text-xs text-slate-500 font-semibold py-2.5 text-right">
+                            {avgPrice > 0 ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(avgPrice) : "-"}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Rankings de Gestão à Vista (Horizontal layout) */}
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
+          <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
+            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-white flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-indigo-600" />
+              Rankings de Gestão à Vista
+            </CardTitle>
+            <CardDescription className="text-[11px] font-medium text-slate-500">
+              Identificação rápida de veículos e motoristas com maior incidência de desvios ou custos operacionais
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+              
+              {/* Ranking 1: Mais Desvios */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-slate-600 dark:text-slate-400 tracking-wider flex items-center gap-1">
+                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    Mais Desvios / Alertas
+                  </h4>
+                </div>
+                
+                <div className="space-y-2">
+                  {rankingDesviosVeiculo.map((item, index) => {
+                    const maxTotal = rankingDesviosVeiculo[0]?.total || 1;
+                    const percent = maxTotal > 0 ? (item.total / maxTotal) * 100 : 0;
+                    
+                    return (
+                      <div key={item.placa} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{item.placa}</span>
+                            <span className="text-[10px] text-slate-500">({item.modelo})</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="font-black text-slate-800 dark:text-slate-100">{item.total}</span>
+                            <span className="text-[10px] text-slate-400">alertas</span>
+                          </div>
+                        </div>
+                        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              item.total > 4 
+                                ? "bg-rose-500" 
+                                : item.total > 1 
+                                ? "bg-amber-500" 
+                                : item.total > 0
+                                ? "bg-indigo-500"
+                                : "bg-slate-300 dark:bg-slate-700"
+                            }`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ranking 2: Maior Gasto */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-slate-600 dark:text-slate-400 tracking-wider flex items-center gap-1">
+                    <DollarSign className="h-4 w-4 text-emerald-600" />
+                    Maior Gasto (Custo Total)
+                  </h4>
+                </div>
+
+                <div className="space-y-2">
+                  {rankingGastoVeiculo.map((item, index) => {
+                    const maxCost = rankingGastoVeiculo[0]?.totalGasto || 1;
+                    const percent = maxCost > 0 ? (item.totalGasto / maxCost) * 100 : 0;
+
+                    return (
+                      <div key={item.placa} className="space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-black text-slate-800 dark:text-slate-200">{item.placa}</span>
+                            <span className="text-[10px] text-slate-500">({item.modelo})</span>
+                          </div>
+                          <span className="font-black text-slate-800 dark:text-slate-100">
+                            {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(item.totalGasto)}
+                          </span>
+                        </div>
+                        <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Ranking 3: Mais Desvios por Motorista */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-slate-600 dark:text-slate-400 tracking-wider flex items-center gap-1">
+                    <Users className="h-4 w-4 text-indigo-500" />
+                    Mais Desvios por Motorista
+                  </h4>
+                </div>
+
+                <div className="space-y-2">
+                  {rankingDesviosMotorista.length === 0 ? (
+                    <div className="text-xs text-slate-400 py-4 text-center">
+                      Nenhum desvio registrado para motoristas
+                    </div>
+                  ) : (
+                    rankingDesviosMotorista.slice(0, 7).map((item, index) => {
+                      const maxTotal = rankingDesviosMotorista[0]?.total || 1;
+                      const percent = maxTotal > 0 ? (item.total / maxTotal) * 100 : 0;
+
+                      return (
+                        <div key={item.motorista} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-bold text-slate-800 dark:text-slate-200 truncate max-w-[170px]" title={item.motorista}>
+                              {item.motorista}
+                            </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <span className="font-black text-slate-800 dark:text-slate-100">{item.total}</span>
+                              <span className="text-[10px] text-slate-400">alertas</span>
+                            </div>
+                          </div>
+                          <div className="h-2 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                item.total > 4 
+                                  ? "bg-rose-500" 
+                                  : item.total > 1 
+                                  ? "bg-amber-500" 
+                                  : "bg-indigo-500"
+                              }`}
+                              style={{ width: `${percent}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Charts & Rankings */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Ranking de Maior Gasto de Litros */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Maior Consumo por Veículo */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
           <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Ranking de Maior Gasto de Litros (Maior Litragem)
+            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <Fuel className="h-4 w-4 text-emerald-600" />
+              Maior Consumo por Veículo
             </CardTitle>
             <CardDescription className="text-[11px] font-medium text-slate-500">
-              Veículos POOL com maior consumo acumulado de combustível no período
+              Consumo acumulado das 7 placas do Pool (L)
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 h-80">
-            {rankingMaiorGastoLitros.length === 0 ? (
+            {rankingMaiorConsumoVeiculo.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                Nenhum abastecimento registrado para veículos Pool
+                Nenhum abastecimento registrado para os veículos Pool
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={rankingMaiorGastoLitros} margin={{ bottom: 15 }}>
+                <BarChart data={rankingMaiorConsumoVeiculo} margin={{ bottom: 15 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-slate-100 dark:stroke-slate-800" />
-                  <XAxis dataKey="placa" className="text-[10px] font-black text-slate-500" />
-                  <YAxis className="text-[10px] font-bold text-slate-400" label={{ value: "Litros (L)", angle: -90, position: "insideLeft", offset: 0, style: { textAnchor: 'middle', fontSize: '10px', fontWeight: 'bold' } }} />
+                  <XAxis dataKey="placa" className="text-[9px] font-black text-slate-500" />
+                  <YAxis className="text-[9px] font-bold text-slate-400" label={{ value: "Litros (L)", angle: -90, position: "insideLeft", offset: 0, style: { textAnchor: 'middle', fontSize: '9px', fontWeight: 'bold' } }} />
                   <Tooltip
                     formatter={(value: any) => [`${value.toLocaleString("pt-BR")} L`, "Volume"]}
                     contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", color: "#fff", borderRadius: "8px" }}
                   />
                   <Bar dataKey="totalLitros" name="Volume Total (L)" fill="#059669" radius={[4, 4, 0, 0]}>
-                    {rankingMaiorGastoLitros.map((entry, index) => (
+                    {rankingMaiorConsumoVeiculo.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={index === 0 ? "#047857" : "#10b981"} />
                     ))}
                   </Bar>
@@ -525,34 +779,72 @@ export function MonitoramentoFrotaPool() {
           </CardContent>
         </Card>
 
-        {/* Mais Usados (Total de Corridas) */}
+        {/* Maior Gasto por Motorista */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
           <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
-            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
-              Mais Usados (Corridas Realizadas)
+            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <Users className="h-4 w-4 text-blue-600" />
+              Maior Gasto por Motorista
             </CardTitle>
             <CardDescription className="text-[11px] font-medium text-slate-500">
-              Veículos POOL com maior frequência de agendamentos de corrida executados
+              Valor acumulado em abastecimentos do Pool por condutor (R$)
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 h-80">
-            {rankingMaisUsados.filter(v => v.tripCount > 0).length === 0 ? (
+            {rankingMaiorGastoMotorista.length === 0 ? (
               <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                Nenhuma corrida registrada para veículos Pool
+                Nenhum gasto registrado para motoristas
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={rankingMaisUsados.filter(v => v.tripCount > 0)} margin={{ bottom: 15 }}>
+                <BarChart data={rankingMaiorGastoMotorista} margin={{ bottom: 15 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-slate-100 dark:stroke-slate-800" />
-                  <XAxis dataKey="placa" className="text-[10px] font-black text-slate-500" />
-                  <YAxis className="text-[10px] font-bold text-slate-400" label={{ value: "Nº Corridas", angle: -90, position: "insideLeft", offset: 0, style: { textAnchor: 'middle', fontSize: '10px', fontWeight: 'bold' } }} />
+                  <XAxis dataKey="motorista" className="text-[9px] font-black text-slate-500" tickFormatter={(v) => v.split(" ")[0]} />
+                  <YAxis className="text-[9px] font-bold text-slate-400" label={{ value: "Valor (R$)", angle: -90, position: "insideLeft", offset: 0, style: { textAnchor: 'middle', fontSize: '9px', fontWeight: 'bold' } }} />
                   <Tooltip
-                    formatter={(value: any) => [value, "Corridas"]}
+                    formatter={(value: any) => [`${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)}`, "Custo Total"]}
                     contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", color: "#fff", borderRadius: "8px" }}
                   />
-                  <Bar dataKey="tripCount" name="Total Corridas" fill="#4f46e5" radius={[4, 4, 0, 0]}>
+                  <Bar dataKey="totalGasto" name="Valor Total (R$)" fill="#3b82f6" radius={[4, 4, 0, 0]}>
+                    {rankingMaiorGastoMotorista.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={index === 0 ? "#1d4ed8" : "#3b82f6"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Mais Usados */}
+        <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
+          <CardHeader className="pb-2 border-b border-slate-100 dark:border-slate-800">
+            <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-2">
+              <Activity className="h-4 w-4 text-purple-600" />
+              Mais Usados (Frequência)
+            </CardTitle>
+            <CardDescription className="text-[11px] font-medium text-slate-500">
+              Veículos com maior quantidade de abastecimentos no período
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 h-80">
+            {rankingMaisUsados.filter(v => v.count > 0).length === 0 ? (
+              <div className="h-full flex items-center justify-center text-xs text-slate-400">
+                Nenhuma utilização cadastrada para veículos Pool
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={rankingMaisUsados.filter(v => v.count > 0)} margin={{ bottom: 15 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-slate-100 dark:stroke-slate-800" />
+                  <XAxis dataKey="placa" className="text-[9px] font-black text-slate-500" />
+                  <YAxis className="text-[9px] font-bold text-slate-400" label={{ value: "Frequência", angle: -90, position: "insideLeft", offset: 0, style: { textAnchor: 'middle', fontSize: '9px', fontWeight: 'bold' } }} />
+                  <Tooltip
+                    formatter={(value: any) => [value, "Frequência"]}
+                    contentStyle={{ backgroundColor: "#1e293b", borderColor: "#334155", color: "#fff", borderRadius: "8px" }}
+                  />
+                  <Bar dataKey="count" name="Total Abastecimentos" fill="#8b5cf6" radius={[4, 4, 0, 0]}>
                     {rankingMaisUsados.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index === 0 ? "#3730a3" : "#6366f1"} />
+                      <Cell key={`cell-${index}`} fill={index === 0 ? "#6d28d9" : "#8b5cf6"} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -633,134 +925,6 @@ export function MonitoramentoFrotaPool() {
               </Table>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      {/* Auditoria Cruzada - Placas de Relatório Corrida x Base Abastecimento */}
-      <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm">
-        <CardHeader className="pb-3 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-white flex items-center gap-2">
-                <Layers className="h-4 w-4 text-indigo-500" />
-                Auditoria Cruzada (Relatório Corrida vs Abastecimentos)
-              </CardTitle>
-              <CardDescription className="text-[11px] font-medium text-slate-500">
-                Auditoria e comparação das placas registradas na Coluna O do Relatório de Corridas contra a Base de Abastecimentos dos ativos CGF/POOL
-              </CardDescription>
-            </div>
-
-            {/* Filter controls */}
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-full sm:w-48">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  type="text"
-                  placeholder="Filtrar placa..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 text-xs h-9 w-full rounded-lg"
-                />
-              </div>
-
-              <div className="flex items-center bg-slate-100 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800">
-                <Button 
-                  variant={filterType === "all" ? "secondary" : "ghost"} 
-                  size="sm" 
-                  onClick={() => setFilterType("all")}
-                  className="text-[10px] font-bold uppercase tracking-wider h-8 px-2.5 rounded-md"
-                >
-                  Todos
-                </Button>
-                <Button 
-                  variant={filterType === "regular" ? "secondary" : "ghost"} 
-                  size="sm" 
-                  onClick={() => setFilterType("regular")}
-                  className="text-[10px] font-bold uppercase tracking-wider h-8 px-2.5 rounded-md text-emerald-600"
-                >
-                  Sem Inconsistência
-                </Button>
-                <Button 
-                  variant={filterType === "desvio" ? "secondary" : "ghost"} 
-                  size="sm" 
-                  onClick={() => setFilterType("desvio")}
-                  className="text-[10px] font-bold uppercase tracking-wider h-8 px-2.5 rounded-md text-amber-600"
-                >
-                  Alertas
-                </Button>
-                <Button 
-                  variant={filterType === "inconsistente" ? "secondary" : "ghost"} 
-                  size="sm" 
-                  onClick={() => setFilterType("inconsistente")}
-                  className="text-[10px] font-bold uppercase tracking-wider h-8 px-2.5 rounded-md text-rose-600"
-                >
-                  Irregularidades
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="max-h-[500px] overflow-y-auto">
-            <Table>
-              <TableHeader className="bg-slate-50 dark:bg-slate-950 sticky top-0 z-10">
-                <TableRow>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider w-24">Placa</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider w-32">Modelo</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider w-36">Coordenação / Setor</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-center w-24">Qtd Corridas</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-center w-28">Qtd Abastecimentos</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-right w-24">Vol Abast.</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider text-right w-28">Total Combustível</TableHead>
-                  <TableHead className="text-[10px] font-black uppercase tracking-wider w-40">Status Auditoria</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredComparison.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center p-8 text-xs text-slate-400">
-                      Nenhum registro encontrado correspondente aos filtros de auditoria cruzada.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredComparison.map((item) => (
-                    <TableRow key={item.placa} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/10 transition-colors">
-                      <TableCell className="font-mono text-xs font-black text-slate-800 dark:text-slate-100">{item.placa}</TableCell>
-                      <TableCell className="text-xs text-slate-600 dark:text-slate-300 font-bold truncate max-w-[140px]">{item.modelo}</TableCell>
-                      <TableCell className="text-xs text-slate-500 font-medium truncate max-w-[150px]" title={item.coordenacao}>{item.coordenacao}</TableCell>
-                      <TableCell className="text-center font-bold text-xs">{item.tripCount}</TableCell>
-                      <TableCell className="text-center font-bold text-xs">{item.fuelCount}</TableCell>
-                      <TableCell className="text-right text-xs font-bold">{item.totalLitros.toFixed(1)} L</TableCell>
-                      <TableCell className="text-right text-xs font-black text-slate-800 dark:text-slate-100">
-                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(item.totalCostFuel)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <Badge 
-                            variant="outline" 
-                            className={`text-[9px] font-black uppercase tracking-wider w-fit ${
-                              item.status === "regular" 
-                                ? "text-emerald-600 border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20" 
-                                : item.status === "desvio" 
-                                ? "text-amber-600 border-amber-200 bg-amber-50 dark:bg-amber-950/20" 
-                                : "text-rose-600 border-rose-200 bg-rose-50 dark:bg-rose-950/20"
-                            }`}
-                          >
-                            {item.status === "regular" ? "Regular" : item.status === "desvio" ? "Alerta" : "Irregularidade"}
-                          </Badge>
-                          {item.alerts.map((alert: string, idx: number) => (
-                            <span key={idx} className="text-[9px] font-bold text-rose-500 dark:text-rose-400 block leading-tight">
-                              • {alert}
-                            </span>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
         </CardContent>
       </Card>
     </div>
