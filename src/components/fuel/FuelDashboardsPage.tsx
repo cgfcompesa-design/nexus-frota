@@ -1214,11 +1214,20 @@ const FuelDashboardsPage = ({ setView }: { setView?: (view: string) => void }) =
     };
   }, [filteredFuel, assetsByPlaca]);
 
-  // 8. Tabela de Detalhamento por Veículo (Placa, Tipo, Modelo, Titularidade, Ano, Mês 1, Mês 2, Mês 3, Último Odômetro)
-  const displayMonths = useMemo(() => {
-    if (monthYearOptions.length > 0) return monthYearOptions.slice(-6);
-    return [];
-  }, [monthYearOptions]);
+  // 8. Tabela de Detalhamento por Veículo Abas como resumo por veículo(Placa, Tipo, Modelo, Titularidade, Ano, Mês 1, Mês 2, Mês 3, Último Odômetro)
+ const displayMonths = useMemo(() => {
+  // Usar todos os meses do range selecionado, não apenas os últimos 6 COMO ERA FEITO ANTES
+  if (monthYearOptions.length > 0) {
+    // Se há filtro de datas, usar apenas meses dentro do filtro
+    if (selectedMonthsYears.length > 0) {
+      return selectedMonthsYears.sort((a, b) => parseMonthYear(a).getTime() - parseMonthYear(b).getTime());
+    }
+    // Caso contrário, usar todos os meses disponíveis (não limitar a 6)
+    return monthYearOptions;
+  }
+  return [];
+}, [monthYearOptions, selectedMonthsYears]);
+
 
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const topScrollRef = useRef<HTMLDivElement>(null);
