@@ -60,8 +60,8 @@ const SHADES_OF_BLUE = [
 ];
 
 const MONTH_ORDER: Record<string, number> = {
-  'jan': 0, 'fev': 1, 'mar': 2, 'abr': 3, 'mai': 4, 'jun': 5,
-  'jul': 6, 'ago': 7, 'set': 8, 'out': 9, 'nov': 10, 'dez': 11
+ 'jan': 1, 'fev': 2, 'mar': 3, 'abr': 4, 'mai': 5, 'jun': 6,
+  'jul': 7, 'ago': 8, 'set': 9, 'out': 10, 'nov': 11, 'dez': 12
 };
 
 const parseMonthYear = (my: string) => {
