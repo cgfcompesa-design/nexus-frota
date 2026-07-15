@@ -150,29 +150,79 @@ export async function fetchPreventiveMaintenanceData(): Promise<any[]> {
   });
 }
 
+/**
+ * Fetch preventive maintenance data for rented vehicles (locados)
+ * Dynamically detects header row by looking for key column names like "PLACA"
+ * Headers are typically on line 4 (index 3), but this function auto-detects
+ */
 export async function fetchPreventiveLocadosData(): Promise<any[]> {
   const rawRows = await fetchCsv(PREVENTIVE_LOCADOS_URL);
-  // Header on line 4 (index 3), data from line 5 (index 4)
-  if (rawRows.length <= 3) return [];
-  const headers = rawRows[3];
-  const dataRows = rawRows.slice(4);
+  
+  if (rawRows.length === 0) {
+    console.warn("fetchPreventiveLocadosData: No rows returned from CSV");
+    return [];
+  }
+
+  // Dynamic header detection - look for row containing "PLACA" and other key fields
+  let headerRowIdx = -1;
+  const headerKeywords = ["PLACA", "ODÔMETRO", "ODOMETRO", "REVISÃO", "REVISAO", "DATA", "DIRETORIA", "GERÊNCIA", "GERENCIA"];
+  
+  // Scan first 10 rows to find headers
+  for (let i = 0; i < Math.min(10, rawRows.length); i++) {
+    const row = rawRows[i];
+    if (!row) continue;
+    
+    const uppercaseRow = row.map(cell => String(cell || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+    const matches = uppercaseRow.filter(cell => headerKeywords.some(kw => cell.includes(kw))).length;
+    
+    // If this row has many header keywords, it's likely the header row
+    if (matches >= 3) {
+      headerRowIdx = i;
+      console.log(`fetchPreventiveLocadosData: Found header row at index ${i} with ${matches} matching keywords`);
+      break;
+    }
+  }
+
+  // Fallback: if no header found, assume line 4 (index 3)
+  if (headerRowIdx === -1) {
+    headerRowIdx = Math.min(3, rawRows.length - 1);
+    console.warn(`fetchPreventiveLocadosData: No clear header found, using fallback index ${headerRowIdx}`);
+  }
+
+  if (headerRowIdx >= rawRows.length - 1) {
+    console.warn("fetchPreventiveLocadosData: Header row is at or beyond last row");
+    return [];
+  }
+
+  const headers = rawRows[headerRowIdx];
+  const dataRows = rawRows.slice(headerRowIdx + 1);
+
+  console.log(`fetchPreventiveLocadosData: Processing ${dataRows.length} data rows`);
+
   return dataRows.map(row => {
     const obj: any = { __raw: row };
+    
+    // Add column index keys for fallback access
     row.forEach((val, i) => {
       obj[`COL_${i}`] = val;
     });
+
+    // Map headers with accent normalization for flexible access
     headers.forEach((h, i) => { 
       if (h) {
         const key = h.trim().toUpperCase();
         obj[key] = row[i];
+        
+        // Add normalized version (without accents) for flexible access
         const normalizedKey = key.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
         if (normalizedKey !== key) {
           obj[normalizedKey] = row[i];
         }
       }
     });
+
     return obj;
-  });
+  }).filter(row => row.__raw && row.__raw.length > 0);
 }
 
 export async function fetchFuelData(): Promise<any[]> {
@@ -371,10 +421,6 @@ export async function fetchFuelData(): Promise<any[]> {
     });
 
     // Absolute Fallbacks (specific column indices for Ticket Log / ValeCard)
-    // The user says Column E (index 4) is Data/Hora. 
-    // And Column F (index 5) seems to be the Plate based on "N/A RZV1A58" feedback.
-    // And "Time" was appearing in "Cód. Transação" which was mapped to row[0].
-    
     if (!obj._txId) obj._txId = row[0] || row[8] || "N/A";
     if (!obj._date) obj._date = row[4]; // Column E
     if (!obj._placa) obj._placa = String(row[5] || row[10] || row[11] || obj._placa || "").toUpperCase().replace(/[^A-Z0-9]/gi, "");
@@ -392,10 +438,6 @@ export async function fetchFuelData(): Promise<any[]> {
     if (!obj._monthYear) obj._monthYear = row[41];
     if (!obj._autReal) obj._autReal = parseNum(row[42]); // Column AQ index 42
     
-    // Transaction ID should probably be in E (row[4]) or fallback to something else?
-    // If E is Data/Hora, maybe the Transaction ID is in F? Or I should keep searching.
-    // Let's try to map txId to a different column if it's currently showing Time.
-    // Usually Ticket Log has it in index 3 or 4.
     if (!obj._txId) obj._txId = row[0] || row[8] || row[4] || "N/A";
     if (!obj._posto) obj._posto = row[21] || row[16] || row[23] || "N/A";
     if (!obj._cidade) obj._cidade = row[25] || row[21] || row[20] || "N/A";
@@ -615,7 +657,7 @@ export async function fetchFleetData(): Promise<Asset[]> {
     };
 
     const combustivel = item["COMBUSTÍVEL"] || item["COMBUSTIVEL"] || item["TIPO COMBUSTÍVEL"] || item["TIPO COMBUSTIVEL"] || row[11] || "N/A";
-    const autonomiaVal = item["AUTONOMIA PADRÃO (KM/LITRO OU HORA/LITRO)"] || item["AUTONOMIA PADRÃO"] || item["AUTONOMIA PADRAO"] || item["AUTONOMIA"] || item["AUTONOMIA (KM/L)"] || row[28] || row[29];
+    const autonomiaVal = item["AUTONOMIA PADRÃO (KM/LITRO OU HORA/LITRO)"] || item["AUTONOMIA PADRÃO"] || item["AUTONOMIA PADRAO"] || item["AUTONOMIA"] || item["AUTONOMIA (KM/L)"] || row[28] ||[...]
     const autonomiaSecundariaVal = item["AUTONOMIA SECUNDÁRIA"] || item["AUTONOMIA SECUNDARIA"] || item["AUTONOMIA SEC"] || row[33] || row[34];
     const capacidadeVal = item["CAPACIDADE DO TANQUE"] || item["CAPACIDADE TANQUE"] || item["CAPACIDADE"] || item["TANQUE"] || row[30] || row[31];
     
